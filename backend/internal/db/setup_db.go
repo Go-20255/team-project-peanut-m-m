@@ -118,7 +118,7 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
 
     _, err = tx.Exec(ctx, `
         CREATE TABLE Rents (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY,
         base INTEGER NOT NULL,
         color_set INTEGER NOT NULL,
         one_house INTEGER NOT NULL,
@@ -132,9 +132,19 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
         log.Fatal().Err(err).Msg("failed to create rents table")
     }
 
+    // TODO: update insert with real rent values
+    _, err = tx.Exec(ctx, `
+        INSERT INTO Rents (id, base, color_set, one_house, two_house, three_house, four_house, hotel)
+        VALUES
+            (0, 10, 25, 100, 200, 300, 400, 1000000) -- note the id as you will need to match it later with its respective property
+        `)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to insert rents into db")
+    }
+
     _, err = tx.Exec(ctx, `
         CREATE TABLE Property (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY,
         rentvalues_id INTEGER REFERENCES Rents(id), -- points to a row in rents table that contains all property specific rents (tbh these values could also just be a part of this table...) (null if utility or railroad)
         purchase_cost INTEGER NOT NULL, -- cost of property to buy
         mortgage_cost INTEGER NOT NULL, -- value gained from mortgaging
@@ -148,6 +158,16 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
         log.Fatal().Err(err).Msg("failed to create property table")
     }
 
+    // TODO: update insert with real properties
+    _, err = tx.Exec(ctx, `
+        INSERT INTO Property (id, rentvalues_id, purchase_cost, mortgage_cost, unmortgage_cost, house_cost, hotel_cost, ptype)
+        VALUES
+            (0, 0, 120, 100, 110, 50, 100, 'BROWN') -- rentvalues_id value is the rent vlaues we want referenced in the rent table
+        `)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to insert properties into db")
+    }
+
     _, err = tx.Exec(ctx, `
         CREATE TABLE Event_Cards ( -- Community and Chance Cards
         id SERIAL PRIMARY KEY,
@@ -158,6 +178,17 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
         `)
     if err != nil {
         log.Fatal().Err(err).Msg("failed to create event cards table")
+    }
+
+    // TODO: update with actual cards
+    _, err = tx.Exec(ctx, `
+        INSERT INTO Event_Cards (name, description, type)
+        VALUES 
+        ('example community card', 'example description', 'COMMUNITY'),
+        ('example chance card', 'example description', 'CHANCE')
+        `)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to insert event cards into db")
     }
 
     _, err = tx.Exec(ctx, `
