@@ -24,7 +24,7 @@ func CheckGameStateCode(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx,
 	var id string
 	err := tx.QueryRow(ctx, `
 		SELECT session_id FROM Game_State WHERE code = $1
-		`, code).scan(&id)
+		`, code).Scan(&id)
 	if err != nil {
 		return "", err
 	}
