@@ -1,7 +1,5 @@
 #!/bin/bash
 
-STORE_PATH="/opt/comp/store"
-
 if [ ! -f ".internal.env" ] ; then
     printf "Missing .internal.env in backend/env. Generating secure password and JWT secret...\n"
 
