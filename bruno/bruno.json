@@ -1,0 +1,15 @@
+{
+  "version": "1",
+  "name": "Monopoly API",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ],
+  "presets": {
+    "requestType": "http",
+    "requestUrl": "http://localhost:9876/api/"
+  },
+  "size": 0,
+  "filesCount": 0
+}

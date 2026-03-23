@@ -108,7 +108,7 @@ func Setup_logging() {
     }
 
     // --- Wrap each writer with its own minimum level ---
-    consoleLevelWriter := levelFilterWriter{writer: consoleWriter, level: zerolog.DebugLevel}
+    consoleLevelWriter := levelFilterWriter{writer: consoleWriter, level: zerolog.TraceLevel}
     fileLevelWriter := levelFilterWriter{writer: rotatingFile, level: zerolog.InfoLevel}
 
     // --- Multi-level writer ---
@@ -121,6 +121,6 @@ func Setup_logging() {
         Timestamp().
         Logger()
 
-    zerolog.SetGlobalLevel(zerolog.DebugLevel) // global minimum; per-output filtering still applies
+    zerolog.SetGlobalLevel(zerolog.TraceLevel) // global minimum; per-output filtering still applies
 }
 
