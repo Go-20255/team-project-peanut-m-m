@@ -49,6 +49,22 @@ func SetupDatabase(ctx context.Context, log zerolog.Logger) {
         log.Info().Msg("database monopoly created successfully.")
     } else {
         log.Info().Msg("database monopoly already exists.")
+    }
+
+    db, err = pgx.Connect(ctx, monopoly_db_url)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to connect to postgres database")
+    }
+    defer db.Close(ctx)
+
+
+    var tableExists bool
+    err = db.QueryRow(ctx, "SELECT EXISTS (SELECT FROM pg_tables WHERE tablename = 'rents')").Scan(&tableExists)
+    if err != nil {
+        log.Panic().Err(err).Msg("failed to check if tables exist")
+    }
+    if tableExists {
+        log.Printf("Tables already exist. Skipping setup.")
         return
     }
 
@@ -67,6 +83,108 @@ func SetupDatabase(ctx context.Context, log zerolog.Logger) {
 
 
     // TODO: start adding tables here
+    _, err = tx.Exec(ctx, `
+CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED', 'YELLOW', 'GREEN', 'DARKBLUE', 'RAILROAD', 'UTILITY')
+        `)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to create enum of property types")
+    }
+
+    _, err = tx.Exec(ctx, `
+        CREATE TABLE Game_State (
+        session_id SERIAL PRIMARY KEY,
+        turn_number INTEGER NOT NULL DEFAULT -1
+        )
+        `)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to create game state table")
+    }
+
+    _, err = tx.Exec(ctx, `
+        CREATE TABLE Player (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        player_order INTEGER, -- Becomes not null later when turns are decided via "dice" roll
+        money INTEGER NOT NULL DEFAULT 0,
+        position INTEGER NOT NULL DEFAULT 0, -- index of position into 1D board array
+        get_out_of_jail_cards INTEGER NOT NULL DEFAULT 0, -- number of get out of jail cards held
+        jailed INTEGER NOT NULL DEFAULT 0, -- number of turns stuck in jail
+        session_id INTEGER REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL
+        )
+        `)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to create player table")
+    }
+
+    _, err = tx.Exec(ctx, `
+        CREATE TABLE Rents (
+        id SERIAL PRIMARY KEY,
+        base INTEGER NOT NULL,
+        color_set INTEGER NOT NULL,
+        one_house INTEGER NOT NULL,
+        two_house INTEGER NOT NULL,
+        three_house INTEGER NOT NULL,
+        four_house INTEGER NOT NULL,
+        hotel INTEGER NOT NULL
+        )
+        `)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to create rents table")
+    }
+
+    _, err = tx.Exec(ctx, `
+        CREATE TABLE Property (
+        id SERIAL PRIMARY KEY,
+        rentvalues_id INTEGER REFERENCES Rents(id), -- points to a row in rents table that contains all property specific rents (tbh these values could also just be a part of this table...) (null if utility or railroad)
+        purchase_cost INTEGER NOT NULL, -- cost of property to buy
+        mortgage_cost INTEGER NOT NULL, -- value gained from mortgaging
+        unmortgage_cost INTEGER NOT NULL, -- price to pay to remove mortgage
+        house_cost INTEGER, -- base value needed to buy a house (null if utility or railroad)
+        hotel_cost INTEGER, -- base value needed to buy a hotel (null if utility or railroad)
+        ptype property_type NOT NULL -- property type
+        )
+        `)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to create property table")
+    }
+
+    _, err = tx.Exec(ctx, `
+        CREATE TABLE Event_Cards ( -- Community and Chance Cards
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        type TEXT CHECK (type IN ('COMMUNITY', 'CHANCE'))
+        )
+        `)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to create event cards table")
+    }
+
+    _, err = tx.Exec(ctx, `
+        CREATE TABLE Owned_Properties (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER REFERENCES Property(id),
+        session_id INTEGER REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL,
+        owner_id INTEGER REFERENCES Player(id) ON DELETE CASCADE NOT NULL,
+        mortgaged BOOLEAN NOT NULL DEFAULT False,
+        houses INTEGER NOT NULL DEFAULT 0,
+        hotel BOOLEAN NOT NULL DEFAULT False
+        )
+        `)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to create owned_properties table")
+    }
+
+    _, err = tx.Exec(ctx, `
+        CREATE TABLE Drawn_Event_Cards (
+        id SERIAL PRIMARY KEY,
+        session_id INTEGER REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL,
+        card_id INTEGER REFERENCES Event_Cards(id) NOT NULL
+        )
+        `)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to create drawn event cards table")
+    }
 
 
 

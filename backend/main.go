@@ -25,7 +25,7 @@ func main() {
     log.Info().Msg("Welcome To Monopoly")
     err := godotenv.Load("../.internal.env")
     if err != nil {
-        log.Info().Msg("WARNING: Failed to load .internal.env file.\nThis file will not be included in the repository and must be created manually. This file includes the environment variables STORE_DISCORD_WEBHOOK and STORE_JWT_SECRET. The secret can be whatever you want as a string and the webhook can be retrieved from the server admin.")
+        log.Info().Msg("WARNING: Failed to load .internal.env file in repo root")
     }
 
     
