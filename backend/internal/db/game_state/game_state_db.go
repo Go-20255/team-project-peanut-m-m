@@ -8,7 +8,6 @@ import (
 )
 
 func GameStateExists(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) error {
-
 	rows, err := tx.Query(ctx, `
         SELECT session_id FROM Game_State WHERE session_id = $1
         `, sessionId)
@@ -19,4 +18,15 @@ func GameStateExists(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, se
 	}
 	rows.Close()
 	return nil
+}
+
+func CheckGameStateCode(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, code string) (string, error) {
+	var id string
+	err := tx.QueryRow(ctx, `
+		SELECT session_id FROM Game_State WHERE code = $1
+		`, code).scan(&id)
+	if err != nil {
+		return "", err
+	}
+	return id, nil
 }
