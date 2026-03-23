@@ -9,98 +9,96 @@ import (
 	"github.com/rs/zerolog"
 )
 
-
 func SetupDatabase(ctx context.Context, log zerolog.Logger) {
-    monopoly_db_url_str := "postgres://postgres:<pass>@localhost:<port>/monopoly?sslmode=disable"
-    monopoly_db_port := os.Getenv("POSTGRES_PORT")
-    if monopoly_db_port == "" {
-        monopoly_db_port = "1357"
-    }
-    postgres_password := os.Getenv("POSTGRES_PASSWORD")
-    monopoly_db_url := strings.ReplaceAll(monopoly_db_url_str, "<pass>", postgres_password)
-    monopoly_db_url = strings.ReplaceAll(monopoly_db_url, "<port>", monopoly_db_port)
+	monopoly_db_url_str := "postgres://postgres:<pass>@localhost:<port>/monopoly?sslmode=disable"
+	monopoly_db_port := os.Getenv("POSTGRES_PORT")
+	if monopoly_db_port == "" {
+		monopoly_db_port = "1357"
+	}
+	postgres_password := os.Getenv("POSTGRES_PASSWORD")
+	monopoly_db_url := strings.ReplaceAll(monopoly_db_url_str, "<pass>", postgres_password)
+	monopoly_db_url = strings.ReplaceAll(monopoly_db_url, "<port>", monopoly_db_port)
 
-    monopoly_default_db_url_str := "postgres://postgres:<pass>@localhost:<port>/postgres?sslmode=disable"
+	monopoly_default_db_url_str := "postgres://postgres:<pass>@localhost:<port>/postgres?sslmode=disable"
 
-    monopoly_default_db_url := strings.ReplaceAll(monopoly_default_db_url_str, "<pass>", postgres_password)
-    monopoly_default_db_url = strings.ReplaceAll(monopoly_default_db_url, "<port>", monopoly_db_port)
+	monopoly_default_db_url := strings.ReplaceAll(monopoly_default_db_url_str, "<pass>", postgres_password)
+	monopoly_default_db_url = strings.ReplaceAll(monopoly_default_db_url, "<port>", monopoly_db_port)
 
-    db, err := pgx.Connect(ctx, monopoly_default_db_url)
-    if err != nil {
-        log.Fatal().Err(err).Msg("failed to connect to postgres database")
-    }
-    defer db.Close(ctx)
+	db, err := pgx.Connect(ctx, monopoly_default_db_url)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to connect to postgres database")
+	}
+	defer db.Close(ctx)
 
-    var dbExists bool
-    err = db.QueryRow(
-        context.Background(),
-        "SELECT EXISTS (SELECT FROM pg_database WHERE datname = 'monopoly');",
-    ).Scan(&dbExists)
-    if err != nil {
-        log.Fatal().Err(err).Msg("failed to check if database exists")
-    }
+	var dbExists bool
+	err = db.QueryRow(
+		context.Background(),
+		"SELECT EXISTS (SELECT FROM pg_database WHERE datname = 'monopoly');",
+	).Scan(&dbExists)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to check if database exists")
+	}
 
-    if !dbExists {
-        log.Info().Msg("database monopoly does not exist. creating it...")
-        _, err = db.Exec(ctx, "CREATE DATABASE \"monopoly\";")
-        if err != nil {
-            log.Fatal().Err(err).Msg("failed to create database monopoly")
-        }
-        log.Info().Msg("database monopoly created successfully.")
-    } else {
-        log.Info().Msg("database monopoly already exists.")
-    }
+	if !dbExists {
+		log.Info().Msg("database monopoly does not exist. creating it...")
+		_, err = db.Exec(ctx, "CREATE DATABASE \"monopoly\";")
+		if err != nil {
+			log.Fatal().Err(err).Msg("failed to create database monopoly")
+		}
+		log.Info().Msg("database monopoly created successfully.")
+	} else {
+		log.Info().Msg("database monopoly already exists.")
+	}
 
-    db, err = pgx.Connect(ctx, monopoly_db_url)
-    if err != nil {
-        log.Fatal().Err(err).Msg("failed to connect to postgres database")
-    }
-    defer db.Close(ctx)
+	db, err = pgx.Connect(ctx, monopoly_db_url)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to connect to postgres database")
+	}
+	defer db.Close(ctx)
 
+	var tableExists bool
+	err = db.QueryRow(ctx, "SELECT EXISTS (SELECT FROM pg_tables WHERE tablename = 'rents')").Scan(&tableExists)
+	if err != nil {
+		log.Panic().Err(err).Msg("failed to check if tables exist")
+	}
+	if tableExists {
+		log.Printf("Tables already exist. Skipping setup.")
+		return
+	}
 
-    var tableExists bool
-    err = db.QueryRow(ctx, "SELECT EXISTS (SELECT FROM pg_tables WHERE tablename = 'rents')").Scan(&tableExists)
-    if err != nil {
-        log.Panic().Err(err).Msg("failed to check if tables exist")
-    }
-    if tableExists {
-        log.Printf("Tables already exist. Skipping setup.")
-        return
-    }
+	log.Info().Msg("tables not found. creating tables...")
 
-    log.Info().Msg("tables not found. creating tables...")
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to begin transaction")
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback(ctx) // Rollback the transaction on error
+			log.Error().Err(err).Msg("transaction rolled back due to error.")
+		}
+	}()
 
-    tx, err := db.Begin(ctx)
-    if err != nil {
-        log.Fatal().Err(err).Msg("failed to begin transaction")
-    }
-    defer func() {
-        if err != nil {
-            tx.Rollback(ctx) // Rollback the transaction on error
-            log.Error().Err(err).Msg("transaction rolled back due to error.")
-        }
-    }()
-
-
-    // TODO: start adding tables here
-    _, err = tx.Exec(ctx, `
+	// TODO: start adding tables here
+	_, err = tx.Exec(ctx, `
 CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED', 'YELLOW', 'GREEN', 'DARKBLUE', 'RAILROAD', 'UTILITY')
         `)
-    if err != nil {
-        log.Fatal().Err(err).Msg("failed to create enum of property types")
-    }
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to create enum of property types")
+	}
 
-    _, err = tx.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
         CREATE TABLE Game_State (
         session_id SERIAL PRIMARY KEY,
-        turn_number INTEGER NOT NULL DEFAULT -1
+        turn_number INTEGER NOT NULL DEFAULT -1,
+        code INTEGER NOT NULL
         )
         `)
-    if err != nil {
-        log.Fatal().Err(err).Msg("failed to create game state table")
-    }
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to create game state table")
+	}
 
-    _, err = tx.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
         CREATE TABLE Player (
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,
@@ -113,11 +111,11 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
         CONSTRAINT unique_session_name UNIQUE(name, session_id)
         )
         `)
-    if err != nil {
-        log.Fatal().Err(err).Msg("failed to create player table")
-    }
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to create player table")
+	}
 
-    _, err = tx.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
         CREATE TABLE Rents (
         id INTEGER PRIMARY KEY,
         base INTEGER NOT NULL,
@@ -129,21 +127,21 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
         hotel INTEGER NOT NULL
         )
         `)
-    if err != nil {
-        log.Fatal().Err(err).Msg("failed to create rents table")
-    }
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to create rents table")
+	}
 
-    // TODO: update insert with real rent values
-    _, err = tx.Exec(ctx, `
+	// TODO: update insert with real rent values
+	_, err = tx.Exec(ctx, `
         INSERT INTO Rents (id, base, color_set, one_house, two_house, three_house, four_house, hotel)
         VALUES
             (0, 10, 25, 100, 200, 300, 400, 1000000) -- note the id as you will need to match it later with its respective property
         `)
-    if err != nil {
-        log.Fatal().Err(err).Msg("failed to insert rents into db")
-    }
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to insert rents into db")
+	}
 
-    _, err = tx.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
         CREATE TABLE Property (
         id INTEGER PRIMARY KEY,
         name TEXT NOT NULL,
@@ -156,21 +154,21 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
         ptype property_type NOT NULL -- property type
         )
         `)
-    if err != nil {
-        log.Fatal().Err(err).Msg("failed to create property table")
-    }
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to create property table")
+	}
 
-    // TODO: update insert with real properties
-    _, err = tx.Exec(ctx, `
+	// TODO: update insert with real properties
+	_, err = tx.Exec(ctx, `
         INSERT INTO Property (id, name, rentvalues_id, purchase_cost, mortgage_cost, unmortgage_cost, house_cost, hotel_cost, ptype)
         VALUES
             (0, 'test property', 0, 120, 100, 110, 50, 100, 'BROWN') -- rentvalues_id value is the rent vlaues we want referenced in the rent table
         `)
-    if err != nil {
-        log.Fatal().Err(err).Msg("failed to insert properties into db")
-    }
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to insert properties into db")
+	}
 
-    _, err = tx.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
         CREATE TABLE Event_Cards ( -- Community and Chance Cards
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,
@@ -178,22 +176,22 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
         type TEXT CHECK (type IN ('COMMUNITY', 'CHANCE'))
         )
         `)
-    if err != nil {
-        log.Fatal().Err(err).Msg("failed to create event cards table")
-    }
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to create event cards table")
+	}
 
-    // TODO: update with actual cards
-    _, err = tx.Exec(ctx, `
+	// TODO: update with actual cards
+	_, err = tx.Exec(ctx, `
         INSERT INTO Event_Cards (name, description, type)
         VALUES 
         ('example community card', 'example description', 'COMMUNITY'),
         ('example chance card', 'example description', 'CHANCE')
         `)
-    if err != nil {
-        log.Fatal().Err(err).Msg("failed to insert event cards into db")
-    }
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to insert event cards into db")
+	}
 
-    _, err = tx.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
         CREATE TABLE Owned_Properties (
         id SERIAL PRIMARY KEY,
         property_id INTEGER REFERENCES Property(id),
@@ -204,27 +202,24 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
         hotel BOOLEAN NOT NULL DEFAULT False
         )
         `)
-    if err != nil {
-        log.Fatal().Err(err).Msg("failed to create owned_properties table")
-    }
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to create owned_properties table")
+	}
 
-    _, err = tx.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
         CREATE TABLE Drawn_Event_Cards (
         id SERIAL PRIMARY KEY,
         session_id INTEGER REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL,
         card_id INTEGER REFERENCES Event_Cards(id) NOT NULL
         )
         `)
-    if err != nil {
-        log.Fatal().Err(err).Msg("failed to create drawn event cards table")
-    }
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to create drawn event cards table")
+	}
 
-
-
-    err = tx.Commit(ctx)
-    if err != nil {
-        log.Fatal().Err(err).Msg("failed to commit transaction")
-    }
-    log.Info().Msg("setup database transaction committed successfully.")
+	err = tx.Commit(ctx)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to commit transaction")
+	}
+	log.Info().Msg("setup database transaction committed successfully.")
 }
-
