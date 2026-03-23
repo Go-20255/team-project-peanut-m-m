@@ -10,25 +10,30 @@ import (
 )
 
 func SetupDatabase(ctx context.Context, log zerolog.Logger) {
-	monopoly_db_url_str := "postgres://postgres:<pass>@localhost:<port>/monopoly?sslmode=disable"
-	monopoly_db_port := os.Getenv("POSTGRES_PORT")
-	if monopoly_db_port == "" {
-		monopoly_db_port = "1357"
+	monopolyDbUrlStr := "postgres://postgres:<pass>@localhost:<port>/monopoly?sslmode=disable"
+	monopolyDbPort := os.Getenv("POSTGRES_PORT")
+	if monopolyDbPort == "" {
+		monopolyDbPort = "1357"
 	}
-	postgres_password := os.Getenv("POSTGRES_PASSWORD")
-	monopoly_db_url := strings.ReplaceAll(monopoly_db_url_str, "<pass>", postgres_password)
-	monopoly_db_url = strings.ReplaceAll(monopoly_db_url, "<port>", monopoly_db_port)
+	postgresPassword := os.Getenv("POSTGRES_PASSWORD")
+	monopolyDbUrl := strings.ReplaceAll(monopolyDbUrlStr, "<pass>", postgresPassword)
+	monopolyDbUrl = strings.ReplaceAll(monopolyDbUrl, "<port>", monopolyDbPort)
 
-	monopoly_default_db_url_str := "postgres://postgres:<pass>@localhost:<port>/postgres?sslmode=disable"
+	monopolyDefaultDbUrlStr := "postgres://postgres:<pass>@localhost:<port>/postgres?sslmode=disable"
 
-	monopoly_default_db_url := strings.ReplaceAll(monopoly_default_db_url_str, "<pass>", postgres_password)
-	monopoly_default_db_url = strings.ReplaceAll(monopoly_default_db_url, "<port>", monopoly_db_port)
+	monopolyDefaultDbUrl := strings.ReplaceAll(monopolyDefaultDbUrlStr, "<pass>", postgresPassword)
+	monopolyDefaultDbUrl = strings.ReplaceAll(monopolyDefaultDbUrl, "<port>", monopolyDbPort)
 
-	db, err := pgx.Connect(ctx, monopoly_default_db_url)
+	db, err := pgx.Connect(ctx, monopolyDefaultDbUrl)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to connect to postgres database")
 	}
-	defer db.Close(ctx)
+	defer func(db *pgx.Conn, ctx context.Context) {
+		err := db.Close(ctx)
+		if err != nil {
+
+		}
+	}(db, ctx)
 
 	var dbExists bool
 	err = db.QueryRow(
@@ -50,11 +55,16 @@ func SetupDatabase(ctx context.Context, log zerolog.Logger) {
 		log.Info().Msg("database monopoly already exists.")
 	}
 
-	db, err = pgx.Connect(ctx, monopoly_db_url)
+	db, err = pgx.Connect(ctx, monopolyDbUrl)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to connect to postgres database")
 	}
-	defer db.Close(ctx)
+	defer func(db *pgx.Conn, ctx context.Context) {
+		err := db.Close(ctx)
+		if err != nil {
+
+		}
+	}(db, ctx)
 
 	var tableExists bool
 	err = db.QueryRow(ctx, "SELECT EXISTS (SELECT FROM pg_tables WHERE tablename = 'rents')").Scan(&tableExists)
@@ -74,7 +84,10 @@ func SetupDatabase(ctx context.Context, log zerolog.Logger) {
 	}
 	defer func() {
 		if err != nil {
-			tx.Rollback(ctx) // Rollback the transaction on error
+			err := tx.Rollback(ctx)
+			if err != nil {
+				return
+			} // Rollback the transaction on error
 			log.Error().Err(err).Msg("transaction rolled back due to error.")
 		}
 	}()
@@ -145,7 +158,7 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
         CREATE TABLE Property (
         id INTEGER PRIMARY KEY,
         name TEXT NOT NULL,
-        rentvalues_id INTEGER REFERENCES Rents(id), -- points to a row in rents table that contains all property specific rents (tbh these values could also just be a part of this table...) (null if utility or railroad)
+        rentvalues_id INTEGER REFERENCES Rents(id), -- points to a row in rents table that contains all property-specific rents (tbh these values could also just be a part of this table...) (null if utility or railroad)
         purchase_cost INTEGER NOT NULL, -- cost of property to buy
         mortgage_cost INTEGER NOT NULL, -- value gained from mortgaging
         unmortgage_cost INTEGER NOT NULL, -- price to pay to remove mortgage
@@ -162,7 +175,7 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
 	_, err = tx.Exec(ctx, `
         INSERT INTO Property (id, name, rentvalues_id, purchase_cost, mortgage_cost, unmortgage_cost, house_cost, hotel_cost, ptype)
         VALUES
-            (0, 'test property', 0, 120, 100, 110, 50, 100, 'BROWN') -- rentvalues_id value is the rent vlaues we want referenced in the rent table
+            (0, 'test property', 0, 120, 100, 110, 50, 100, 'BROWN') -- rentvalues_id value is the rent values we want referenced in the rent table
         `)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to insert properties into db")
