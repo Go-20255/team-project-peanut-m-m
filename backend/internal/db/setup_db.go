@@ -121,6 +121,7 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
         get_out_of_jail_cards INTEGER NOT NULL DEFAULT 0, -- number of get out of jail cards held
         jailed INTEGER NOT NULL DEFAULT 0, -- number of turns stuck in jail
         session_id UUID REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL,
+        in_game BOOLEAN NOT NULL DEFAULT FALSE,
         CONSTRAINT unique_session_name UNIQUE(name, session_id)
         )
         `)
