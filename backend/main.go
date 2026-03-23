@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
-	common_handler "monopoly-backend/handlers/common"
-	players_handlers "monopoly-backend/handlers/player"
+	commonhandler "monopoly-backend/handlers/common"
+	gamestatehandlers "monopoly-backend/handlers/game_state"
+	playershandlers "monopoly-backend/handlers/player"
 	internaldb "monopoly-backend/internal/db"
 	"monopoly-backend/util"
 
@@ -60,11 +61,11 @@ func main() {
 	routes := e.Group("/api")
 
 	// add routes here
-	routes.GET("/health", common_handler.HealthCheckHandler)
+	routes.GET("/health", commonhandler.HealthCheckHandler)
 
-	routes.POST("/player", players_handlers.CreatePlayerHandler)
+	routes.POST("/player", playershandlers.CreatePlayerHandler)
 
-	routes.GET("/game/join", players_handlers.JoinGameHandler)
+	routes.GET("/game/join", gamestatehandlers.JoinGameHandler)
 
 	// start the echo server
 	e.Start(":9876")
