@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	common_handler "monopoly-backend/handlers/common"
+	players_handlers "monopoly-backend/handlers/player"
 	internaldb "monopoly-backend/internal/db"
 	"monopoly-backend/util"
 
@@ -63,6 +64,8 @@ func main() {
 
     // add routes here
     routes.GET("/health", common_handler.HealthCheckHandler)
+
+    routes.POST("/player", players_handlers.CreatePlayerHandler)
 
     // start the echo server
     e.Start(":9876")

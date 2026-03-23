@@ -1,0 +1,21 @@
+meta {
+  name: create player
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://localhost:9876/api/player
+  body: formUrlEncoded
+  auth: inherit
+}
+
+body:form-urlencoded {
+  player_name: banana
+  session_id: 1
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

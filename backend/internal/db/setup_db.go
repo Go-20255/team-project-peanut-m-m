@@ -109,7 +109,8 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
         position INTEGER NOT NULL DEFAULT 0, -- index of position into 1D board array
         get_out_of_jail_cards INTEGER NOT NULL DEFAULT 0, -- number of get out of jail cards held
         jailed INTEGER NOT NULL DEFAULT 0, -- number of turns stuck in jail
-        session_id INTEGER REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL
+        session_id INTEGER REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL,
+        CONSTRAINT unique_session_name UNIQUE(name, session_id)
         )
         `)
     if err != nil {
@@ -145,6 +146,7 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
     _, err = tx.Exec(ctx, `
         CREATE TABLE Property (
         id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
         rentvalues_id INTEGER REFERENCES Rents(id), -- points to a row in rents table that contains all property specific rents (tbh these values could also just be a part of this table...) (null if utility or railroad)
         purchase_cost INTEGER NOT NULL, -- cost of property to buy
         mortgage_cost INTEGER NOT NULL, -- value gained from mortgaging
@@ -160,9 +162,9 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
 
     // TODO: update insert with real properties
     _, err = tx.Exec(ctx, `
-        INSERT INTO Property (id, rentvalues_id, purchase_cost, mortgage_cost, unmortgage_cost, house_cost, hotel_cost, ptype)
+        INSERT INTO Property (id, name, rentvalues_id, purchase_cost, mortgage_cost, unmortgage_cost, house_cost, hotel_cost, ptype)
         VALUES
-            (0, 0, 120, 100, 110, 50, 100, 'BROWN') -- rentvalues_id value is the rent vlaues we want referenced in the rent table
+            (0, 'test property', 0, 120, 100, 110, 50, 100, 'BROWN') -- rentvalues_id value is the rent vlaues we want referenced in the rent table
         `)
     if err != nil {
         log.Fatal().Err(err).Msg("failed to insert properties into db")
