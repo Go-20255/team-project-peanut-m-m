@@ -89,7 +89,7 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
 
 	_, err = tx.Exec(ctx, `
         CREATE TABLE Game_State (
-        session_id SERIAL PRIMARY KEY,
+        session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         turn_number INTEGER NOT NULL DEFAULT -1,
         code INTEGER NOT NULL
         )
@@ -107,7 +107,7 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
         position INTEGER NOT NULL DEFAULT 0, -- index of position into 1D board array
         get_out_of_jail_cards INTEGER NOT NULL DEFAULT 0, -- number of get out of jail cards held
         jailed INTEGER NOT NULL DEFAULT 0, -- number of turns stuck in jail
-        session_id INTEGER REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL,
+        session_id UUID REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL,
         CONSTRAINT unique_session_name UNIQUE(name, session_id)
         )
         `)
@@ -195,7 +195,7 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
         CREATE TABLE Owned_Properties (
         id SERIAL PRIMARY KEY,
         property_id INTEGER REFERENCES Property(id),
-        session_id INTEGER REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL,
+        session_id UUID REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL,
         owner_id INTEGER REFERENCES Player(id) ON DELETE CASCADE NOT NULL,
         mortgaged BOOLEAN NOT NULL DEFAULT False,
         houses INTEGER NOT NULL DEFAULT 0,
@@ -209,7 +209,7 @@ CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED'
 	_, err = tx.Exec(ctx, `
         CREATE TABLE Drawn_Event_Cards (
         id SERIAL PRIMARY KEY,
-        session_id INTEGER REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL,
+        session_id UUID REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL,
         card_id INTEGER REFERENCES Event_Cards(id) NOT NULL
         )
         `)
