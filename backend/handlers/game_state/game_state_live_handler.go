@@ -47,9 +47,9 @@ func JoinLiveGameHandler(c echo.Context) error {
 
     ctx := c.Request().Context()
 
-    if err := monopoly_engine.NotifyEngineOfAction(session_id, handlers.SseEvent{
-        Event: []byte("ConnectionEvent"),
-        Data: []byte(fmt.Sprintf("%v joined game", player_name)),
+    if err := monopoly_engine.NotifyEngineOfAction(session_id, monopoly_engine.UserActionEvent {
+        Event: "ConnectionEvent",
+        Data: fmt.Sprintf("%v joined game", player_name),
     }); err != nil {
         return c.String(http.StatusInternalServerError, err.Error())
     }

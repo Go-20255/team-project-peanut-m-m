@@ -17,6 +17,11 @@ var (
     engine_manager_mu sync.Mutex
 )
 
+type UserActionEvent struct {
+    Event string
+    Data string
+}
+
 func GetEngineBroker(session_id string) (*handlers.SseBroker, error) {
     engine := engine_manager[session_id]
     if engine == nil {
@@ -29,7 +34,7 @@ func GetEngineBroker(session_id string) (*handlers.SseBroker, error) {
     return broker, nil
 }
 
-func NotifyEngineOfAction(session_id string, action_event handlers.SseEvent) error {
+func NotifyEngineOfAction(session_id string, action_event UserActionEvent) error {
     engine, ok := engine_manager[session_id]
     if !ok {
         return fmt.Errorf("engine does not exist for provided session_id at this point in time")
@@ -44,7 +49,7 @@ func NotifyEngineOfAction(session_id string, action_event handlers.SseEvent) err
 type MonopolyEngine struct {
     session_id string
     broker *handlers.SseBroker
-    userActionsChan chan handlers.SseEvent // using SseEvent as a template for now
+    userActionsChan chan UserActionEvent // using SseEvent as a template for now
     userActionsChanMu sync.Mutex
 }
 
@@ -54,7 +59,7 @@ func SetupNewMonopolyEngine(session_id string) {
     engine := MonopolyEngine {
         session_id: session_id,
         broker: handlers.NewSseBroker(),
-        userActionsChan: make(chan handlers.SseEvent),
+        userActionsChan: make(chan UserActionEvent),
     }
 
     engine_manager_mu.Lock()
@@ -83,7 +88,7 @@ func runMonopolyEngine(log zerolog.Logger, e *MonopolyEngine, db *pgxpool.Pool) 
     for {
 
         action := <-e.userActionsChan
-        log.Trace().Msgf("got action event: %v with data: %v", string(action.Event), string(action.Data))
+        log.Trace().Msgf("got action event: %v with data: %v", action.Event, action.Data)
 
     }
 
