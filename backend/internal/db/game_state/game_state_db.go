@@ -52,6 +52,30 @@ func CreateGameState(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx) (s
     return id, nil
 }
 
+func GetGameSessions(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx) ([]string, error) {
+
+    var session_ids []string
+    rows, err := tx.Query(ctx, `
+        SELECT session_id
+        FROM game_state
+        `)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to query db for game sessions")
+        return nil, err
+    }
+
+    for rows.Next() {
+        var session_id string
+        if err := rows.Scan(&session_id); err != nil {
+            log.Trace().Err(err).Msg("failed to unmarshal session_id")
+            return nil, err
+        }
+        session_ids = append(session_ids, session_id)
+    }
+
+    return session_ids, nil
+}
+
 
 
 

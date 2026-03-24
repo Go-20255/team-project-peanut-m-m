@@ -13,46 +13,47 @@ import (
 
 type SseClient struct {
     ID      string
-    MsgChan chan []byte
+    MsgChan chan SseBroadcastMessage
 }
 
 type SseBroker struct {
-    clients map[*SseClient]struct{}
-    mu      sync.RWMutex
+    Clients map[*SseClient]struct{}
+    Mu      sync.RWMutex
 }
 
 func NewSseBroker() *SseBroker {
     return &SseBroker{
-        clients: make(map[*SseClient]struct{}),
+        Clients: make(map[*SseClient]struct{}),
     }
 }
 
 func (b *SseBroker) AddClient(client *SseClient) {
-    b.mu.Lock()
-    b.clients[client] = struct{}{}
-    b.mu.Unlock()
+    b.Mu.Lock()
+    b.Clients[client] = struct{}{}
+    b.Mu.Unlock()
 }
 
 func (b *SseBroker) RemoveClient(client *SseClient) {
-    b.mu.Lock()
-    delete(b.clients, client)
+    b.Mu.Lock()
+    delete(b.Clients, client)
     close(client.MsgChan)
-    b.mu.Unlock()
+    b.Mu.Unlock()
 }
 
-func (b *SseBroker) Broadcast(log zerolog.Logger, msgObj any) {
+func (b *SseBroker) Broadcast(log zerolog.Logger, event_name string, msgObj any) {
     msg, err := json.Marshal(msgObj)
     if err != nil {
         log.Error().Err(err).Msg("failed to marshal object for sse")
         return
     }
 
-    b.mu.RLock()
-    defer b.mu.RUnlock()
 
-    for client := range b.clients {
+    b.Mu.RLock()
+    defer b.Mu.RUnlock()
+
+    for client := range b.Clients {
         select {
-        case client.MsgChan <- msg:
+        case client.MsgChan <- SseBroadcastMessage{ EventName: event_name, MsgObj: msg}:
         default:
             log.Warn().
                 Str("client_id", client.ID).
@@ -61,10 +62,16 @@ func (b *SseBroker) Broadcast(log zerolog.Logger, msgObj any) {
     }
 }
 
+type SseBroadcastMessage struct {
+    EventName   string
+    MsgObj  []byte
+}
+
+
 type SseEvent struct {
     ID      []byte
-    Data    []byte
     Event   []byte
+    Data    []byte
     Retry   []byte
     Comment []byte
 }
@@ -81,15 +88,15 @@ func (ev *SseEvent) MarshalTo(w io.Writer) error {
             }
         }
 
-        sd := bytes.Split(ev.Data, []byte("\n"))
-        for _, line := range sd {
-            if _, err := fmt.Fprintf(w, "data: %s\n", line); err != nil {
+        if len(ev.Event) > 0 {
+            if _, err := fmt.Fprintf(w, "event: %s\n", ev.Event); err != nil {
                 return err
             }
         }
 
-        if len(ev.Event) > 0 {
-            if _, err := fmt.Fprintf(w, "event: %s\n", ev.Event); err != nil {
+        sd := bytes.Split(ev.Data, []byte("\n"))
+        for _, line := range sd {
+            if _, err := fmt.Fprintf(w, "data: %s\n", line); err != nil {
                 return err
             }
         }
@@ -157,4 +164,5 @@ func WriteSseComment(w http.ResponseWriter, comment string) error {
 
     return nil
 }
+
 

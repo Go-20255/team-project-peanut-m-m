@@ -1,17 +1,21 @@
 package main
 
 import (
-    "context"
-    commonhandler "monopoly-backend/handlers/common"
-    gamestatehandlers "monopoly-backend/handlers/game_state"
-    playershandlers "monopoly-backend/handlers/player"
-    internaldb "monopoly-backend/internal/db"
-    "monopoly-backend/util"
+	"context"
+	commonhandler "monopoly-backend/handlers/common"
+	gamestatehandlers "monopoly-backend/handlers/game_state"
+	playershandlers "monopoly-backend/handlers/player"
+	internaldb "monopoly-backend/internal/db"
+	internaldb_game_state "monopoly-backend/internal/db/game_state"
+	monopoly_engine "monopoly-backend/internal/engine"
+	"monopoly-backend/util"
 
-    "github.com/joho/godotenv"
-    "github.com/labstack/echo/v4"
-    "github.com/labstack/echo/v4/middleware"
-    "github.com/rs/zerolog/log"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
@@ -35,6 +39,26 @@ func main() {
         log.Panic().Err(err).Msg("failed to connect to database")
         return
     }
+
+    temp_tx, err := db.BeginTx(ctx, pgx.TxOptions{})
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to create temporary transaction")
+    }
+    var session_ids []string
+    session_ids, err = internaldb_game_state.GetGameSessions(log, ctx, temp_tx.(*pgxpool.Tx))
+    if err != nil {
+        _ = temp_tx.Rollback(ctx)
+        log.Fatal().Msg("failed to query game sessions.")
+    }
+    if err := temp_tx.Commit(ctx); err != nil {
+        log.Fatal().Msg("failed to commit transaction")
+    }
+
+    // start up new monopoly engine for each found session_id
+    for _, session_id := range session_ids {
+        go monopoly_engine.SetupNewMonopolyEngine(session_id)
+    }
+
 
     e := echo.New()
 
@@ -66,7 +90,8 @@ func main() {
     routes.POST("/player", playershandlers.CreatePlayerHandler)
 
     routes.POST("/game", gamestatehandlers.NewGameHandler)
-    routes.POST("/game/join", gamestatehandlers.JoinGameHandler)
+    routes.POST("/game/join", gamestatehandlers.JoinSessionHandler)
+    routes.GET("/game/join/live", gamestatehandlers.JoinLiveGameHandler)
 
     // start the echo server
     e.Start(":9876")

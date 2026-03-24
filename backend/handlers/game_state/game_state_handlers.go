@@ -1,15 +1,16 @@
-package game_state
+package game_state_handlers
 
 import (
-    internaldbgamestate "monopoly-backend/internal/db/game_state"
-    "monopoly-backend/util"
-    "net/http"
+	internaldbgamestate "monopoly-backend/internal/db/game_state"
+	monopoly_engine "monopoly-backend/internal/engine"
+	"monopoly-backend/util"
+	"net/http"
 
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/labstack/echo/v4"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/labstack/echo/v4"
 )
 
-func JoinGameHandler(c echo.Context) error {
+func JoinSessionHandler(c echo.Context) error {
     log := util.GetRequestLogger(c)
     ctx := c.Request().Context()
 
@@ -33,10 +34,13 @@ func NewGameHandler(c echo.Context) error {
     ctx := c.Request().Context()
 
     tx := c.Get("tx").(*pgxpool.Tx)
-    id, err := internaldbgamestate.CreateGameState(log, ctx, tx)
+    session_id, err := internaldbgamestate.CreateGameState(log, ctx, tx)
     if err != nil {
         return c.String(http.StatusInternalServerError, "failed to create new monopoly game")
     }
 
-    return c.String(http.StatusOK, id)
+    // start up new monopoly engine to service game
+    go monopoly_engine.SetupNewMonopolyEngine(session_id)
+
+    return c.String(http.StatusOK, session_id)
 }
