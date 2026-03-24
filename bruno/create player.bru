@@ -1,7 +1,7 @@
 meta {
   name: create player
   type: http
-  seq: 1
+  seq: 4
 }
 
 post {
@@ -12,7 +12,7 @@ post {
 
 body:form-urlencoded {
   player_name: banana
-  session_id: 1
+  session_id: {{uuid}}
 }
 
 settings {

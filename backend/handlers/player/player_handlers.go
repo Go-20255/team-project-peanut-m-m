@@ -22,8 +22,12 @@ func CreatePlayerHandler(c echo.Context) error {
     sessionId := c.FormValue("session_id")
 
     tx := c.Get("tx").(*pgxpool.Tx)
-    err := internaldbgamestate.GameStateExists(log, ctx, tx, sessionId)
+    exists, err := internaldbgamestate.GameStateExists(log, ctx, tx, sessionId)
     if err != nil {
+        return c.String(http.StatusInternalServerError, "failed to query db about game state")
+    }
+    
+    if !exists {
         return c.String(http.StatusBadRequest, "session_id does not exist")
     }
 
