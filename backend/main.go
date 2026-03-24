@@ -1,21 +1,21 @@
 package main
 
 import (
-	"context"
-	commonhandler "monopoly-backend/handlers/common"
-	gamestatehandlers "monopoly-backend/handlers/game_state"
-	playershandlers "monopoly-backend/handlers/player"
-	internaldb "monopoly-backend/internal/db"
-	internaldb_game_state "monopoly-backend/internal/db/game_state"
-	monopoly_engine "monopoly-backend/internal/engine"
-	"monopoly-backend/util"
+    "context"
+    commonhandler "monopoly-backend/handlers/common"
+    gamestatehandlers "monopoly-backend/handlers/game_state"
+    playershandlers "monopoly-backend/handlers/player"
+    internaldb "monopoly-backend/internal/db"
+    internaldbgamestate "monopoly-backend/internal/db/game_state"
+    monopolyengine "monopoly-backend/internal/engine"
+    "monopoly-backend/util"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"github.com/rs/zerolog/log"
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/joho/godotenv"
+    "github.com/labstack/echo/v4"
+    "github.com/labstack/echo/v4/middleware"
+    "github.com/rs/zerolog/log"
 )
 
 func main() {
@@ -23,7 +23,7 @@ func main() {
     ctx, cancel := context.WithCancel(context.Background())
     defer cancel()
 
-    util.Setup_logging()
+    util.SetupLogging()
     log := log.Logger.With().Logger()
 
     log.Info().Msg("Welcome To Monopoly")
@@ -40,25 +40,24 @@ func main() {
         return
     }
 
-    temp_tx, err := db.BeginTx(ctx, pgx.TxOptions{})
+    tempTx, err := db.BeginTx(ctx, pgx.TxOptions{})
     if err != nil {
         log.Fatal().Err(err).Msg("failed to create temporary transaction")
     }
-    var session_ids []string
-    session_ids, err = internaldb_game_state.GetGameSessions(log, ctx, temp_tx.(*pgxpool.Tx))
+    var sessionIds []string
+    sessionIds, err = internaldbgamestate.GetGameSessions(log, ctx, tempTx.(*pgxpool.Tx))
     if err != nil {
-        _ = temp_tx.Rollback(ctx)
+        _ = tempTx.Rollback(ctx)
         log.Fatal().Msg("failed to query game sessions.")
     }
-    if err := temp_tx.Commit(ctx); err != nil {
+    if err := tempTx.Commit(ctx); err != nil {
         log.Fatal().Msg("failed to commit transaction")
     }
 
     // start up new monopoly engine for each found session_id
-    for _, session_id := range session_ids {
-        go monopoly_engine.SetupNewMonopolyEngine(session_id)
+    for _, sessionId := range sessionIds {
+        go monopolyengine.SetupNewMonopolyEngine(sessionId)
     }
-
 
     e := echo.New()
 
