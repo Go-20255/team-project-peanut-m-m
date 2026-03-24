@@ -65,7 +65,8 @@ func main() {
 
     routes.POST("/player", playershandlers.CreatePlayerHandler)
 
-    routes.GET("/game/join", gamestatehandlers.JoinGameHandler)
+    routes.POST("/game", gamestatehandlers.NewGameHandler)
+    routes.POST("/game/join", gamestatehandlers.JoinGameHandler)
 
     // start the echo server
     e.Start(":9876")

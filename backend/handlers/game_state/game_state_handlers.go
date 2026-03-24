@@ -24,5 +24,19 @@ func JoinGameHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "code does not exist")
     }
 
-    return c.String(http.StatusOK, "joined game: "+id)
+    return c.String(http.StatusOK, id)
+}
+
+
+func NewGameHandler(c echo.Context) error {
+    log := util.GetRequestLogger(c)
+    ctx := c.Request().Context()
+
+    tx := c.Get("tx").(*pgxpool.Tx)
+    id, err := internaldbgamestate.CreateGameState(log, ctx, tx)
+    if err != nil {
+        return c.String(http.StatusInternalServerError, "failed to create new monopoly game")
+    }
+
+    return c.String(http.StatusOK, id)
 }
