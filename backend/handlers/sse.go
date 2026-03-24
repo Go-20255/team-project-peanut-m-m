@@ -40,20 +40,19 @@ func (b *SseBroker) RemoveClient(client *SseClient) {
     b.Mu.Unlock()
 }
 
-func (b *SseBroker) Broadcast(log zerolog.Logger, event_name string, msgObj any) {
+func (b *SseBroker) Broadcast(log zerolog.Logger, eventName string, msgObj any) {
     msg, err := json.Marshal(msgObj)
     if err != nil {
         log.Error().Err(err).Msg("failed to marshal object for sse")
         return
     }
 
-
     b.Mu.RLock()
     defer b.Mu.RUnlock()
 
     for client := range b.Clients {
         select {
-        case client.MsgChan <- SseBroadcastMessage{ EventName: event_name, MsgObj: msg}:
+        case client.MsgChan <- SseBroadcastMessage{EventName: eventName, MsgObj: msg}:
         default:
             log.Warn().
                 Str("client_id", client.ID).
@@ -63,10 +62,9 @@ func (b *SseBroker) Broadcast(log zerolog.Logger, event_name string, msgObj any)
 }
 
 type SseBroadcastMessage struct {
-    EventName   string
-    MsgObj  []byte
+    EventName string
+    MsgObj    []byte
 }
-
 
 type SseEvent struct {
     ID      []byte
@@ -164,5 +162,3 @@ func WriteSseComment(w http.ResponseWriter, comment string) error {
 
     return nil
 }
-
-
