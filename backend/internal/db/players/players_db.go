@@ -7,15 +7,19 @@ import (
     "github.com/rs/zerolog"
 )
 
-func CreatePlayerDB(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, name string, sessionId string) error {
-
-    _, err := tx.Exec(ctx, `
+func CreatePlayerDB(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, name string, sessionId string) (int, error) {
+	query := `
         INSERT INTO Player (name, session_id)
         VALUES ($1, $2)
-        `, name, sessionId)
+		RETURNING id
+        `
+	
+	var id int
+	err := tx.QueryRow(ctx, query, name, sessionId).Scan(&id)
+
     if err != nil {
         log.Trace().Err(err).Msgf("failed to insert player %v into db with session id %v", name, sessionId)
-        return err
+        return 0, err
     }
-    return nil
+    return id, nil
 }

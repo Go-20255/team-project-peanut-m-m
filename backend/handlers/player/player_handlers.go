@@ -31,10 +31,14 @@ func CreatePlayerHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "session_id does not exist")
     }
 
-    err = internaldbplayers.CreatePlayerDB(log, ctx, tx, name, sessionId)
+    id, err := internaldbplayers.CreatePlayerDB(log, ctx, tx, name, sessionId)
     if err != nil {
         return c.String(http.StatusInternalServerError, "failed to create player in db")
     }
 
-    return c.String(http.StatusOK, "created player")
+	return c.JSON(http.StatusOK, map[string]interface{}{
+        "id":			id,
+        "name":    		name,
+        "session_id": 	sessionId,
+    })
 }
