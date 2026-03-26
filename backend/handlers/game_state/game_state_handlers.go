@@ -43,3 +43,18 @@ func NewGameHandler(c echo.Context) error {
 
     return c.String(http.StatusOK, sessionId)
 }
+
+func GetAllGameSessions(c echo.Context) error {
+    log := util.GetRequestLogger(c)
+    ctx := c.Request().Context()
+
+    tx := c.Get("tx").(*pgxpool.Tx)
+    sessionIds, err := internaldbgamestate.GetGameSessions(log, ctx, tx)
+    if err != nil {
+        return c.String(http.StatusInternalServerError, "failed to get list of game sessions")
+    }
+
+    return c.JSON(http.StatusOK, sessionIds)
+}
+
+
