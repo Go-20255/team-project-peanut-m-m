@@ -1,21 +1,25 @@
 package game_state_handlers
 
 import (
-    "fmt"
-    "monopoly-backend/handlers"
-    monopolyengine "monopoly-backend/internal/engine"
-    "net/http"
-    "time"
+	"fmt"
+	"monopoly-backend/handlers"
+	"monopoly-backend/internal"
+	monopolyengine "monopoly-backend/internal/engine"
+	"net/http"
+	"time"
 
-    "github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4"
 )
 
 func JoinLiveGameHandler(c echo.Context) error {
 
     sessionId := c.QueryParam("session_id")
+    playerId := c.QueryParam("player_id")
+    playerName := c.QueryParam("player_name")
 
-    playerId := c.FormValue("player_id")
-    playerName := c.FormValue("player_name")
+    if playerName == "" || playerId == "" {
+        return c.String(http.StatusBadRequest, "missing player id and or player name")
+    }
 
     w := c.Response().Writer
     handlers.PrepareSseHeaders(w)
@@ -33,6 +37,28 @@ func JoinLiveGameHandler(c echo.Context) error {
     broker.AddClient(client)
     defer broker.RemoveClient(client)
 
+    // notify engine to run the connection event action and wait for the result
+    res, err := monopolyengine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+        Event: "ConnectionEvent",
+        Data: struct {
+            Id string
+            PlayerName string
+            SessionId string
+        }{
+            Id: playerId,
+            PlayerName: playerName,
+            SessionId: sessionId,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
     if err := handlers.WriteSseComment(w, "connected"); err != nil {
         return err
     }
@@ -42,13 +68,6 @@ func JoinLiveGameHandler(c echo.Context) error {
     defer heartbeat.Stop()
 
     ctx := c.Request().Context()
-
-    if err := monopolyengine.NotifyEngineOfAction(sessionId, monopolyengine.UserActionEvent{
-        Event: "ConnectionEvent",
-        Data:  fmt.Sprintf("%v joined game", playerName),
-    }); err != nil {
-        return c.String(http.StatusInternalServerError, err.Error())
-    }
 
     for {
         select {
