@@ -36,9 +36,9 @@ func CreatePlayerHandler(c echo.Context) error {
         return c.String(http.StatusInternalServerError, "failed to create player in db")
     }
 
-	return c.JSON(http.StatusOK, map[string]interface{}{
-        "id":			id,
-        "name":    		name,
-        "session_id": 	sessionId,
+    return c.JSON(http.StatusOK, map[string]interface{}{
+        "id":           id,
+        "name":         name,
+        "session_id":   sessionId,
     })
 }

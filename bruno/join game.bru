@@ -5,13 +5,17 @@ meta {
 }
 
 post {
-  url: http://localhost:9876/api/join/game
+  url: http://localhost:9876/api/game/join?code={{join_code}}
   body: none
   auth: inherit
 }
 
 params:query {
-  code: {{code}}
+  code: {{join_code}}
+}
+
+vars:pre-request {
+  join_code: 967698
 }
 
 settings {
