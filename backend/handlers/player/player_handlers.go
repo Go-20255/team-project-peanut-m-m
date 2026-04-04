@@ -16,10 +16,13 @@ func CreatePlayerHandler(c echo.Context) error {
 
     name := c.FormValue("player_name")
     if name == "" {
-        return c.String(http.StatusBadRequest, "missing player name")
+        return c.String(http.StatusBadRequest, "missing player_name")
     }
 
     sessionId := c.FormValue("session_id")
+	if name == "" {
+        return c.String(http.StatusBadRequest, "missing session_id")
+    }
 
     tx := c.Get("tx").(*pgxpool.Tx)
     exists, err := internaldbgamestate.GameStateExists(log, ctx, tx, sessionId)
