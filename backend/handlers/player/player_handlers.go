@@ -16,10 +16,13 @@ func CreatePlayerHandler(c echo.Context) error {
 
     name := c.FormValue("player_name")
     if name == "" {
-        return c.String(http.StatusBadRequest, "missing player name")
+        return c.String(http.StatusBadRequest, "missing player_name")
     }
 
     sessionId := c.FormValue("session_id")
+	if name == "" {
+        return c.String(http.StatusBadRequest, "missing session_id")
+    }
 
     tx := c.Get("tx").(*pgxpool.Tx)
     exists, err := internaldbgamestate.GameStateExists(log, ctx, tx, sessionId)
@@ -36,9 +39,9 @@ func CreatePlayerHandler(c echo.Context) error {
         return c.String(http.StatusInternalServerError, "failed to create player in db")
     }
 
-	return c.JSON(http.StatusOK, map[string]interface{}{
-        "id":			id,
-        "name":    		name,
-        "session_id": 	sessionId,
+    return c.JSON(http.StatusOK, map[string]interface{}{
+        "id":           id,
+        "name":         name,
+        "session_id":   sessionId,
     })
 }
