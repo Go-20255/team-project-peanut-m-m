@@ -5,10 +5,52 @@ import (
     "strconv"
 
     "monopoly-backend/internal"
+	"monopoly-backend/util"
     monopolyengine "monopoly-backend/internal/engine"
+	internaldbgamestate "monopoly-backend/internal/db/game_state"
+	internaldbproperties "monopoly-backend/internal/db/properties"
 
+	"github.com/jackc/pgx/v5/pgxpool"
     "github.com/labstack/echo/v4"
 )
+
+func CheckPropertyOwnerHandler(c echo.Context) error {
+    log := util.GetRequestLogger(c)
+    ctx := c.Request().Context()
+
+	sessionId := c.FormValue("session_id")
+    propertyIdStr := c.FormValue("property_id")
+
+    if sessionId == "" || propertyIdStr == "" {
+        return c.String(http.StatusBadRequest, "missing session_id or property_id")
+    }
+
+    propertyId, err := strconv.Atoi(propertyIdStr)
+    if err != nil {
+        return c.String(http.StatusBadRequest, "property_id must be a valid integer")
+    }
+
+	tx := c.Get("tx").(*pgxpool.Tx)
+    exists, err := internaldbgamestate.GameStateExists(log, ctx, tx, sessionId)
+    if err != nil {
+        return c.String(http.StatusInternalServerError, "failed to query db about game state")
+    }
+    
+    if !exists {
+        return c.String(http.StatusBadRequest, "session_id does not exist")
+    }
+
+	ownerId, owned, err := internaldbproperties.VerifyPropertyOwnerDB(log, ctx, tx, sessionId, propertyId)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, "failed to get property ownership status")
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+        "ownerId":      ownerId,
+        "owned":        owned,
+        "session_id":   sessionId,
+    })
+}
 
 func PurchasePropertyHandler(c echo.Context) error {
     sessionId := c.FormValue("session_id")
