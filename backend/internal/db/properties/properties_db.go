@@ -30,7 +30,7 @@ func VerifyPropertyOwnerDB(log zerolog.Logger, ctx context.Context, tx *pgxpool.
     return ownerId, true, nil
 }
 
-func CreatePropertyOwnerDB(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, name string, sessionId string, playerId int, propertyId int) (int, error) {
+func CreatePropertyOwnerDB(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string, playerId int, propertyId int) (int, error) {
 	_, isOwned, err := VerifyPropertyOwnerDB(log, ctx, tx, sessionId, propertyId)
     if err != nil {
         return -1, err
