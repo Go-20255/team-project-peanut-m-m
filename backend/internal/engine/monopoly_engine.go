@@ -7,6 +7,7 @@ import (
 	"monopoly-backend/internal"
 	internaldb "monopoly-backend/internal/db"
 	internaldb_players "monopoly-backend/internal/db/players"
+	internaldb_properties "monopoly-backend/internal/db/properties"
 	"net/http"
 	"sync"
 
@@ -124,6 +125,8 @@ func processUserAction(
         return err
     }
 
+	defer tx.Rollback(ctx)
+
     switch action.Event {
     case "ConnectionEvent":
         log.Trace().Msg("player attempting to join game")
@@ -165,6 +168,51 @@ func processUserAction(
             Status: http.StatusOK,
         }
         log.Trace().Msgf("player %v has joined server", data.PlayerName)
+
+	case "PurchaseProperty":
+        log.Trace().Msg("player attempting to purchase property")
+
+        data, ok := action.Data.(struct {
+            SessionId  string
+            PlayerId   int
+            PropertyId int
+        })
+        if !ok {
+            log.Error().Msg("invalid data format received for PurchaseProperty")
+            action.ReturnChan <- internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    "internal data format error",
+            }
+            break
+        }
+
+		// try to buy property, also does ownership validation
+        ownershipId, err := internaldb_properties.CreatePropertyOwnerDB(
+            log, 
+            ctx, 
+            tx.(*pgxpool.Tx), 
+            data.SessionId, 
+            data.PlayerId, 
+            data.PropertyId,
+        )
+        
+        if err != nil {
+            action.ReturnChan <- internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    err.Error(),
+            }
+            break
+        }
+
+        e.Broker.Broadcast(log, "PropertyPurchased", fmt.Sprintf("Player %d purchased property %d", data.PlayerId, data.PropertyId))
+
+        action.ReturnChan <- internal.UserActionStatus{
+            Status: http.StatusOK,
+            Msg:    fmt.Sprintf("property purchased successfully (Ownership ID: %d)", ownershipId),
+        }
+        log.Trace().Msgf("player %d successfully purchased property %d", data.PlayerId, data.PropertyId)
+        
+        break
 
     default:
         log.Trace().Msgf("received unknown engine action event: %v", action.Event)
