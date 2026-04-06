@@ -18,8 +18,8 @@ func CheckPropertyOwnerHandler(c echo.Context) error {
     log := util.GetRequestLogger(c)
     ctx := c.Request().Context()
 
-	sessionId := c.FormValue("session_id")
-    propertyIdStr := c.FormValue("property_id")
+	sessionId := c.QueryParam("session_id")
+    propertyIdStr := c.QueryParam("property_id")
 
     if sessionId == "" || propertyIdStr == "" {
         return c.String(http.StatusBadRequest, "missing session_id or property_id")
