@@ -94,6 +94,7 @@ func main() {
     routes.POST("/game/join", gamestatehandlers.JoinSessionHandler)
     routes.GET("/game/join/live", gamestatehandlers.JoinLiveGameHandler)
 
+	routes.GET("/game/property", properties_handlers.CheckPropertyOwnerHandler)
 	routes.POST("/game/property", properties_handlers.PurchasePropertyHandler)
 
     // start the echo server
