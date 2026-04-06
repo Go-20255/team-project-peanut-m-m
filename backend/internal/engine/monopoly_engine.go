@@ -122,7 +122,7 @@ func processUserAction(
             Status: http.StatusInternalServerError,
             Msg: err.Error(),
         }
-        return err
+        return nil
     }
 
 	defer tx.Rollback(ctx)
@@ -151,7 +151,8 @@ func processUserAction(
                 Status: http.StatusInternalServerError,
                 Msg: err.Error(),
             }
-            break
+            
+			return nil
         }
 
         if !player_exists {
@@ -159,7 +160,7 @@ func processUserAction(
                 Status: http.StatusBadRequest,
                 Msg: "player does not exist",
             }
-            break
+            return nil
         }
 
         // announce to all connected users that another user has joined the game
@@ -201,7 +202,7 @@ func processUserAction(
                 Status: http.StatusBadRequest,
                 Msg:    err.Error(),
             }
-            break
+            return nil
         }
 
         e.Broker.Broadcast(log, "PropertyPurchased", fmt.Sprintf("Player %d purchased property %d", data.PlayerId, data.PropertyId))
@@ -220,6 +221,7 @@ func processUserAction(
             Status: http.StatusInternalServerError,
             Msg: "unknown action", 
         }
+		return nil
     }
 
     err = tx.Commit(ctx)
@@ -228,7 +230,7 @@ func processUserAction(
             Status: http.StatusInternalServerError,
             Msg: err.Error(),
         }
-        return err
+        return nil
     }
     return nil
 }
