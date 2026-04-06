@@ -26,7 +26,7 @@ Component Architecture:
 
 MVP
 - Players can join the same game lobby
-- A game board is displayed (CLI first)
+- A game board is displayed
 - Turns rotate amongst the players
 - Basic game logic is implemented (dice roll, board - movement, property purchasing)
 
@@ -38,5 +38,4 @@ Stretch Goals
 
 ## Checkpoint Functionality
 - A working singleplayer monopoly prototype.
-Works through CLI
 - A multiplayer lobby that players can join and initialize the game in. Does not need to be fully functional between players yet, but allowing players to join the same lobby is expected.
