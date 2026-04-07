@@ -1,21 +1,22 @@
 package main
 
 import (
-    "context"
-    commonhandler "monopoly-backend/handlers/common"
-    gamestatehandlers "monopoly-backend/handlers/game_state"
-    playershandlers "monopoly-backend/handlers/player"
-    internaldb "monopoly-backend/internal/db"
-    internaldbgamestate "monopoly-backend/internal/db/game_state"
-    monopolyengine "monopoly-backend/internal/engine"
-    "monopoly-backend/util"
+	"context"
+	commonhandler "monopoly-backend/handlers/common"
+	gamestatehandlers "monopoly-backend/handlers/game_state"
+	playershandlers "monopoly-backend/handlers/player"
+	properties_handlers "monopoly-backend/handlers/properties"
+	internaldb "monopoly-backend/internal/db"
+	internaldbgamestate "monopoly-backend/internal/db/game_state"
+	monopolyengine "monopoly-backend/internal/engine"
+	"monopoly-backend/util"
 
-    "github.com/jackc/pgx/v5"
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/joho/godotenv"
-    "github.com/labstack/echo/v4"
-    "github.com/labstack/echo/v4/middleware"
-    "github.com/rs/zerolog/log"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
@@ -92,6 +93,9 @@ func main() {
     routes.GET("/game", gamestatehandlers.GetAllGameSessions)
     routes.POST("/game/join", gamestatehandlers.JoinSessionHandler)
     routes.GET("/game/join/live", gamestatehandlers.JoinLiveGameHandler)
+
+	routes.GET("/game/property", properties_handlers.CheckPropertyOwnerHandler)
+	routes.POST("/game/property", properties_handlers.PurchasePropertyHandler)
 
     // start the echo server
     e.Start(":9876")

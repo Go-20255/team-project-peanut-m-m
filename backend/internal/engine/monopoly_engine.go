@@ -7,6 +7,7 @@ import (
 	"monopoly-backend/internal"
 	internaldb "monopoly-backend/internal/db"
 	internaldb_players "monopoly-backend/internal/db/players"
+	internaldb_properties "monopoly-backend/internal/db/properties"
 	"net/http"
 	"sync"
 
@@ -121,8 +122,10 @@ func processUserAction(
             Status: http.StatusInternalServerError,
             Msg: err.Error(),
         }
-        return err
+        return nil
     }
+
+	defer tx.Rollback(ctx)
 
     switch action.Event {
     case "ConnectionEvent":
@@ -148,7 +151,8 @@ func processUserAction(
                 Status: http.StatusInternalServerError,
                 Msg: err.Error(),
             }
-            break
+            
+			return nil
         }
 
         if !player_exists {
@@ -156,7 +160,7 @@ func processUserAction(
                 Status: http.StatusBadRequest,
                 Msg: "player does not exist",
             }
-            break
+            return nil
         }
 
         // announce to all connected users that another user has joined the game
@@ -166,12 +170,58 @@ func processUserAction(
         }
         log.Trace().Msgf("player %v has joined server", data.PlayerName)
 
+	case "PurchaseProperty":
+        log.Trace().Msg("player attempting to purchase property")
+
+        data, ok := action.Data.(struct {
+            SessionId  string
+            PlayerId   int
+            PropertyId int
+        })
+        if !ok {
+            log.Error().Msg("invalid data format received for PurchaseProperty")
+            action.ReturnChan <- internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    "internal data format error",
+            }
+            break
+        }
+
+		// try to buy property, also does ownership validation
+        ownershipId, err := internaldb_properties.CreatePropertyOwnerDB(
+            log, 
+            ctx, 
+            tx.(*pgxpool.Tx), 
+            data.SessionId, 
+            data.PlayerId, 
+            data.PropertyId,
+        )
+        
+        if err != nil {
+            action.ReturnChan <- internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    err.Error(),
+            }
+            return nil
+        }
+
+        e.Broker.Broadcast(log, "PropertyPurchased", fmt.Sprintf("Player %d purchased property %d", data.PlayerId, data.PropertyId))
+
+        action.ReturnChan <- internal.UserActionStatus{
+            Status: http.StatusOK,
+            Msg:    fmt.Sprintf("property purchased successfully (Ownership ID: %d)", ownershipId),
+        }
+        log.Trace().Msgf("player %d successfully purchased property %d", data.PlayerId, data.PropertyId)
+        
+        break
+
     default:
         log.Trace().Msgf("received unknown engine action event: %v", action.Event)
         action.ReturnChan <- internal.UserActionStatus{
             Status: http.StatusInternalServerError,
             Msg: "unknown action", 
         }
+		return nil
     }
 
     err = tx.Commit(ctx)
@@ -180,7 +230,7 @@ func processUserAction(
             Status: http.StatusInternalServerError,
             Msg: err.Error(),
         }
-        return err
+        return nil
     }
     return nil
 }
