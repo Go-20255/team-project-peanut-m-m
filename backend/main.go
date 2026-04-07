@@ -92,6 +92,8 @@ func main() {
     routes.GET("/game", gamestatehandlers.GetAllGameSessions)
     routes.POST("/game/join", gamestatehandlers.JoinSessionHandler)
     routes.GET("/game/join/live", gamestatehandlers.JoinLiveGameHandler)
+    routes.POST("/game/roll", gamestatehandlers.RollDiceHandler)
+    routes.POST("/game/move", gamestatehandlers.MovePlayerHandler)
 
     // start the echo server
     e.Start(":9876")
