@@ -167,12 +167,41 @@ $$ LANGUAGE plpgsql;
         log.Fatal().Err(err).Msg("failed to create rents table")
     }
 
-    // TODO: update insert with real rent values
     _, err = tx.Exec(ctx, `
         INSERT INTO Rents (id, base, color_set, one_house, two_house, three_house, four_house, hotel)
         VALUES
-            (0, 10, 25, 100, 200, 300, 400, 1000000) -- note the id as you will need to match it later with its respective property
-        `)
+            -- Brown
+            (1, 2, 4, 10, 30, 90, 160, 250),     -- Mediterranean Ave
+            (3, 4, 8, 20, 60, 180, 320, 450),    -- Baltic Ave
+            -- Light Blue
+            (6, 6, 12, 30, 90, 270, 400, 550),   -- Oriental Ave
+            (8, 6, 12, 30, 90, 270, 400, 550),   -- Vermont Ave
+            (9, 8, 16, 40, 100, 300, 450, 600),  -- Connecticut Ave
+            -- Pink
+            (11, 10, 20, 50, 150, 450, 625, 750),  -- St. Charles Place
+            (13, 10, 20, 50, 150, 450, 625, 750),  -- States Ave
+            (14, 12, 24, 60, 180, 500, 700, 900),  -- Virginia Ave
+            -- Orange
+            (16, 14, 28, 70, 200, 550, 750, 950),  -- St. James Place
+            (18, 14, 28, 70, 200, 550, 750, 950),  -- Tennessee Ave
+            (19, 16, 32, 80, 220, 600, 800, 1000), -- New York Ave
+            -- Red
+            (21, 18, 36, 90, 250, 700, 875, 1050),   -- Kentucky Ave
+            (23, 18, 36, 90, 250, 700, 875, 1050),   -- Indiana Ave
+            (24, 20, 40, 100, 300, 750, 925, 1100),  -- Illinois Ave
+            -- Yellow
+            (26, 22, 44, 110, 330, 800, 975, 1150),  -- Atlantic Ave
+            (27, 22, 44, 110, 330, 800, 975, 1150),  -- Ventnor Ave
+            (29, 24, 48, 120, 360, 850, 1025, 1200), -- Marvin Gardens
+            -- Green
+            (31, 26, 52, 130, 390, 900, 1100, 1275), -- Pacific Ave
+            (32, 26, 52, 130, 390, 900, 1100, 1275), -- North Carolina Ave
+            (34, 28, 56, 150, 450, 1000, 1200, 1400),-- Pennsylvania Ave
+            -- Dark Blue
+            (37, 35, 70, 175, 500, 1100, 1300, 1500),-- Park Place
+            (39, 50, 100, 200, 600, 1400, 1700, 2000)-- Boardwalk
+        ON CONFLICT (id) DO NOTHING;
+    `)
     if err != nil {
         log.Fatal().Err(err).Msg("failed to insert rents into db")
     }
@@ -194,12 +223,62 @@ $$ LANGUAGE plpgsql;
         log.Fatal().Err(err).Msg("failed to create property table")
     }
 
-    // TODO: update insert with real properties and link their rents that were defined earlier
-    _, err = tx.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
         INSERT INTO Property (id, name, rentvalues_id, purchase_cost, mortgage_cost, unmortgage_cost, house_cost, hotel_cost, ptype)
         VALUES
-            (0, 'test property', 0, 120, 100, 110, 50, 100, 'BROWN') -- rentvalues_id value is the rent values we want referenced in the rent table
-        `)
+            -- Brown (House cost: 50)
+            (1, 'Mediterranean Avenue', 1, 60, 30, 33, 50, 50, 'BROWN'),
+            (3, 'Baltic Avenue', 3, 60, 30, 33, 50, 50, 'BROWN'),
+            
+            -- Railroad 1
+            (5, 'Reading Railroad', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
+
+            -- Light Blue (House cost: 50)
+            (6, 'Oriental Avenue', 6, 100, 50, 55, 50, 50, 'LIGHTBLUE'),
+            (8, 'Vermont Avenue', 8, 100, 50, 55, 50, 50, 'LIGHTBLUE'),
+            (9, 'Connecticut Avenue', 9, 120, 60, 66, 50, 50, 'LIGHTBLUE'),
+
+            -- Pink (House cost: 100)
+            (11, 'St. Charles Place', 11, 140, 70, 77, 100, 100, 'PINK'),
+            (12, 'Electric Company', NULL, 150, 75, 83, NULL, NULL, 'UTILITY'),
+            (13, 'States Avenue', 13, 140, 70, 77, 100, 100, 'PINK'),
+            (14, 'Virginia Avenue', 14, 160, 80, 88, 100, 100, 'PINK'),
+
+            -- Railroad 2
+            (15, 'Pennsylvania Railroad', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
+
+            -- Orange (House cost: 100)
+            (16, 'St. James Place', 16, 180, 90, 99, 100, 100, 'ORANGE'),
+            (18, 'Tennessee Avenue', 18, 180, 90, 99, 100, 100, 'ORANGE'),
+            (19, 'New York Avenue', 19, 200, 100, 110, 100, 100, 'ORANGE'),
+
+            -- Red (House cost: 150)
+            (21, 'Kentucky Avenue', 21, 220, 110, 121, 150, 150, 'RED'),
+            (23, 'Indiana Avenue', 23, 220, 110, 121, 150, 150, 'RED'),
+            (24, 'Illinois Avenue', 24, 240, 120, 132, 150, 150, 'RED'),
+
+            -- Railroad 3
+            (25, 'B. & O. Railroad', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
+
+            -- Yellow (House cost: 150)
+            (26, 'Atlantic Avenue', 26, 260, 130, 143, 150, 150, 'YELLOW'),
+            (27, 'Ventnor Avenue', 27, 260, 130, 143, 150, 150, 'YELLOW'),
+            (28, 'Water Works', NULL, 150, 75, 83, NULL, NULL, 'UTILITY'),
+            (29, 'Marvin Gardens', 29, 280, 140, 154, 150, 150, 'YELLOW'),
+
+            -- Green (House cost: 200)
+            (31, 'Pacific Avenue', 31, 300, 150, 165, 200, 200, 'GREEN'),
+            (32, 'North Carolina Avenue', 32, 300, 150, 165, 200, 200, 'GREEN'),
+            (34, 'Pennsylvania Avenue', 34, 320, 160, 176, 200, 200, 'GREEN'),
+
+            -- Railroad 4
+            (35, 'Short Line', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
+
+            -- Dark Blue (House cost: 200)
+            (37, 'Park Place', 37, 350, 175, 193, 200, 200, 'DARKBLUE'),
+            (39, 'Boardwalk', 39, 400, 200, 220, 200, 200, 'DARKBLUE')
+        ON CONFLICT (id) DO NOTHING;
+    `)
     if err != nil {
         log.Fatal().Err(err).Msg("failed to insert properties into db")
     }
