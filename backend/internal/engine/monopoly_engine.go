@@ -122,7 +122,7 @@ func processUserAction(
             Status: http.StatusInternalServerError,
             Msg:    err.Error(),
         }
-        return err
+        return nil
     }
 
     action_status := internal.UserActionStatus{
@@ -153,7 +153,8 @@ func processUserAction(
                 Status: http.StatusInternalServerError,
                 Msg:    err.Error(),
             }
-            break
+            
+			return nil
         }
 
         if !player_exists {
@@ -161,7 +162,7 @@ func processUserAction(
                 Status: http.StatusBadRequest,
                 Msg:    "player does not exist",
             }
-            break
+            return nil
         }
 
         // announce to all connected users that another user has joined the game
@@ -323,6 +324,51 @@ func processUserAction(
             Data:   playerMovement,
         }
 
+	case "PurchaseProperty":
+        log.Trace().Msg("player attempting to purchase property")
+
+        data, ok := action.Data.(struct {
+            SessionId  string
+            PlayerId   int
+            PropertyId int
+        })
+        if !ok {
+            log.Error().Msg("invalid data format received for PurchaseProperty")
+            action.ReturnChan <- internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    "internal data format error",
+            }
+            break
+        }
+
+		// try to buy property, also does ownership validation
+        ownershipId, err := internaldb_properties.CreatePropertyOwnerDB(
+            log, 
+            ctx, 
+            tx.(*pgxpool.Tx), 
+            data.SessionId, 
+            data.PlayerId, 
+            data.PropertyId,
+        )
+        
+        if err != nil {
+            action.ReturnChan <- internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    err.Error(),
+            }
+            return nil
+        }
+
+        e.Broker.Broadcast(log, "PropertyPurchased", fmt.Sprintf("Player %d purchased property %d", data.PlayerId, data.PropertyId))
+
+        action.ReturnChan <- internal.UserActionStatus{
+            Status: http.StatusOK,
+            Msg:    fmt.Sprintf("property purchased successfully (Ownership ID: %d)", ownershipId),
+        }
+        log.Trace().Msgf("player %d successfully purchased property %d", data.PlayerId, data.PropertyId)
+        
+        break
+
     default:
         log.Trace().Msgf("received unknown engine action event: %v", action.Event)
         action_status = internal.UserActionStatus{
@@ -345,7 +391,7 @@ func processUserAction(
             Status: http.StatusInternalServerError,
             Msg:    err.Error(),
         }
-        return err
+        return nil
     }
     action.ReturnChan <- action_status
     return nil
