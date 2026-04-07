@@ -52,6 +52,35 @@ func CreateGameState(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx) (s
     return id, nil
 }
 
+func GetGameStateTurnNumber(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) (int, error) {
+    var turnNumber int
+    err := tx.QueryRow(ctx, `
+        SELECT turn_number
+        FROM game_state
+        WHERE session_id = $1
+        `, sessionId).Scan(&turnNumber)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to query game state turn number")
+        return 0, err
+    }
+
+    return turnNumber, nil
+}
+
+func UpdateGameStateTurnNumber(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string, turnNumber int) error {
+    _, err := tx.Exec(ctx, `
+        UPDATE game_state
+        SET turn_number = $1
+        WHERE session_id = $2
+        `, turnNumber, sessionId)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to update game state turn number")
+        return err
+    }
+
+    return nil
+}
+
 func GetGameSessions(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx) ([]string, error) {
 
     var sessionIds []string
