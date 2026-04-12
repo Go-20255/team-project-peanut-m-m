@@ -9,6 +9,7 @@ import (
     internaldb "monopoly-backend/internal/db"
     internaldb_game_state "monopoly-backend/internal/db/game_state"
     internaldb_players "monopoly-backend/internal/db/players"
+    internaldb_properties "monopoly-backend/internal/db/properties"
     "net/http"
     "sync"
 
@@ -153,8 +154,8 @@ func processUserAction(
                 Status: http.StatusInternalServerError,
                 Msg:    err.Error(),
             }
-            
-			return nil
+
+            return nil
         }
 
         if !player_exists {
@@ -324,7 +325,7 @@ func processUserAction(
             Data:   playerMovement,
         }
 
-	case "PurchaseProperty":
+    case "PurchaseProperty":
         log.Trace().Msg("player attempting to purchase property")
 
         data, ok := action.Data.(struct {
@@ -341,16 +342,16 @@ func processUserAction(
             break
         }
 
-		// try to buy property, also does ownership validation
+        // try to buy property, also does ownership validation
         ownershipId, err := internaldb_properties.CreatePropertyOwnerDB(
-            log, 
-            ctx, 
-            tx.(*pgxpool.Tx), 
-            data.SessionId, 
-            data.PlayerId, 
+            log,
+            ctx,
+            tx.(*pgxpool.Tx),
+            data.SessionId,
+            data.PlayerId,
             data.PropertyId,
         )
-        
+
         if err != nil {
             action.ReturnChan <- internal.UserActionStatus{
                 Status: http.StatusBadRequest,
@@ -366,7 +367,7 @@ func processUserAction(
             Msg:    fmt.Sprintf("property purchased successfully (Ownership ID: %d)", ownershipId),
         }
         log.Trace().Msgf("player %d successfully purchased property %d", data.PlayerId, data.PropertyId)
-        
+
         break
 
     default:
