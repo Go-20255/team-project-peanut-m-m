@@ -3,4 +3,4 @@
  */
 
 export { useAuth } from './useAuth';
-export { useGameSession } from './useGameSession';
+export { useCreateGame, useJoinGame, useAddPlayer } from './useGameSession';

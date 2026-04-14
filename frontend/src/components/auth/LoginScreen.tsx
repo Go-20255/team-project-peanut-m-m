@@ -8,20 +8,26 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { TextInput } from '@/components/ui/TextInput';
 import { Card } from '@/components/ui/Card';
-import { useGameSession } from '@/hooks/useGameSession';
+import { useCreateGame, useJoinGame, useAddPlayer } from '@/hooks/useGameSession';
 
 interface LoginScreenProps {
   onLoginSuccess: (sessionId: string) => void;
 }
 
 export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
-  const [loginMode, setLoginMode] = useState<'splash' | 'create' | 'join'>('splash');
+  const [loginMode, setLoginMode] = useState<'splash' | 'create' | 'join' | 'success'>('splash');
   const [playerName, setPlayerName] = useState('');
   const [joinCode, setJoinCode] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [successJoinCode, setSuccessJoinCode] = useState('');
+  const [successSessionId, setSuccessSessionId] = useState('');
   const [error, setError] = useState('');
 
-  const { createGame, joinGame } = useGameSession();
+  const createGameMutation = useCreateGame();
+  const joinGameMutation = useJoinGame();
+  const addPlayerMutation = useAddPlayer();
+
+  const isLoading =
+    createGameMutation.isPending || joinGameMutation.isPending || addPlayerMutation.isPending;
 
   const handleCreateGame = async () => {
     if (!playerName.trim()) {
@@ -29,18 +35,22 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       return;
     }
 
-    setIsLoading(true);
     setError('');
 
     try {
-      const { sessionId } = await createGame();
-      onLoginSuccess(sessionId);
+      const gameData = await createGameMutation.mutateAsync();
+      const playerData = await addPlayerMutation.mutateAsync({
+        sessionId: gameData.session_id,
+        playerName: playerName.trim(),
+      });
+      // Show success screen with join code
+      setSuccessJoinCode(gameData.join_code);
+      setSuccessSessionId(playerData.session_id);
+      setLoginMode('success');
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Failed to create game. Please try again.'
       );
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -55,19 +65,24 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       return;
     }
 
-    setIsLoading(true);
     setError('');
 
     try {
-      const sessionId = await joinGame(joinCode);
-      onLoginSuccess(sessionId);
+      const gameData = await joinGameMutation.mutateAsync(joinCode);
+      const playerData = await addPlayerMutation.mutateAsync({
+        sessionId: gameData.session_id,
+        playerName: playerName.trim(),
+      });
+      onLoginSuccess(playerData.session_id);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Failed to join game. Please check the code.'
       );
-    } finally {
-      setIsLoading(false);
     }
+  };
+
+  const handleContinueFromSuccess = () => {
+    onLoginSuccess(successSessionId);
   };
 
   return (
@@ -232,6 +247,45 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 className="w-full"
               >
                 Back
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {loginMode === 'success' && (
+          <Card variant="elevated" className="space-y-8 bg-white bg-opacity-95 backdrop-blur-sm text-center">
+            <div>
+              <div className="text-6xl mb-4">✨</div>
+              <h2 className="text-3xl font-bold text-rit-orange mb-2">Game Created!</h2>
+              <p className="text-gray-700 font-semibold">Share this code with friends to join</p>
+            </div>
+
+            <div className="bg-rit-orange bg-opacity-10 border-2 border-rit-orange rounded-lg p-6">
+              <p className="text-gray-600 text-sm mb-2">JOIN CODE</p>
+              <p className="text-5xl font-bold text-rit-orange font-mono tracking-wider">
+                {successJoinCode}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <Button
+                variant="accent"
+                size="lg"
+                onClick={handleContinueFromSuccess}
+                className="w-full"
+              >
+                Continue to Game 🎮
+              </Button>
+
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => {
+                  navigator.clipboard.writeText(successJoinCode);
+                }}
+                className="w-full"
+              >
+                Copy Code 📋
               </Button>
             </div>
           </Card>
