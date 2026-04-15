@@ -72,6 +72,27 @@ func JoinLiveGameHandler(c echo.Context) error {
     for {
         select {
         case <-ctx.Done():
+            // notify engine to run the disconnect event action and wait for the result
+            res, err := monopolyengine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+                Event: "DisconnectEvent",
+                Data: struct {
+                    Id string
+                    PlayerName string
+                    SessionId string
+                }{
+                    Id: playerId,
+                    PlayerName: playerName,
+                    SessionId: sessionId,
+                },
+                ReturnChan: make(chan internal.UserActionStatus),
+            })
+            if err != nil {
+                return c.String(http.StatusInternalServerError, err.Error())
+            }
+
+            if res.Status != http.StatusOK {
+                return c.String(res.Status, res.Msg)
+            }
             return nil
         case msg, ok := <-client.MsgChan: // monitor for messages we need to broadcast to user
             if !ok {

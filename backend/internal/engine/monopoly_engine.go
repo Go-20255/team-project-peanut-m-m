@@ -155,7 +155,7 @@ func processUserAction(
                 Msg:    err.Error(),
             }
 
-            return nil
+            break
         }
 
         if !player_exists {
@@ -163,13 +163,58 @@ func processUserAction(
                 Status: http.StatusBadRequest,
                 Msg:    "player does not exist",
             }
-            return nil
+            break
         }
+
+
+        internaldb_players.UpdatePlayerInGameStatus(log, ctx, tx.(*pgxpool.Tx), data.Id, data.SessionId, true)
 
         // announce to all connected users that another user has joined the game
         e.Broker.Broadcast(log, "ConnectionEvent", fmt.Sprintf("player %v has joined", data.PlayerName))
         log.Trace().Msgf("player %v has joined server", data.PlayerName)
 
+    case "DisconnectEvent":
+        log.Trace().Msg("player attempting to leave game")
+
+        data := action.Data.(struct {
+            Id         string
+            PlayerName string
+            SessionId  string
+        })
+
+        // ensure player exists in session
+        player_exists, err := internaldb_players.CheckPlayerExists(
+            log,
+            ctx,
+            tx.(*pgxpool.Tx),
+            data.Id,
+            data.PlayerName,
+            data.SessionId,
+        )
+        if err != nil {
+            action_status = internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+
+            break
+        }
+
+        if !player_exists {
+            action_status = internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    "player does not exist",
+            }
+            break
+        }
+
+
+        internaldb_players.UpdatePlayerInGameStatus(log, ctx, tx.(*pgxpool.Tx), data.Id, data.SessionId, false)
+
+        // announce to all connected users that another user has joined the game
+        e.Broker.Broadcast(log, "DisconnectEvent", fmt.Sprintf("player %v has left", data.PlayerName))
+        log.Trace().Msgf("player %v has left server", data.PlayerName)
+        
     case "RollDiceEvent":
         data := action.Data.(internal.RollDiceActionData)
 
