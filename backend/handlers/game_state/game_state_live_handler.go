@@ -27,6 +27,7 @@ func JoinLiveGameHandler(c echo.Context) error {
     client := &handlers.SseClient{
         ID:      fmt.Sprintf("%v-%v", playerName, playerId),
         MsgChan: make(chan handlers.SseBroadcastMessage, 32),
+        CommentChan: make(chan handlers.SseCommentMessage, 32),
     }
 
     broker, err := monopolyengine.GetEngineBroker(sessionId)
@@ -94,6 +95,7 @@ func JoinLiveGameHandler(c echo.Context) error {
                 return c.String(res.Status, res.Msg)
             }
             return nil
+
         case msg, ok := <-client.MsgChan: // monitor for messages we need to broadcast to user
             if !ok {
                 return nil
@@ -102,6 +104,15 @@ func JoinLiveGameHandler(c echo.Context) error {
             if err := handlers.WriteSseEvent(w, msg.EventName, msg.MsgObj); err != nil {
                 return err
             }
+
+        case msg, ok := <-client.CommentChan: // monitor for comments we need to broadcast to user
+            if !ok {
+                return nil
+            }
+            if err := handlers.WriteSseComment(w, msg.Comment); err != nil {
+                return err
+            }
+
         case <-heartbeat.C:
             if err := handlers.WriteSseComment(w, "keepalive"); err != nil {
                 return nil

@@ -58,7 +58,8 @@ func Connected(
     internaldb_players.UpdatePlayerInGameStatus(log, ctx, tx, data.Id, data.SessionId, true)
 
     // announce to all connected users that another user has joined the game
-    e.Broker.Broadcast(log, "ConnectionEvent", fmt.Sprintf("player %v has joined", data.PlayerName))
+    e.Broker.BroadcastComment(log, fmt.Sprintf("Player %v has joined", data.PlayerName))
+    //e.Broker.Broadcast(log, "ConnectionEvent", fmt.Sprintf("player %v has joined", data.PlayerName))
     log.Trace().Msgf("player %v has joined server", data.PlayerName)
     return action_status
 }
@@ -112,7 +113,8 @@ func Disconnected(
     internaldb_players.UpdatePlayerInGameStatus(log, ctx, tx, data.Id, data.SessionId, false)
 
     // announce to all connected users that another user has left the game
-    e.Broker.Broadcast(log, "DisconnectEvent", fmt.Sprintf("player %v has left", data.PlayerName))
+    e.Broker.BroadcastComment(log, fmt.Sprintf("Player %v has left", data.PlayerName))
+    //e.Broker.Broadcast(log, "DisconnectEvent", fmt.Sprintf("player %v has left", data.PlayerName))
     log.Trace().Msgf("player %v has left server", data.PlayerName)
 
     return action_status
