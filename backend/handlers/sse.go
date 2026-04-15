@@ -12,8 +12,9 @@ import (
 )
 
 type SseClient struct {
-    ID      string
-    MsgChan chan SseBroadcastMessage
+    ID              string
+    MsgChan         chan SseBroadcastMessage
+    CommentChan     chan SseCommentMessage
 }
 
 type SseBroker struct {
@@ -35,8 +36,9 @@ func (b *SseBroker) AddClient(client *SseClient) {
 
 func (b *SseBroker) RemoveClient(client *SseClient) {
     b.Mu.Lock()
-    delete(b.Clients, client)
     close(client.MsgChan)
+    close(client.CommentChan)
+    delete(b.Clients, client)
     b.Mu.Unlock()
 }
 
@@ -61,9 +63,28 @@ func (b *SseBroker) Broadcast(log zerolog.Logger, eventName string, msgObj any) 
     }
 }
 
+func (b *SseBroker) BroadcastComment(log zerolog.Logger, comment string) {
+    b.Mu.RLock()
+    defer b.Mu.RUnlock()
+
+    for client := range b.Clients {
+        select {
+        case client.CommentChan <- SseCommentMessage{Comment: comment}:
+        default:
+            log.Warn().
+                Str("client_id", client.ID).
+                Msg("dropping sse comment for slow client")
+        }
+    }
+}
+
 type SseBroadcastMessage struct {
     EventName string
     MsgObj    []byte
+}
+
+type SseCommentMessage struct {
+    Comment     string
 }
 
 type SseEvent struct {

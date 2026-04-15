@@ -30,6 +30,17 @@ type MonopolyEngine struct {
     TurnNumber        int `json:"turn_number"`
 }
 
+type InitialGameBoardData struct {
+    Tiles       []Tile
+    Players     []PlayerInfoUpdate
+}
+
+type Tile struct {
+    Id              int
+    Name            string
+    PropertyData    *PropertyData
+}
+
 type RollDiceActionData struct {
     PlayerId  int
     SessionId string
@@ -58,16 +69,24 @@ type PlayerMovement struct {
     TurnNumber  int    `json:"turn_number"`
 }
 
+type PlayerInfoUpdate struct {
+    Player              Player              `json:"player"`
+    // properties attached to above player
+    OwnedProperties     []OwnedProperty     `json:"owned_properties"`
+}
+
 type Player struct {
-    Id                int    `json:"id"`
-    Name              string `json:"name"`
-    PlayerOrder       int    `json:"player_order"`
-    Money             int    `json:"money"`
-    Position          int    `json:"position"`
-    GetOutOfJailCards int    `json:"get_out_of_jail_cards"`
-    Jailed            bool   `json:"jailed"`
-    SessionId         string `json:"session_id"`
-    InGame            bool   `json:"in_game"`
+    Id                  int     `json:"id"`
+    Name                string  `json:"name"`
+    ReadyUpStatus       bool    `json:"ready_up_status"`
+    PieceToken          int     `json:"piece_token"`
+    PlayerOrder         int     `json:"player_order"`
+    Money               int     `json:"money"`
+    Position            int     `json:"position"`
+    GetOutOfJailCards   int     `json:"get_out_of_jail_cards"`
+    Jailed              bool    `json:"jailed"`
+    SessionId           string  `json:"session_id"`
+    InGame              bool    `json:"in_game"`
 }
 
 type OwnedProperty struct {

@@ -155,3 +155,22 @@ func UpdatePlayerPosition(log zerolog.Logger, ctx context.Context, tx *pgxpool.T
 
     return nil
 }
+
+func UpdatePlayerInGameStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id string, sessionId string, inGameStatus bool) error {
+
+    commandTag, err := tx.Exec(ctx, `
+        UPDATE player
+        SET in_game = $1
+        WHERE id = $2 AND session_id = $3
+        `, inGameStatus, id, sessionId)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to update players in game status")
+        return err
+    }
+
+    if commandTag.RowsAffected() == 0 {
+        return pgx.ErrNoRows
+    }
+
+    return nil
+}

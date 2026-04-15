@@ -137,6 +137,8 @@ $$ LANGUAGE plpgsql;
         CREATE TABLE Player (
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,
+        ready_up_status BOOLEAN NOT NULL DEFAULT FALSE,
+        piece_token INTEGER,
         player_order INTEGER, -- Becomes not null later when turns are decided via "dice" roll
         money INTEGER NOT NULL DEFAULT 0,
         position INTEGER NOT NULL DEFAULT 0, -- index of position into 1D board array
@@ -144,7 +146,8 @@ $$ LANGUAGE plpgsql;
         jailed INTEGER NOT NULL DEFAULT 0, -- number of turns stuck in jail
         session_id UUID REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL,
         in_game BOOLEAN NOT NULL DEFAULT FALSE,
-        CONSTRAINT unique_session_name UNIQUE(name, session_id)
+        CONSTRAINT unique_session_name UNIQUE(name, session_id),
+        CONSTRAINT unique_session_token UNIQUE(piece_token, session_id)
         )
         `)
     if err != nil {
@@ -223,65 +226,157 @@ $$ LANGUAGE plpgsql;
         log.Fatal().Err(err).Msg("failed to create property table")
     }
 
-	_, err = tx.Exec(ctx, `
+    _, err = tx.Exec(ctx, `
         INSERT INTO Property (id, name, rentvalues_id, purchase_cost, mortgage_cost, unmortgage_cost, house_cost, hotel_cost, ptype)
         VALUES
             -- Brown (House cost: 50)
             (1, 'Mediterranean Avenue', 1, 60, 30, 33, 50, 50, 'BROWN'),
-            (3, 'Baltic Avenue', 3, 60, 30, 33, 50, 50, 'BROWN'),
+            (2, 'Baltic Avenue', 3, 60, 30, 33, 50, 50, 'BROWN'),
             
             -- Railroad 1
-            (5, 'Reading Railroad', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
+            (3, 'Reading Railroad', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
 
             -- Light Blue (House cost: 50)
-            (6, 'Oriental Avenue', 6, 100, 50, 55, 50, 50, 'LIGHTBLUE'),
-            (8, 'Vermont Avenue', 8, 100, 50, 55, 50, 50, 'LIGHTBLUE'),
-            (9, 'Connecticut Avenue', 9, 120, 60, 66, 50, 50, 'LIGHTBLUE'),
+            (4, 'Oriental Avenue', 6, 100, 50, 55, 50, 50, 'LIGHTBLUE'),
+            (5, 'Vermont Avenue', 8, 100, 50, 55, 50, 50, 'LIGHTBLUE'),
+            (6, 'Connecticut Avenue', 9, 120, 60, 66, 50, 50, 'LIGHTBLUE'),
 
             -- Pink (House cost: 100)
-            (11, 'St. Charles Place', 11, 140, 70, 77, 100, 100, 'PINK'),
-            (12, 'Electric Company', NULL, 150, 75, 83, NULL, NULL, 'UTILITY'),
-            (13, 'States Avenue', 13, 140, 70, 77, 100, 100, 'PINK'),
-            (14, 'Virginia Avenue', 14, 160, 80, 88, 100, 100, 'PINK'),
+            (7, 'St. Charles Place', 11, 140, 70, 77, 100, 100, 'PINK'),
+            (8, 'Electric Company', NULL, 150, 75, 83, NULL, NULL, 'UTILITY'),
+            (9, 'States Avenue', 13, 140, 70, 77, 100, 100, 'PINK'),
+            (10, 'Virginia Avenue', 14, 160, 80, 88, 100, 100, 'PINK'),
 
             -- Railroad 2
-            (15, 'Pennsylvania Railroad', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
+            (11, 'Pennsylvania Railroad', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
 
             -- Orange (House cost: 100)
-            (16, 'St. James Place', 16, 180, 90, 99, 100, 100, 'ORANGE'),
-            (18, 'Tennessee Avenue', 18, 180, 90, 99, 100, 100, 'ORANGE'),
-            (19, 'New York Avenue', 19, 200, 100, 110, 100, 100, 'ORANGE'),
+            (12, 'St. James Place', 16, 180, 90, 99, 100, 100, 'ORANGE'),
+            (13, 'Tennessee Avenue', 18, 180, 90, 99, 100, 100, 'ORANGE'),
+            (14, 'New York Avenue', 19, 200, 100, 110, 100, 100, 'ORANGE'),
 
             -- Red (House cost: 150)
-            (21, 'Kentucky Avenue', 21, 220, 110, 121, 150, 150, 'RED'),
-            (23, 'Indiana Avenue', 23, 220, 110, 121, 150, 150, 'RED'),
-            (24, 'Illinois Avenue', 24, 240, 120, 132, 150, 150, 'RED'),
+            (15, 'Kentucky Avenue', 21, 220, 110, 121, 150, 150, 'RED'),
+            (16, 'Indiana Avenue', 23, 220, 110, 121, 150, 150, 'RED'),
+            (17, 'Illinois Avenue', 24, 240, 120, 132, 150, 150, 'RED'),
 
             -- Railroad 3
-            (25, 'B. & O. Railroad', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
+            (18, 'B. & O. Railroad', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
 
             -- Yellow (House cost: 150)
-            (26, 'Atlantic Avenue', 26, 260, 130, 143, 150, 150, 'YELLOW'),
-            (27, 'Ventnor Avenue', 27, 260, 130, 143, 150, 150, 'YELLOW'),
-            (28, 'Water Works', NULL, 150, 75, 83, NULL, NULL, 'UTILITY'),
-            (29, 'Marvin Gardens', 29, 280, 140, 154, 150, 150, 'YELLOW'),
+            (19, 'Atlantic Avenue', 26, 260, 130, 143, 150, 150, 'YELLOW'),
+            (20, 'Ventnor Avenue', 27, 260, 130, 143, 150, 150, 'YELLOW'),
+            (21, 'Water Works', NULL, 150, 75, 83, NULL, NULL, 'UTILITY'),
+            (22, 'Marvin Gardens', 29, 280, 140, 154, 150, 150, 'YELLOW'),
 
             -- Green (House cost: 200)
-            (31, 'Pacific Avenue', 31, 300, 150, 165, 200, 200, 'GREEN'),
-            (32, 'North Carolina Avenue', 32, 300, 150, 165, 200, 200, 'GREEN'),
-            (34, 'Pennsylvania Avenue', 34, 320, 160, 176, 200, 200, 'GREEN'),
+            (23, 'Pacific Avenue', 31, 300, 150, 165, 200, 200, 'GREEN'),
+            (24, 'North Carolina Avenue', 32, 300, 150, 165, 200, 200, 'GREEN'),
+            (25, 'Pennsylvania Avenue', 34, 320, 160, 176, 200, 200, 'GREEN'),
 
             -- Railroad 4
-            (35, 'Short Line', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
+            (26, 'Short Line', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
 
             -- Dark Blue (House cost: 200)
-            (37, 'Park Place', 37, 350, 175, 193, 200, 200, 'DARKBLUE'),
-            (39, 'Boardwalk', 39, 400, 200, 220, 200, 200, 'DARKBLUE')
+            (27, 'Park Place', 37, 350, 175, 193, 200, 200, 'DARKBLUE'),
+            (28, 'Boardwalk', 39, 400, 200, 220, 200, 200, 'DARKBLUE')
         ON CONFLICT (id) DO NOTHING;
     `)
     if err != nil {
         log.Fatal().Err(err).Msg("failed to insert properties into db")
     }
+
+    _, err = tx.Exec(ctx, `
+        CREATE TABLE Tiles (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        property_id INTEGER REFERENCES Property(id)
+        )
+        `)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to create tiles table")
+    }
+
+    _, err = tx.Exec(ctx, `
+        INSERT INTO Tiles (id, property_id, name)
+        VALUES
+            (0, NULL, 'Go'),
+            -- Brown (House cost: 50)
+            (1, 1, 'Mediterranean Avenue'),
+            (3, 2, 'Baltic Avenue'),
+
+            (2, NULL, 'Community Chest'),
+            (4, NULL, 'Income Tax'),
+            
+            -- Railroad 1
+            (5, 3, 'Reading Railroad'),
+
+            -- Light Blue (House cost: 50)
+            (6, 4, 'Oriental Avenue'),
+            (8, 5, 'Vermont Avenue'),
+            (9, 6, 'Connecticut Avenue'),
+
+            (7, NULL, 'Chance'),
+
+            -- Pink (House cost: 100)
+            (11, 7, 'St. Charles Place'),
+            (12, 8, 'Electric Company'),
+            (13, 9, 'States Avenue'),
+            (14, 10, 'Virginia Avenue'),
+
+            -- Railroad 2
+            (15, 11, 'Pennsylvania Railroad'),
+
+            -- Orange (House cost: 100)
+            (16, 12, 'St. James Place'),
+            (18, 13, 'Tennessee Avenue'),
+            (19, 14, 'New York Avenue'),
+
+            (17, NULL, 'Community Chest'),
+            (20, NULL, 'Free Parking'),
+
+            -- Red (House cost: 150)
+            (21, 15, 'Kentucky Avenue'),
+            (23, 16, 'Indiana Avenue'),
+            (24, 17, 'Illinois Avenue'),
+
+            (22, NULL, 'Chance'),
+
+            -- Railroad 3
+            (25, 18, 'B. & O. Railroad'),
+
+            -- Yellow (House cost: 150)
+            (26, 19, 'Atlantic Avenue'),
+            (27, 20, 'Ventnor Avenue'),
+            (28, 21, 'Water Works'),
+            (29, 22, 'Marvin Gardens'),
+
+            (30, NULL, 'Go To Jail'),
+
+            -- Green (House cost: 200)
+            (31, 23, 'Pacific Avenue'),
+            (32, 24, 'North Carolina Avenue'),
+            (34, 25, 'Pennsylvania Avenue'),
+
+            (33, NULL, 'Community Chest'),
+
+            -- Railroad 4
+            (35, 26, 'Short Line'),
+
+            (36, NULL, 'Chance'),
+
+            -- Dark Blue (House cost: 200)
+            (37, 27, 'Park Place'),
+            (39, 28, 'Boardwalk'),
+
+            (38, NULL, 'Luxury Tax')
+
+        ON CONFLICT (id) DO NOTHING;
+    `)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to insert tiles into db")
+    }
+
 
     _, err = tx.Exec(ctx, `
         CREATE TABLE Event_Cards ( -- Community and Chance Cards

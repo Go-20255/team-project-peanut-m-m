@@ -1,0 +1,26 @@
+meta {
+  name: roll dice
+  type: http
+  seq: 7
+}
+
+post {
+  url: http://localhost:9876/api/game/roll
+  body: formUrlEncoded
+  auth: inherit
+}
+
+body:form-urlencoded {
+  session_id: {{session_id}}
+  player_id: {{id}}
+}
+
+vars:pre-request {
+  id: 1
+  session_id: 64ac7727-9ba7-422f-8220-b99a8dde67d4
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
