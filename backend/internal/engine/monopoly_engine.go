@@ -135,47 +135,7 @@ func processUserAction(
     case "ConnectionEvent":
         action_status = player_events.Connected(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "DisconnectEvent":
-        log.Trace().Msg("player attempting to leave game")
-
-        data := action.Data.(struct {
-            Id         string
-            PlayerName string
-            SessionId  string
-        })
-
-        // ensure player exists in session
-        player_exists, err := internaldb_players.CheckPlayerExists(
-            log,
-            ctx,
-            tx.(*pgxpool.Tx),
-            data.Id,
-            data.PlayerName,
-            data.SessionId,
-        )
-        if err != nil {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusInternalServerError,
-                Msg:    err.Error(),
-            }
-
-            break
-        }
-
-        if !player_exists {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusBadRequest,
-                Msg:    "player does not exist",
-            }
-            break
-        }
-
-
-        internaldb_players.UpdatePlayerInGameStatus(log, ctx, tx.(*pgxpool.Tx), data.Id, data.SessionId, false)
-
-        // announce to all connected users that another user has left the game
-        e.Broker.Broadcast(log, "DisconnectEvent", fmt.Sprintf("player %v has left", data.PlayerName))
-        log.Trace().Msgf("player %v has left server", data.PlayerName)
-        
+        action_status = player_events.Disconnected(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "RollDiceEvent":
         data := action.Data.(internal.RollDiceActionData)
 

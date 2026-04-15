@@ -63,6 +63,59 @@ func Connected(
     return action_status
 }
 
+func Disconnected(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    action_status := internal.UserActionStatus{
+        Status: http.StatusOK,
+    }
 
+    log.Trace().Msg("player attempting to leave game")
+
+    data := action.Data.(struct {
+        Id         string
+        PlayerName string
+        SessionId  string
+    })
+
+    // ensure player exists in session
+    player_exists, err := internaldb_players.CheckPlayerExists(
+        log,
+        ctx,
+        tx,
+        data.Id,
+        data.PlayerName,
+        data.SessionId,
+    )
+    if err != nil {
+        action_status = internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+
+        return action_status
+    }
+
+    if !player_exists {
+        action_status = internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player does not exist",
+        }
+        return action_status
+    }
+
+
+    internaldb_players.UpdatePlayerInGameStatus(log, ctx, tx, data.Id, data.SessionId, false)
+
+    // announce to all connected users that another user has left the game
+    e.Broker.Broadcast(log, "DisconnectEvent", fmt.Sprintf("player %v has left", data.PlayerName))
+    log.Trace().Msgf("player %v has left server", data.PlayerName)
+
+    return action_status
+}
 
 
