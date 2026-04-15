@@ -1,1 +1,9 @@
 .internal.env
+# ignore all general markdown files
+*.md
+
+# Allow only markdown files in docs/
+!docs/*.md
+
+# Allow README files
+!README.md
