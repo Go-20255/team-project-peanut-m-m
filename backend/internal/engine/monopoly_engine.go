@@ -1,22 +1,23 @@
 package monopoly_engine
 
 import (
-    "context"
-    "fmt"
-    "math/rand/v2"
-    "monopoly-backend/handlers"
-    "monopoly-backend/internal"
-    internaldb "monopoly-backend/internal/db"
-    internaldb_game_state "monopoly-backend/internal/db/game_state"
-    internaldb_players "monopoly-backend/internal/db/players"
-    internaldb_properties "monopoly-backend/internal/db/properties"
-    "net/http"
-    "sync"
+	"context"
+	"fmt"
+	"math/rand/v2"
+	"monopoly-backend/handlers"
+	"monopoly-backend/internal"
+	internaldb "monopoly-backend/internal/db"
+	internaldb_game_state "monopoly-backend/internal/db/game_state"
+	internaldb_players "monopoly-backend/internal/db/players"
+	internaldb_properties "monopoly-backend/internal/db/properties"
+	"monopoly-backend/internal/engine/events/player_events"
+	"net/http"
+	"sync"
 
-    "github.com/jackc/pgx/v5"
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/rs/zerolog"
-    "github.com/rs/zerolog/log"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -132,47 +133,7 @@ func processUserAction(
 
     switch action.Event {
     case "ConnectionEvent":
-        log.Trace().Msg("player attempting to join game")
-
-        data := action.Data.(struct {
-            Id         string
-            PlayerName string
-            SessionId  string
-        })
-
-        // ensure player exists in session
-        player_exists, err := internaldb_players.CheckPlayerExists(
-            log,
-            ctx,
-            tx.(*pgxpool.Tx),
-            data.Id,
-            data.PlayerName,
-            data.SessionId,
-        )
-        if err != nil {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusInternalServerError,
-                Msg:    err.Error(),
-            }
-
-            break
-        }
-
-        if !player_exists {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusBadRequest,
-                Msg:    "player does not exist",
-            }
-            break
-        }
-
-
-        internaldb_players.UpdatePlayerInGameStatus(log, ctx, tx.(*pgxpool.Tx), data.Id, data.SessionId, true)
-
-        // announce to all connected users that another user has joined the game
-        e.Broker.Broadcast(log, "ConnectionEvent", fmt.Sprintf("player %v has joined", data.PlayerName))
-        log.Trace().Msgf("player %v has joined server", data.PlayerName)
-
+        action_status = player_events.Connected(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "DisconnectEvent":
         log.Trace().Msg("player attempting to leave game")
 
@@ -211,7 +172,7 @@ func processUserAction(
 
         internaldb_players.UpdatePlayerInGameStatus(log, ctx, tx.(*pgxpool.Tx), data.Id, data.SessionId, false)
 
-        // announce to all connected users that another user has joined the game
+        // announce to all connected users that another user has left the game
         e.Broker.Broadcast(log, "DisconnectEvent", fmt.Sprintf("player %v has left", data.PlayerName))
         log.Trace().Msgf("player %v has left server", data.PlayerName)
         
