@@ -30,15 +30,20 @@ type MonopolyEngine struct {
     TurnNumber        int `json:"turn_number"`
 }
 
-type InitialGameBoardData struct {
-    Tiles       []Tile
-    Players     []PlayerInfoUpdate
+type GameStateUpdate struct {
+    CurrentTurn     int     `json:"current_turn"`
+}
+
+type GameBoardData struct {
+    Tiles       []Tile                  `json:"tiles"`
+    Players     []PlayerInfoUpdate      `json:"players"`
+    GameStateUpdate
 }
 
 type Tile struct {
-    Id              int
-    Name            string
-    PropertyData    *PropertyData
+    Id              int             `json:"id"`
+    Name            string          `json:"name"`
+    PropertyData    *PropertyData   `json:"property_data"`
 }
 
 type RollDiceActionData struct {
