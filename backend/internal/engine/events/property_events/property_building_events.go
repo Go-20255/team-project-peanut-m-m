@@ -270,6 +270,228 @@ func PurchaseHotel(
     }
 }
 
+func SellHouse(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    log.Trace().Msg("player attempting to sell house")
+
+    data, ok := action.Data.(internal.PropertyActionData)
+    if !ok {
+        log.Error().Msg("invalid data format received for SellHouse")
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "internal data format error",
+        }
+    }
+
+    propertyGroup, propertyData, err := getValidatedPropertyGroup(ctx, log, tx, data)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    err.Error(),
+        }
+    }
+
+    if propertyData.HasHotel {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "property has a hotel",
+        }
+    }
+
+    if propertyData.Houses == 0 {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "property does not have a house to sell",
+        }
+    }
+
+    maxLevel := getMaxPropertyLevel(propertyGroup)
+    if propertyData.Houses != maxLevel {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "houses must be sold evenly",
+        }
+    }
+
+    player, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    err = internaldb_properties.UpdatePropertyBuildings(log, ctx, tx, data.SessionId, data.PropertyId, propertyData.Houses-1, false)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, data.PlayerId, data.SessionId, player.Money+(propertyData.HouseCost/2))
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    availableHouses, err := internaldb_properties.GetAvailableHouses(log, ctx, tx, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    availableHotels, err := internaldb_properties.GetAvailableHotels(log, ctx, tx, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    propertyBuildingUpdate := internal.PropertyBuildingUpdate{
+        PlayerId:        data.PlayerId,
+        SessionId:       data.SessionId,
+        PropertyId:      data.PropertyId,
+        Houses:          propertyData.Houses - 1,
+        HasHotel:        false,
+        PlayerMoney:     player.Money + (propertyData.HouseCost / 2),
+        AvailableHouses: availableHouses,
+        AvailableHotels: availableHotels,
+    }
+
+    e.Broker.Broadcast(log, "HouseSold", propertyBuildingUpdate)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   propertyBuildingUpdate,
+    }
+}
+
+func SellHotel(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    log.Trace().Msg("player attempting to sell hotel")
+
+    data, ok := action.Data.(internal.PropertyActionData)
+    if !ok {
+        log.Error().Msg("invalid data format received for SellHotel")
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "internal data format error",
+        }
+    }
+
+    propertyGroup, propertyData, err := getValidatedPropertyGroup(ctx, log, tx, data)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    err.Error(),
+        }
+    }
+
+    if !propertyData.HasHotel {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "property does not have a hotel to sell",
+        }
+    }
+
+    maxLevel := getMaxPropertyLevel(propertyGroup)
+    if getPropertyLevel(propertyData) != maxLevel {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "hotels must be sold evenly",
+        }
+    }
+
+    availableHouses, err := internaldb_properties.GetAvailableHouses(log, ctx, tx, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    if availableHouses < 4 {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there are not enough houses available in the bank",
+        }
+    }
+
+    player, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    err = internaldb_properties.UpdatePropertyBuildings(log, ctx, tx, data.SessionId, data.PropertyId, 4, false)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, data.PlayerId, data.SessionId, player.Money+(propertyData.HotelCost/2))
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    availableHouses, err = internaldb_properties.GetAvailableHouses(log, ctx, tx, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    availableHotels, err := internaldb_properties.GetAvailableHotels(log, ctx, tx, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    propertyBuildingUpdate := internal.PropertyBuildingUpdate{
+        PlayerId:        data.PlayerId,
+        SessionId:       data.SessionId,
+        PropertyId:      data.PropertyId,
+        Houses:          4,
+        HasHotel:        false,
+        PlayerMoney:     player.Money + (propertyData.HotelCost / 2),
+        AvailableHouses: availableHouses,
+        AvailableHotels: availableHotels,
+    }
+
+    e.Broker.Broadcast(log, "HotelSold", propertyBuildingUpdate)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   propertyBuildingUpdate,
+    }
+}
+
 func getValidatedPropertyGroup(
     ctx context.Context,
     log zerolog.Logger,
@@ -324,6 +546,18 @@ func getMinPropertyLevel(propertyGroup []internaldb_properties.PropertyGroupData
     }
 
     return minLevel
+}
+
+func getMaxPropertyLevel(propertyGroup []internaldb_properties.PropertyGroupData) int {
+    maxLevel := getPropertyLevel(propertyGroup[0])
+    for _, groupProperty := range propertyGroup[1:] {
+        propertyLevel := getPropertyLevel(groupProperty)
+        if propertyLevel > maxLevel {
+            maxLevel = propertyLevel
+        }
+    }
+
+    return maxLevel
 }
 
 func getPropertyLevel(propertyData internaldb_properties.PropertyGroupData) int {
