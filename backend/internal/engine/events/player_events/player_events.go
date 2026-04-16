@@ -136,7 +136,7 @@ func RollDice(
         }
     }
 
-    if currentPlayer.Id == 0 {
+    if currentPlayer == nil {
         return internal.UserActionStatus{
             Status: http.StatusBadRequest,
             Msg:    "there are no players in this game session",
