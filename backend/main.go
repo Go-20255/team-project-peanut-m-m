@@ -98,6 +98,8 @@ func main() {
 
     routes.GET("/game/property", properties_handlers.CheckPropertyOwnerHandler)
     routes.POST("/game/property", properties_handlers.PurchasePropertyHandler)
+    routes.POST("/game/property/house", properties_handlers.PurchaseHouseHandler)
+    routes.POST("/game/property/hotel", properties_handlers.PurchaseHotelHandler)
 
     // start the echo server
     e.Start(":9876")

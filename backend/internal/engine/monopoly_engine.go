@@ -139,6 +139,10 @@ func processUserAction(
         action_status = player_events.MovePlayer(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseProperty":
         action_status = property_events.PurchaseProperty(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "PurchaseHouse":
+        action_status = property_events.PurchaseHouse(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "PurchaseHotel":
+        action_status = property_events.PurchaseHotel(ctx, log, e, &action, tx.(*pgxpool.Tx))
     default:
         log.Trace().Msgf("received unknown engine action event: %v", action.Event)
         action_status = internal.UserActionStatus{
@@ -166,4 +170,3 @@ func processUserAction(
     action.ReturnChan <- action_status
     return nil
 }
-
