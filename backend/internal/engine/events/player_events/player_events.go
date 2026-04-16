@@ -1,16 +1,16 @@
 package player_events
 
 import (
-	"context"
-	"fmt"
-	"math/rand/v2"
-	"monopoly-backend/internal"
-	internaldb_game_state "monopoly-backend/internal/db/game_state"
-	internaldb_players "monopoly-backend/internal/db/players"
-	"net/http"
+    "context"
+    "fmt"
+    "math/rand/v2"
+    "monopoly-backend/internal"
+    internaldb_game_state "monopoly-backend/internal/db/game_state"
+    internaldb_players "monopoly-backend/internal/db/players"
+    "net/http"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/rs/zerolog"
 )
 
 func getCurrentPlayerIndex(turnNumber int, playerCount int) int {
@@ -32,7 +32,7 @@ func Connected(
     e *internal.MonopolyEngine,
     action *internal.UserActionEvent,
     tx *pgxpool.Tx,
-) (internal.UserActionStatus) {
+) internal.UserActionStatus {
     log.Trace().Msg("player attempting to join game")
 
     data := action.Data.(struct {
@@ -66,7 +66,6 @@ func Connected(
 
     // TODO: populate this data
     var board_data internal.GameBoardData
-
 
     internaldb_players.UpdatePlayerInGameStatus(log, ctx, tx, data.Id, data.SessionId, true)
 
@@ -107,7 +106,7 @@ func Disconnected(
         data.SessionId,
     )
     if err != nil {
-        return  internal.UserActionStatus{
+        return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
             Msg:    err.Error(),
         }
@@ -123,7 +122,6 @@ func Disconnected(
     // TODO: populate this data
     var board_data internal.GameBoardData
 
-
     internaldb_players.UpdatePlayerInGameStatus(log, ctx, tx, data.Id, data.SessionId, false)
 
     // announce to all connected users that another user has left the game
@@ -138,13 +136,13 @@ func Disconnected(
     }
 }
 
-func RollDice (
+func RollDice(
     ctx context.Context,
     log zerolog.Logger,
     e *internal.MonopolyEngine,
     action *internal.UserActionEvent,
     tx *pgxpool.Tx,
-) (internal.UserActionStatus) {
+) internal.UserActionStatus {
     data := action.Data.(internal.RollDiceActionData)
 
     players, err := internaldb_players.GetPlayersInSession(log, ctx, tx, data.SessionId)
@@ -201,13 +199,13 @@ func RollDice (
     }
 }
 
-func MovePlayer (
+func MovePlayer(
     ctx context.Context,
     log zerolog.Logger,
     e *internal.MonopolyEngine,
     action *internal.UserActionEvent,
     tx *pgxpool.Tx,
-) (internal.UserActionStatus) {
+) internal.UserActionStatus {
     data := action.Data.(internal.MovePlayerActionData)
 
     players, err := internaldb_players.GetPlayersInSession(log, ctx, tx, data.SessionId)
@@ -293,6 +291,3 @@ func MovePlayer (
         Data:   playerMovement,
     }
 }
-
-
-
