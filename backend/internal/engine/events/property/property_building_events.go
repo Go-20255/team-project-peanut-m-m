@@ -1,12 +1,12 @@
-package property_events
+package property
 
 import (
     "context"
     "fmt"
     "monopoly-backend/internal"
-    internaldb_players "monopoly-backend/internal/db/players"
-    internaldb_properties "monopoly-backend/internal/db/properties"
-    turn_events "monopoly-backend/internal/engine/events/turn_events"
+    internaldb_players "monopoly-backend/internal/db/player"
+    internaldb_properties "monopoly-backend/internal/db/property"
+    turn_events "monopoly-backend/internal/engine/events/turn"
     "net/http"
 
     "github.com/jackc/pgx/v5/pgxpool"

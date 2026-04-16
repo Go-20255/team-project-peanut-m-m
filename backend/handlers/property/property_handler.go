@@ -6,7 +6,7 @@ import (
 
     "monopoly-backend/internal"
     internaldbgamestate "monopoly-backend/internal/db/game_state"
-    internaldbproperties "monopoly-backend/internal/db/properties"
+    internaldbproperties "monopoly-backend/internal/db/property"
     monopolyengine "monopoly-backend/internal/engine"
     "monopoly-backend/util"
 

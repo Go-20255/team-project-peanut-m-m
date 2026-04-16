@@ -1,4 +1,4 @@
-package player_events
+package player
 
 import (
     "context"
@@ -6,8 +6,8 @@ import (
     "math/rand/v2"
     "monopoly-backend/internal"
     internaldb_game_state "monopoly-backend/internal/db/game_state"
-    internaldb_players "monopoly-backend/internal/db/players"
-    turn_events "monopoly-backend/internal/engine/events/turn_events"
+    internaldb_players "monopoly-backend/internal/db/player"
+    turn_events "monopoly-backend/internal/engine/events/turn"
     "net/http"
 
     "github.com/jackc/pgx/v5/pgxpool"
