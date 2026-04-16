@@ -143,6 +143,10 @@ func processUserAction(
         action_status = property_events.PurchaseHouse(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseHotel":
         action_status = property_events.PurchaseHotel(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "SellHouse":
+        action_status = property_events.SellHouse(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "SellHotel":
+        action_status = property_events.SellHotel(ctx, log, e, &action, tx.(*pgxpool.Tx))
     default:
         log.Trace().Msgf("received unknown engine action event: %v", action.Event)
         action_status = internal.UserActionStatus{

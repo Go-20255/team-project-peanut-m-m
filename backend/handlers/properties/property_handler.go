@@ -173,3 +173,81 @@ func PurchaseHotelHandler(c echo.Context) error {
 
     return c.JSON(http.StatusOK, res.Data)
 }
+
+func SellHouseHandler(c echo.Context) error {
+    sessionId := c.FormValue("session_id")
+    playerIdStr := c.FormValue("player_id")
+    propertyIdStr := c.FormValue("property_id")
+
+    if sessionId == "" || playerIdStr == "" || propertyIdStr == "" {
+        return c.String(http.StatusBadRequest, "missing session_id, player_id, or property_id")
+    }
+
+    playerId, err := strconv.Atoi(playerIdStr)
+    if err != nil {
+        return c.String(http.StatusBadRequest, "player_id must be a valid integer")
+    }
+
+    propertyId, err := strconv.Atoi(propertyIdStr)
+    if err != nil {
+        return c.String(http.StatusBadRequest, "property_id must be a valid integer")
+    }
+
+    res, err := monopolyengine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+        Event: "SellHouse",
+        Data: internal.PropertyActionData{
+            SessionId:  sessionId,
+            PlayerId:   playerId,
+            PropertyId: propertyId,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.JSON(http.StatusOK, res.Data)
+}
+
+func SellHotelHandler(c echo.Context) error {
+    sessionId := c.FormValue("session_id")
+    playerIdStr := c.FormValue("player_id")
+    propertyIdStr := c.FormValue("property_id")
+
+    if sessionId == "" || playerIdStr == "" || propertyIdStr == "" {
+        return c.String(http.StatusBadRequest, "missing session_id, player_id, or property_id")
+    }
+
+    playerId, err := strconv.Atoi(playerIdStr)
+    if err != nil {
+        return c.String(http.StatusBadRequest, "player_id must be a valid integer")
+    }
+
+    propertyId, err := strconv.Atoi(propertyIdStr)
+    if err != nil {
+        return c.String(http.StatusBadRequest, "property_id must be a valid integer")
+    }
+
+    res, err := monopolyengine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+        Event: "SellHotel",
+        Data: internal.PropertyActionData{
+            SessionId:  sessionId,
+            PlayerId:   playerId,
+            PropertyId: propertyId,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.JSON(http.StatusOK, res.Data)
+}

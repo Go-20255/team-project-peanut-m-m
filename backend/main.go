@@ -100,6 +100,8 @@ func main() {
     routes.POST("/game/property", properties_handlers.PurchasePropertyHandler)
     routes.POST("/game/property/house", properties_handlers.PurchaseHouseHandler)
     routes.POST("/game/property/hotel", properties_handlers.PurchaseHotelHandler)
+    routes.POST("/game/property/house/sell", properties_handlers.SellHouseHandler)
+    routes.POST("/game/property/hotel/sell", properties_handlers.SellHotelHandler)
 
     // start the echo server
     e.Start(":9876")
