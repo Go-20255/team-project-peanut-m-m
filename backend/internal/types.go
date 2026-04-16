@@ -51,6 +51,12 @@ type MovePlayerActionData struct {
     SessionId string
 }
 
+type PropertyActionData struct {
+    PlayerId   int
+    SessionId  string
+    PropertyId int
+}
+
 type DiceRoll struct {
     PlayerId  int    `json:"player_id"`
     SessionId string `json:"session_id"`
@@ -67,6 +73,17 @@ type PlayerMovement struct {
     Total       int    `json:"total"`
     PassedGo    bool   `json:"passed_go"`
     TurnNumber  int    `json:"turn_number"`
+}
+
+type PropertyBuildingUpdate struct {
+    PlayerId        int  `json:"player_id"`
+    SessionId       string `json:"session_id"`
+    PropertyId      int  `json:"property_id"`
+    Houses          int  `json:"houses"`
+    HasHotel        bool `json:"has_hotel"`
+    PlayerMoney     int  `json:"player_money"`
+    AvailableHouses int  `json:"available_houses"`
+    AvailableHotels int  `json:"available_hotels"`
 }
 
 type PlayerInfoUpdate struct {
