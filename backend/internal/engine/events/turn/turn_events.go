@@ -1,10 +1,10 @@
-package turn_events
+package turn
 
 import (
     "context"
     "monopoly-backend/internal"
     internaldb_game_state "monopoly-backend/internal/db/game_state"
-    internaldb_players "monopoly-backend/internal/db/players"
+    internaldb_players "monopoly-backend/internal/db/player"
 
     "github.com/jackc/pgx/v5/pgxpool"
     "github.com/rs/zerolog"
