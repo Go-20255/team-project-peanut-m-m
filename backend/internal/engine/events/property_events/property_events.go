@@ -1,23 +1,23 @@
 package property_events
 
 import (
-	"context"
-	"fmt"
-	"monopoly-backend/internal"
-	internaldb_properties "monopoly-backend/internal/db/properties"
-	"net/http"
+    "context"
+    "fmt"
+    "monopoly-backend/internal"
+    internaldb_properties "monopoly-backend/internal/db/properties"
+    "net/http"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/rs/zerolog"
 )
 
-func PurchaseProperty (
+func PurchaseProperty(
     ctx context.Context,
     log zerolog.Logger,
     e *internal.MonopolyEngine,
     action *internal.UserActionEvent,
     tx *pgxpool.Tx,
-) (internal.UserActionStatus) {
+) internal.UserActionStatus {
     log.Trace().Msg("player attempting to purchase property")
 
     data, ok := action.Data.(struct {
