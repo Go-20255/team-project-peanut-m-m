@@ -15,8 +15,11 @@ type UserActionEvent struct {
 }
 
 type UserActionStatus struct {
+    // http status code to return to caller
     Status int
+    // String Message to respond with
     Msg    string
+    // Data blob to return to caller
     Data   any
 }
 
