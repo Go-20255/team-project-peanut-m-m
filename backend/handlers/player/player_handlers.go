@@ -2,7 +2,7 @@ package players_handlers
 
 import (
     internaldbgamestate "monopoly-backend/internal/db/game_state"
-    internaldbplayers "monopoly-backend/internal/db/players"
+    internaldbplayers "monopoly-backend/internal/db/player"
     "monopoly-backend/util"
     "net/http"
 

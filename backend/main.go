@@ -5,7 +5,7 @@ import (
     commonhandler "monopoly-backend/handlers/common"
     gamestatehandlers "monopoly-backend/handlers/game_state"
     playershandlers "monopoly-backend/handlers/player"
-    properties_handlers "monopoly-backend/handlers/properties"
+    properties_handlers "monopoly-backend/handlers/property"
     internaldb "monopoly-backend/internal/db"
     internaldbgamestate "monopoly-backend/internal/db/game_state"
     monopolyengine "monopoly-backend/internal/engine"

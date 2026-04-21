@@ -1,20 +1,20 @@
 package monopoly_engine
 
 import (
-	"context"
-	"fmt"
-	"monopoly-backend/handlers"
-	"monopoly-backend/internal"
-	internaldb "monopoly-backend/internal/db"
-	"monopoly-backend/internal/engine/events/player_events"
-	"monopoly-backend/internal/engine/events/property_events"
-	"net/http"
-	"sync"
+    "context"
+    "fmt"
+    "monopoly-backend/handlers"
+    "monopoly-backend/internal"
+    internaldb "monopoly-backend/internal/db"
+    "monopoly-backend/internal/engine/events/player"
+    "monopoly-backend/internal/engine/events/property"
+    "net/http"
+    "sync"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/rs/zerolog"
+    "github.com/rs/zerolog/log"
 )
 
 var (
@@ -130,23 +130,23 @@ func processUserAction(
 
     switch action.Event {
     case "ConnectionEvent":
-        action_status = player_events.Connected(ctx, log, e, &action, tx.(*pgxpool.Tx))
+        action_status = player.Connected(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "DisconnectEvent":
-        action_status = player_events.Disconnected(ctx, log, e, &action, tx.(*pgxpool.Tx))
+        action_status = player.Disconnected(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "RollDiceEvent":
-        action_status = player_events.RollDice(ctx, log, e, &action, tx.(*pgxpool.Tx))
+        action_status = player.RollDice(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "MovePlayerEvent":
-        action_status = player_events.MovePlayer(ctx, log, e, &action, tx.(*pgxpool.Tx))
+        action_status = player.MovePlayer(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseProperty":
-        action_status = property_events.PurchaseProperty(ctx, log, e, &action, tx.(*pgxpool.Tx))
+        action_status = property.PurchaseProperty(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseHouse":
-        action_status = property_events.PurchaseHouse(ctx, log, e, &action, tx.(*pgxpool.Tx))
+        action_status = property.PurchaseHouse(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseHotel":
-        action_status = property_events.PurchaseHotel(ctx, log, e, &action, tx.(*pgxpool.Tx))
+        action_status = property.PurchaseHotel(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "SellHouse":
-        action_status = property_events.SellHouse(ctx, log, e, &action, tx.(*pgxpool.Tx))
+        action_status = property.SellHouse(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "SellHotel":
-        action_status = property_events.SellHotel(ctx, log, e, &action, tx.(*pgxpool.Tx))
+        action_status = property.SellHotel(ctx, log, e, &action, tx.(*pgxpool.Tx))
     default:
         log.Trace().Msgf("received unknown engine action event: %v", action.Event)
         action_status = internal.UserActionStatus{

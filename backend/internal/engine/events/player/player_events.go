@@ -1,4 +1,4 @@
-package player_events
+package player
 
 import (
     "context"
@@ -6,20 +6,13 @@ import (
     "math/rand/v2"
     "monopoly-backend/internal"
     internaldb_game_state "monopoly-backend/internal/db/game_state"
-    internaldb_players "monopoly-backend/internal/db/players"
+    internaldb_players "monopoly-backend/internal/db/player"
+    turn_events "monopoly-backend/internal/engine/events/turn"
     "net/http"
 
     "github.com/jackc/pgx/v5/pgxpool"
     "github.com/rs/zerolog"
 )
-
-func getCurrentPlayerIndex(turnNumber int, playerCount int) int {
-    if turnNumber < 0 {
-        return 0
-    }
-
-    return turnNumber % playerCount
-}
 
 func getNewPosition(position int, total int) (int, bool) {
     newPosition := (position + total) % 40
@@ -145,7 +138,7 @@ func RollDice(
 ) internal.UserActionStatus {
     data := action.Data.(internal.RollDiceActionData)
 
-    players, err := internaldb_players.GetPlayersInSession(log, ctx, tx, data.SessionId)
+    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -153,22 +146,13 @@ func RollDice(
         }
     }
 
-    if len(players) == 0 {
+    if currentPlayer == nil {
         return internal.UserActionStatus{
             Status: http.StatusBadRequest,
             Msg:    "there are no players in this game session",
         }
     }
 
-    turnNumber, err := internaldb_game_state.GetGameStateTurnNumber(log, ctx, tx, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
-    currentPlayer := players[getCurrentPlayerIndex(turnNumber, len(players))]
     if currentPlayer.Id != data.PlayerId {
         return internal.UserActionStatus{
             Status: http.StatusBadRequest,
@@ -208,7 +192,7 @@ func MovePlayer(
 ) internal.UserActionStatus {
     data := action.Data.(internal.MovePlayerActionData)
 
-    players, err := internaldb_players.GetPlayersInSession(log, ctx, tx, data.SessionId)
+    currentPlayer, players, turnNumber, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -216,22 +200,13 @@ func MovePlayer(
         }
     }
 
-    if len(players) == 0 {
+    if currentPlayer == nil {
         return internal.UserActionStatus{
             Status: http.StatusBadRequest,
             Msg:    "there are no players in this game session",
         }
     }
 
-    turnNumber, err := internaldb_game_state.GetGameStateTurnNumber(log, ctx, tx, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
-    currentPlayer := players[getCurrentPlayerIndex(turnNumber, len(players))]
     if currentPlayer.Id != data.PlayerId {
         return internal.UserActionStatus{
             Status: http.StatusBadRequest,
@@ -264,7 +239,7 @@ func MovePlayer(
         }
     }
 
-    nextTurnNumber := getCurrentPlayerIndex(turnNumber, len(players)) + 1
+    nextTurnNumber := turn_events.GetCurrentPlayerIndex(turnNumber, len(players)) + 1
     err = internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx, data.SessionId, nextTurnNumber)
     if err != nil {
         return internal.UserActionStatus{
