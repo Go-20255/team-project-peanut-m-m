@@ -117,7 +117,7 @@ type Player struct {
 type OwnedProperty struct {
     Id              int             `json:"id"`
     OwnerPlayerId   int             `json:"owner_player_id"`
-    SessionId       int             `json:"session_id"`
+    SessionId       string          `json:"session_id"`
     CurrentRent     int             `json:"current_rent"` // calculated in sql
     IsMortgaged     bool            `json:"is_mortgaged"`
     Houses          int             `json:"houses"`
