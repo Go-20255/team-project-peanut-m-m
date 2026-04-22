@@ -1,13 +1,13 @@
 package internaldb_players
 
 import (
-	"context"
-	"database/sql"
-	"monopoly-backend/internal"
+    "context"
+    "database/sql"
+    "monopoly-backend/internal"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/rs/zerolog"
 )
 
 func CreatePlayerDB(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, name string, sessionId string) (int, error) {
@@ -221,12 +221,90 @@ func ResetAllPlayersInGameAndReadyUpStatus(log zerolog.Logger, ctx context.Conte
 }
 
 
-func GetPlayerOwnedProperties(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, sessionId string) ([]internal.OwnedProperty, error) {
-    var owned_properties []internal.OwnedProperty
+func GetPlayerOwnedProperties(
+    log zerolog.Logger,
+    ctx context.Context,
+    tx *pgxpool.Tx,
+    playerId int,
+    sessionId string,
+) ([]internal.OwnedProperty, error) {
+    var ownedProperties []internal.OwnedProperty
 
-    // TODO
+    rows, err := tx.Query(ctx, `
+        SELECT
+            op.id,
+            op.owner_id,
+            op.session_id::text,
+            CASE
+                WHEN op.mortgaged THEN 0
+                WHEN p.ptype IN ('RAILROAD', 'UTILITY') THEN 0
+                WHEN op.hotel THEN r.hotel
+                WHEN op.houses = 4 THEN r.four_house
+                WHEN op.houses = 3 THEN r.three_house
+                WHEN op.houses = 2 THEN r.two_house
+                WHEN op.houses = 1 THEN r.one_house
+                ELSE r.base
+            END AS current_rent,
+            op.mortgaged,
+            op.houses,
+            op.hotel,
+            p.id,
+            p.name,
+            COALESCE(p.rentvalues_id, 0),
+            p.purchase_cost,
+            p.mortgage_cost,
+            p.unmortgage_cost,
+            COALESCE(p.house_cost, 0),
+            COALESCE(p.hotel_cost, 0),
+            p.ptype::text
+        FROM owned_properties op
+        JOIN property p
+            ON op.property_id = p.id
+        LEFT JOIN rents r
+            ON p.rentvalues_id = r.id
+        WHERE op.owner_id = $1
+            AND op.session_id = $2
+    `, playerId, sessionId)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to query owned properties for player")
+        return nil, err
+    }
+    defer rows.Close()
 
-    return owned_properties, nil
+    for rows.Next() {
+        var property internal.OwnedProperty
+
+        if err := rows.Scan(
+            &property.Id,
+            &property.OwnerPlayerId,
+            &property.SessionId,
+            &property.CurrentRent,
+            &property.IsMortgaged,
+            &property.Houses,
+            &property.HasHotel,
+            &property.PropertyInfo.Id,
+            &property.PropertyInfo.Name,
+            &property.PropertyInfo.RentId,
+            &property.PropertyInfo.PurchaseCost,
+            &property.PropertyInfo.MortgageCost,
+            &property.PropertyInfo.UnmortgageCost,
+            &property.PropertyInfo.HouseCost,
+            &property.PropertyInfo.HotelCost,
+            &property.PropertyInfo.PropertyType,
+        ); err != nil {
+            log.Trace().Err(err).Msg("failed to scan owned property")
+            return nil, err
+        }
+
+        ownedProperties = append(ownedProperties, property)
+    }
+
+    if err := rows.Err(); err != nil {
+        log.Trace().Err(err).Msg("failed while iterating over owned properties")
+        return nil, err
+    }
+
+    return ownedProperties, nil
 }
 
 
