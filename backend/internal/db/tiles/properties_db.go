@@ -1,12 +1,14 @@
-package internaldb_properties
+package internaldb_tiles
 
 import (
-    "context"
-    "fmt"
+	"context"
+	"database/sql"
+	"fmt"
+	"monopoly-backend/internal"
 
-    "github.com/jackc/pgx/v5"
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/rs/zerolog"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 )
 
 type PropertyGroupData struct {
@@ -66,6 +68,54 @@ func CreatePropertyOwnerDB(log zerolog.Logger, ctx context.Context, tx *pgxpool.
     }
 
     return id, nil
+}
+
+func GetPropertyData(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string, propertyId int) (internal.PropertyData, error) {
+    var p internal.PropertyData
+
+    var rent_value_id sql.NullInt32
+    var house_cost sql.NullInt32
+    var hotel_cost sql.NullInt32
+    err := tx.QueryRow(ctx,`
+        SELECT
+            id,
+            name,
+            rentvalues_id,
+            purchase_cost,
+            mortgage_cost,
+            unmortgage_cost,
+            house_cost,
+            hotel_cost,
+            ptype
+        FROM property
+        WHERE id = $1
+        `, propertyId).Scan(
+        &p.Id,
+        &p.Name,
+        &rent_value_id,
+        &p.PurchaseCost,
+        &p.MortgageCost,
+        &p.UnmortgageCost,
+        &house_cost,
+        &hotel_cost,
+        &p.PropertyType,
+        )
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to get property data from db")
+        return p, err
+    }
+
+    if rent_value_id.Valid {
+        p.RentId = int(rent_value_id.Int32)
+    }
+    if house_cost.Valid {
+        p.HouseCost = int(house_cost.Int32)
+    }
+    if hotel_cost.Valid {
+        p.HotelCost = int(hotel_cost.Int32)
+    }
+
+    return p, nil
 }
 
 func GetPropertyGroupData(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string, propertyId int) ([]PropertyGroupData, error) {

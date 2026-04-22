@@ -15,8 +15,11 @@ type UserActionEvent struct {
 }
 
 type UserActionStatus struct {
+    // http status code to return to caller
     Status int
+    // String Message to respond with
     Msg    string
+    // Data blob to return to caller
     Data   any
 }
 
@@ -30,15 +33,20 @@ type MonopolyEngine struct {
     TurnNumber        int `json:"turn_number"`
 }
 
-type InitialGameBoardData struct {
-    Tiles       []Tile
-    Players     []PlayerInfoUpdate
+type GameStateUpdate struct {
+    CurrentTurn     int             `json:"current_turn"`
+    Players         []PlayerInfo    `json:"players"`
+}
+
+type GameBoardData struct {
+    Tiles       []Tile                  `json:"tiles"`
+    GameStateUpdate
 }
 
 type Tile struct {
-    Id              int
-    Name            string
-    PropertyData    *PropertyData
+    Id              int             `json:"id"`
+    Name            string          `json:"name"`
+    PropertyData    *PropertyData   `json:"property_data"`
 }
 
 type RollDiceActionData struct {
@@ -86,7 +94,7 @@ type PropertyBuildingUpdate struct {
     AvailableHotels int  `json:"available_hotels"`
 }
 
-type PlayerInfoUpdate struct {
+type PlayerInfo struct {
     Player              Player              `json:"player"`
     // properties attached to above player
     OwnedProperties     []OwnedProperty     `json:"owned_properties"`
@@ -107,19 +115,20 @@ type Player struct {
 }
 
 type OwnedProperty struct {
-    Id            int          `json:"id"`
-    OwnerPlayerId int          `json:"owner_player_id"`
-    SessionId     int          `json:"session_id"`
-    IsMortgaged   bool         `json:"is_mortgaged"`
-    Houses        int          `json:"houses"`
-    HasHotel      bool         `json:"has_hotel"`
-    PropertyInfo  PropertyData `json:"property_info"`
+    Id              int             `json:"id"`
+    OwnerPlayerId   int             `json:"owner_player_id"`
+    SessionId       string          `json:"session_id"`
+    CurrentRent     int             `json:"current_rent"` // calculated in sql
+    IsMortgaged     bool            `json:"is_mortgaged"`
+    Houses          int             `json:"houses"`
+    HasHotel        bool            `json:"has_hotel"`
+    PropertyInfo    PropertyData    `json:"property_info"`
 }
 
 type PropertyData struct {
     Id             int    `json:"id"`
     Name           string `json:"name"`
-    CurrentRent    int    `json:"current_rent"`
+    RentId         int    `json:"rent_id"`
     PurchaseCost   int    `json:"purchase_cost"`
     MortgageCost   int    `json:"mortgage_cost"`
     UnmortgageCost int    `json:"unmortgage_cost"`

@@ -2,6 +2,7 @@ package internaldb_players
 
 import (
     "context"
+    "database/sql"
     "monopoly-backend/internal"
 
     "github.com/jackc/pgx/v5"
@@ -90,6 +91,8 @@ func GetPlayersInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx
         SELECT
             id,
             name,
+            ready_up_status,
+            piece_token,
             COALESCE(player_order, -1),
             money,
             position,
@@ -110,12 +113,15 @@ func GetPlayersInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx
     }
     defer rows.Close()
 
+    var token_piece sql.NullInt32
     var players []internal.Player
     for rows.Next() {
         var player internal.Player
         if err := rows.Scan(
             &player.Id,
             &player.Name,
+            &player.ReadyUpStatus,
+            &token_piece,
             &player.PlayerOrder,
             &player.Money,
             &player.Position,
@@ -126,6 +132,9 @@ func GetPlayersInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx
         ); err != nil {
             log.Trace().Err(err).Msg("failed to scan player in session")
             return nil, err
+        }
+        if token_piece.Valid {
+            player.PieceToken = int(token_piece.Int32)
         }
         players = append(players, player)
     }
@@ -192,3 +201,111 @@ func UpdatePlayerInGameStatus(log zerolog.Logger, ctx context.Context, tx *pgxpo
 
     return nil
 }
+
+func ResetAllPlayersInGameAndReadyUpStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) error {
+    commandTag, err := tx.Exec(ctx, `
+        UPDATE player
+        SET in_game = false, ready_up_status = false
+        WHERE session_id = $1
+        `, sessionId)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to update players in game and ready up status'")
+        return err
+    }
+
+    if commandTag.RowsAffected() == 0 {
+        return pgx.ErrNoRows
+    }
+
+    return nil
+}
+
+
+func GetPlayerOwnedProperties(
+    log zerolog.Logger,
+    ctx context.Context,
+    tx *pgxpool.Tx,
+    playerId int,
+    sessionId string,
+) ([]internal.OwnedProperty, error) {
+    var ownedProperties []internal.OwnedProperty
+
+    rows, err := tx.Query(ctx, `
+        SELECT
+            op.id,
+            op.owner_id,
+            op.session_id::text,
+            CASE
+                WHEN op.mortgaged THEN 0
+                WHEN p.ptype IN ('RAILROAD', 'UTILITY') THEN 0
+                WHEN op.hotel THEN r.hotel
+                WHEN op.houses = 4 THEN r.four_house
+                WHEN op.houses = 3 THEN r.three_house
+                WHEN op.houses = 2 THEN r.two_house
+                WHEN op.houses = 1 THEN r.one_house
+                ELSE r.base
+            END AS current_rent,
+            op.mortgaged,
+            op.houses,
+            op.hotel,
+            p.id,
+            p.name,
+            COALESCE(p.rentvalues_id, 0),
+            p.purchase_cost,
+            p.mortgage_cost,
+            p.unmortgage_cost,
+            COALESCE(p.house_cost, 0),
+            COALESCE(p.hotel_cost, 0),
+            p.ptype::text
+        FROM owned_properties op
+        JOIN property p
+            ON op.property_id = p.id
+        LEFT JOIN rents r
+            ON p.rentvalues_id = r.id
+        WHERE op.owner_id = $1
+            AND op.session_id = $2
+    `, playerId, sessionId)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to query owned properties for player")
+        return nil, err
+    }
+    defer rows.Close()
+
+    for rows.Next() {
+        var property internal.OwnedProperty
+
+        if err := rows.Scan(
+            &property.Id,
+            &property.OwnerPlayerId,
+            &property.SessionId,
+            &property.CurrentRent,
+            &property.IsMortgaged,
+            &property.Houses,
+            &property.HasHotel,
+            &property.PropertyInfo.Id,
+            &property.PropertyInfo.Name,
+            &property.PropertyInfo.RentId,
+            &property.PropertyInfo.PurchaseCost,
+            &property.PropertyInfo.MortgageCost,
+            &property.PropertyInfo.UnmortgageCost,
+            &property.PropertyInfo.HouseCost,
+            &property.PropertyInfo.HotelCost,
+            &property.PropertyInfo.PropertyType,
+        ); err != nil {
+            log.Trace().Err(err).Msg("failed to scan owned property")
+            return nil, err
+        }
+
+        ownedProperties = append(ownedProperties, property)
+    }
+
+    if err := rows.Err(); err != nil {
+        log.Trace().Err(err).Msg("failed while iterating over owned properties")
+        return nil, err
+    }
+
+    return ownedProperties, nil
+}
+
+
+

@@ -1,14 +1,16 @@
 package property
 
 import (
-    "context"
-    "fmt"
-    "monopoly-backend/internal"
-    internaldb_properties "monopoly-backend/internal/db/property"
-    "net/http"
+	"context"
+	"fmt"
+	"monopoly-backend/internal"
+	internaldb_players "monopoly-backend/internal/db/player"
+	internaldb_tiles "monopoly-backend/internal/db/tiles"
+	turn_events "monopoly-backend/internal/engine/events/turn"
+	"net/http"
 
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/rs/zerolog"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 )
 
 func PurchaseProperty(
@@ -33,8 +35,59 @@ func PurchaseProperty(
         }
     }
 
+    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    if currentPlayer == nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there are no players in this game session",
+        }
+    }
+
+    if currentPlayer.Id != data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "it is not this player's turn",
+        }
+    }
+
+    property, err := internaldb_tiles.GetPropertyData(
+        log,
+        ctx,
+        tx,
+        data.SessionId,
+        data.PropertyId,
+        )
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg: "failed to get property data from db",
+        }
+    }
+
+    if currentPlayer.Money < property.PurchaseCost {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg: "you can't afford this property",
+        }
+    }
+
+    err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, data.PlayerId, data.SessionId, currentPlayer.Money - property.PurchaseCost)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg: "failed to purchase property",
+        }
+    }
+
     // try to buy property, also does ownership validation
-    ownershipId, err := internaldb_properties.CreatePropertyOwnerDB(
+    ownershipId, err := internaldb_tiles.CreatePropertyOwnerDB(
         log,
         ctx,
         tx,
