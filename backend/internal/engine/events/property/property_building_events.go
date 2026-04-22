@@ -5,7 +5,7 @@ import (
     "fmt"
     "monopoly-backend/internal"
     internaldb_players "monopoly-backend/internal/db/player"
-    internaldb_properties "monopoly-backend/internal/db/property"
+    internaldb_tiles "monopoly-backend/internal/db/tiles"
     turn_events "monopoly-backend/internal/engine/events/turn"
     "net/http"
 
@@ -76,7 +76,7 @@ func PurchaseHouse(
         }
     }
 
-    availableHouses, err := internaldb_properties.GetAvailableHouses(log, ctx, tx, data.SessionId)
+    availableHouses, err := internaldb_tiles.GetAvailableHouses(log, ctx, tx, data.SessionId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -106,7 +106,7 @@ func PurchaseHouse(
         }
     }
 
-    err = internaldb_properties.UpdatePropertyBuildings(log, ctx, tx, data.SessionId, data.PropertyId, propertyData.Houses+1, false)
+    err = internaldb_tiles.UpdatePropertyBuildings(log, ctx, tx, data.SessionId, data.PropertyId, propertyData.Houses+1, false)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -122,7 +122,7 @@ func PurchaseHouse(
         }
     }
 
-    availableHouses, err = internaldb_properties.GetAvailableHouses(log, ctx, tx, data.SessionId)
+    availableHouses, err = internaldb_tiles.GetAvailableHouses(log, ctx, tx, data.SessionId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -130,7 +130,7 @@ func PurchaseHouse(
         }
     }
 
-    availableHotels, err := internaldb_properties.GetAvailableHotels(log, ctx, tx, data.SessionId)
+    availableHotels, err := internaldb_tiles.GetAvailableHotels(log, ctx, tx, data.SessionId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -220,7 +220,7 @@ func PurchaseHotel(
         }
     }
 
-    availableHotels, err := internaldb_properties.GetAvailableHotels(log, ctx, tx, data.SessionId)
+    availableHotels, err := internaldb_tiles.GetAvailableHotels(log, ctx, tx, data.SessionId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -250,7 +250,7 @@ func PurchaseHotel(
         }
     }
 
-    err = internaldb_properties.UpdatePropertyBuildings(log, ctx, tx, data.SessionId, data.PropertyId, 0, true)
+    err = internaldb_tiles.UpdatePropertyBuildings(log, ctx, tx, data.SessionId, data.PropertyId, 0, true)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -266,7 +266,7 @@ func PurchaseHotel(
         }
     }
 
-    availableHouses, err := internaldb_properties.GetAvailableHouses(log, ctx, tx, data.SessionId)
+    availableHouses, err := internaldb_tiles.GetAvailableHouses(log, ctx, tx, data.SessionId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -274,7 +274,7 @@ func PurchaseHotel(
         }
     }
 
-    availableHotels, err = internaldb_properties.GetAvailableHotels(log, ctx, tx, data.SessionId)
+    availableHotels, err = internaldb_tiles.GetAvailableHotels(log, ctx, tx, data.SessionId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -372,7 +372,7 @@ func SellHouse(
         }
     }
 
-    err = internaldb_properties.UpdatePropertyBuildings(log, ctx, tx, data.SessionId, data.PropertyId, propertyData.Houses-1, false)
+    err = internaldb_tiles.UpdatePropertyBuildings(log, ctx, tx, data.SessionId, data.PropertyId, propertyData.Houses-1, false)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -388,7 +388,7 @@ func SellHouse(
         }
     }
 
-    availableHouses, err := internaldb_properties.GetAvailableHouses(log, ctx, tx, data.SessionId)
+    availableHouses, err := internaldb_tiles.GetAvailableHouses(log, ctx, tx, data.SessionId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -396,7 +396,7 @@ func SellHouse(
         }
     }
 
-    availableHotels, err := internaldb_properties.GetAvailableHotels(log, ctx, tx, data.SessionId)
+    availableHotels, err := internaldb_tiles.GetAvailableHotels(log, ctx, tx, data.SessionId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -479,7 +479,7 @@ func SellHotel(
         }
     }
 
-    availableHouses, err := internaldb_properties.GetAvailableHouses(log, ctx, tx, data.SessionId)
+    availableHouses, err := internaldb_tiles.GetAvailableHouses(log, ctx, tx, data.SessionId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -502,7 +502,7 @@ func SellHotel(
         }
     }
 
-    err = internaldb_properties.UpdatePropertyBuildings(log, ctx, tx, data.SessionId, data.PropertyId, 4, false)
+    err = internaldb_tiles.UpdatePropertyBuildings(log, ctx, tx, data.SessionId, data.PropertyId, 4, false)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -518,7 +518,7 @@ func SellHotel(
         }
     }
 
-    availableHouses, err = internaldb_properties.GetAvailableHouses(log, ctx, tx, data.SessionId)
+    availableHouses, err = internaldb_tiles.GetAvailableHouses(log, ctx, tx, data.SessionId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -526,7 +526,7 @@ func SellHotel(
         }
     }
 
-    availableHotels, err := internaldb_properties.GetAvailableHotels(log, ctx, tx, data.SessionId)
+    availableHotels, err := internaldb_tiles.GetAvailableHotels(log, ctx, tx, data.SessionId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -558,22 +558,22 @@ func getValidatedPropertyGroup(
     log zerolog.Logger,
     tx *pgxpool.Tx,
     data internal.PropertyActionData,
-) ([]internaldb_properties.PropertyGroupData, internaldb_properties.PropertyGroupData, error) {
-    propertyGroup, err := internaldb_properties.GetPropertyGroupData(log, ctx, tx, data.SessionId, data.PropertyId)
+) ([]internaldb_tiles.PropertyGroupData, internaldb_tiles.PropertyGroupData, error) {
+    propertyGroup, err := internaldb_tiles.GetPropertyGroupData(log, ctx, tx, data.SessionId, data.PropertyId)
     if err != nil {
-        return nil, internaldb_properties.PropertyGroupData{}, err
+        return nil, internaldb_tiles.PropertyGroupData{}, err
     }
 
     if len(propertyGroup) == 0 {
-        return nil, internaldb_properties.PropertyGroupData{}, fmt.Errorf("property does not exist")
+        return nil, internaldb_tiles.PropertyGroupData{}, fmt.Errorf("property does not exist")
     }
 
     propertyType := propertyGroup[0].PropertyType
     if propertyType == "RAILROAD" || propertyType == "UTILITY" {
-        return nil, internaldb_properties.PropertyGroupData{}, fmt.Errorf("property cannot have houses or hotels")
+        return nil, internaldb_tiles.PropertyGroupData{}, fmt.Errorf("property cannot have houses or hotels")
     }
 
-    var propertyData internaldb_properties.PropertyGroupData
+    var propertyData internaldb_tiles.PropertyGroupData
     foundProperty := false
     for _, groupProperty := range propertyGroup {
         if groupProperty.PropertyId == data.PropertyId {
@@ -582,22 +582,22 @@ func getValidatedPropertyGroup(
         }
 
         if !groupProperty.Owned || groupProperty.OwnerId != data.PlayerId {
-            return nil, internaldb_properties.PropertyGroupData{}, fmt.Errorf("player does not own the full property set")
+            return nil, internaldb_tiles.PropertyGroupData{}, fmt.Errorf("player does not own the full property set")
         }
 
         if groupProperty.IsMortgaged {
-            return nil, internaldb_properties.PropertyGroupData{}, fmt.Errorf("cannot build on a mortgaged property set")
+            return nil, internaldb_tiles.PropertyGroupData{}, fmt.Errorf("cannot build on a mortgaged property set")
         }
     }
 
     if !foundProperty {
-        return nil, internaldb_properties.PropertyGroupData{}, fmt.Errorf("property does not exist")
+        return nil, internaldb_tiles.PropertyGroupData{}, fmt.Errorf("property does not exist")
     }
 
     return propertyGroup, propertyData, nil
 }
 
-func getMinPropertyLevel(propertyGroup []internaldb_properties.PropertyGroupData) int {
+func getMinPropertyLevel(propertyGroup []internaldb_tiles.PropertyGroupData) int {
     minLevel := getPropertyLevel(propertyGroup[0])
     for _, groupProperty := range propertyGroup[1:] {
         propertyLevel := getPropertyLevel(groupProperty)
@@ -609,7 +609,7 @@ func getMinPropertyLevel(propertyGroup []internaldb_properties.PropertyGroupData
     return minLevel
 }
 
-func getMaxPropertyLevel(propertyGroup []internaldb_properties.PropertyGroupData) int {
+func getMaxPropertyLevel(propertyGroup []internaldb_tiles.PropertyGroupData) int {
     maxLevel := getPropertyLevel(propertyGroup[0])
     for _, groupProperty := range propertyGroup[1:] {
         propertyLevel := getPropertyLevel(groupProperty)
@@ -621,7 +621,7 @@ func getMaxPropertyLevel(propertyGroup []internaldb_properties.PropertyGroupData
     return maxLevel
 }
 
-func getPropertyLevel(propertyData internaldb_properties.PropertyGroupData) int {
+func getPropertyLevel(propertyData internaldb_tiles.PropertyGroupData) int {
     if propertyData.HasHotel {
         return 5
     }

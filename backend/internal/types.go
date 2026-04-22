@@ -34,12 +34,12 @@ type MonopolyEngine struct {
 }
 
 type GameStateUpdate struct {
-    CurrentTurn     int     `json:"current_turn"`
+    CurrentTurn     int             `json:"current_turn"`
+    Players         []PlayerInfo    `json:"players"`
 }
 
 type GameBoardData struct {
     Tiles       []Tile                  `json:"tiles"`
-    Players     []PlayerInfo      `json:"players"`
     GameStateUpdate
 }
 
