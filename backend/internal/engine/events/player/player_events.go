@@ -19,6 +19,68 @@ func getNewPosition(position int, total int) (int, bool) {
     return newPosition, position+total >= 40
 }
 
+func EmitInitialGameBoardData(log zerolog.Logger, ctx context.Context, e* internal.MonopolyEngine, tx *pgxpool.Tx, data struct {
+    Id string
+    PlayerName string
+    SessionId string
+
+} ) error {
+
+    // get current turn
+    current_turn, err := internaldb_game_state.GetGameStateTurnNumber(
+        log,
+        ctx,
+        tx,
+        data.SessionId,
+        )
+    if err != nil {
+        return err
+    }
+
+    // get players
+    players, err := internaldb_players.GetPlayersInSession(
+        log,
+        ctx,
+        tx,
+        data.SessionId,
+        )
+    if err != nil {
+        return err
+    }
+    // get player infos
+    var all_players_info []internal.PlayerInfo
+    for _, p := range players {
+        player_owned_properties, err := internaldb_players.GetPlayerOwnedProperties(
+            log,
+            ctx,
+            tx,
+            p.Id,
+            p.SessionId,
+            )
+        if err != nil {
+            return err
+        }
+
+        player_info := internal.PlayerInfo {
+            Player: p,
+            OwnedProperties: player_owned_properties,
+        }
+        all_players_info = append(all_players_info, player_info)
+    }
+
+    // get tiles
+
+    // TODO: populate this data
+
+    var board_data internal.GameBoardData
+    board_data.CurrentTurn = current_turn
+    board_data.Players = all_players_info
+
+
+    e.Broker.Broadcast(log, "InitialGameBoardDataEvent", board_data)
+    return nil
+}
+
 func Connected(
     ctx context.Context,
     log zerolog.Logger,
@@ -57,15 +119,18 @@ func Connected(
         }
     }
 
-    // TODO: populate this data
-    var board_data internal.GameBoardData
-
     internaldb_players.UpdatePlayerInGameStatus(log, ctx, tx, data.Id, data.SessionId, true)
 
     // announce to all connected users that another user has joined the game
     e.Broker.BroadcastComment(log, fmt.Sprintf("Player %v has joined", data.PlayerName))
 
-    e.Broker.Broadcast(log, "GameBoardDataEvent", board_data)
+    err = EmitInitialGameBoardData(log, ctx, e, tx, data)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg: err.Error(),
+        }
+    }
 
     log.Trace().Msgf("player %v has joined server", data.PlayerName)
     return internal.UserActionStatus{
@@ -112,15 +177,19 @@ func Disconnected(
         }
     }
 
-    // TODO: populate this data
-    var board_data internal.GameBoardData
 
     internaldb_players.UpdatePlayerInGameStatus(log, ctx, tx, data.Id, data.SessionId, false)
 
     // announce to all connected users that another user has left the game
     e.Broker.BroadcastComment(log, fmt.Sprintf("Player %v has left", data.PlayerName))
 
-    e.Broker.Broadcast(log, "GameBoardDataEvent", board_data)
+    err = EmitInitialGameBoardData(log, ctx, e, tx, data)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg: err.Error(),
+        }
+    }
 
     log.Trace().Msgf("player %v has left server", data.PlayerName)
 

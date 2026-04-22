@@ -39,7 +39,7 @@ type GameStateUpdate struct {
 
 type GameBoardData struct {
     Tiles       []Tile                  `json:"tiles"`
-    Players     []PlayerInfoUpdate      `json:"players"`
+    Players     []PlayerInfo      `json:"players"`
     GameStateUpdate
 }
 
@@ -94,7 +94,7 @@ type PropertyBuildingUpdate struct {
     AvailableHotels int  `json:"available_hotels"`
 }
 
-type PlayerInfoUpdate struct {
+type PlayerInfo struct {
     Player              Player              `json:"player"`
     // properties attached to above player
     OwnedProperties     []OwnedProperty     `json:"owned_properties"`
