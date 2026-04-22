@@ -115,19 +115,20 @@ type Player struct {
 }
 
 type OwnedProperty struct {
-    Id            int          `json:"id"`
-    OwnerPlayerId int          `json:"owner_player_id"`
-    SessionId     int          `json:"session_id"`
-    IsMortgaged   bool         `json:"is_mortgaged"`
-    Houses        int          `json:"houses"`
-    HasHotel      bool         `json:"has_hotel"`
-    PropertyInfo  PropertyData `json:"property_info"`
+    Id              int             `json:"id"`
+    OwnerPlayerId   int             `json:"owner_player_id"`
+    SessionId       int             `json:"session_id"`
+    CurrentRent     int             `json:"current_rent"` // calculated in sql
+    IsMortgaged     bool            `json:"is_mortgaged"`
+    Houses          int             `json:"houses"`
+    HasHotel        bool            `json:"has_hotel"`
+    PropertyInfo    PropertyData    `json:"property_info"`
 }
 
 type PropertyData struct {
     Id             int    `json:"id"`
     Name           string `json:"name"`
-    CurrentRent    int    `json:"current_rent"`
+    RentId         int    `json:"rent_id"`
     PurchaseCost   int    `json:"purchase_cost"`
     MortgageCost   int    `json:"mortgage_cost"`
     UnmortgageCost int    `json:"unmortgage_cost"`

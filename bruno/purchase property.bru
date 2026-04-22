@@ -1,0 +1,28 @@
+meta {
+  name: purchase property
+  type: http
+  seq: 8
+}
+
+post {
+  url: http://localhost:9876/api/game/property
+  body: formUrlEncoded
+  auth: inherit
+}
+
+body:form-urlencoded {
+  session_id: {{session_id}}
+  player_id: {{player_id}}
+  property_id: {{property_id}}
+}
+
+vars:pre-request {
+  session_id: 2ab36b1a-f2fc-4543-a146-6b4bc31d55bd
+  player_id: 1
+  property_id: 1
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

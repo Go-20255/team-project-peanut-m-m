@@ -140,7 +140,7 @@ $$ LANGUAGE plpgsql;
         ready_up_status BOOLEAN NOT NULL DEFAULT FALSE,
         piece_token INTEGER,
         player_order INTEGER, -- Becomes not null later when turns are decided via "dice" roll
-        money INTEGER NOT NULL DEFAULT 0,
+        money INTEGER NOT NULL DEFAULT 1500,
         position INTEGER NOT NULL DEFAULT 0, -- index of position into 1D board array
         get_out_of_jail_cards INTEGER NOT NULL DEFAULT 0, -- number of get out of jail cards held
         jailed INTEGER NOT NULL DEFAULT 0, -- number of turns stuck in jail
