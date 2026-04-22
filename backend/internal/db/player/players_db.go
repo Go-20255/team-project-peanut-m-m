@@ -1,12 +1,13 @@
 package internaldb_players
 
 import (
-    "context"
-    "monopoly-backend/internal"
+	"context"
+	"database/sql"
+	"monopoly-backend/internal"
 
-    "github.com/jackc/pgx/v5"
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/rs/zerolog"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 )
 
 func CreatePlayerDB(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, name string, sessionId string) (int, error) {
@@ -90,6 +91,8 @@ func GetPlayersInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx
         SELECT
             id,
             name,
+            ready_up_status,
+            piece_token,
             COALESCE(player_order, -1),
             money,
             position,
@@ -110,12 +113,15 @@ func GetPlayersInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx
     }
     defer rows.Close()
 
+    var token_piece sql.NullInt32
     var players []internal.Player
     for rows.Next() {
         var player internal.Player
         if err := rows.Scan(
             &player.Id,
             &player.Name,
+            &player.ReadyUpStatus,
+            &token_piece,
             &player.PlayerOrder,
             &player.Money,
             &player.Position,
@@ -126,6 +132,9 @@ func GetPlayersInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx
         ); err != nil {
             log.Trace().Err(err).Msg("failed to scan player in session")
             return nil, err
+        }
+        if token_piece.Valid {
+            player.PieceToken = int(token_piece.Int32)
         }
         players = append(players, player)
     }
@@ -192,3 +201,33 @@ func UpdatePlayerInGameStatus(log zerolog.Logger, ctx context.Context, tx *pgxpo
 
     return nil
 }
+
+func ResetAllPlayersInGameAndReadyUpStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) error {
+    commandTag, err := tx.Exec(ctx, `
+        UPDATE player
+        SET in_game = false, ready_up_status = false
+        WHERE session_id = $1
+        `, sessionId)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to update players in game and ready up status'")
+        return err
+    }
+
+    if commandTag.RowsAffected() == 0 {
+        return pgx.ErrNoRows
+    }
+
+    return nil
+}
+
+
+func GetPlayerOwnedProperties(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, sessionId string) ([]internal.OwnedProperty, error) {
+    var owned_properties []internal.OwnedProperty
+
+    // TODO
+
+    return owned_properties, nil
+}
+
+
+
