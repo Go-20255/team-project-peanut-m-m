@@ -2,6 +2,7 @@ package internaldb_tiles
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"monopoly-backend/internal"
 
@@ -72,6 +73,9 @@ func CreatePropertyOwnerDB(log zerolog.Logger, ctx context.Context, tx *pgxpool.
 func GetPropertyData(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string, propertyId int) (internal.PropertyData, error) {
     var p internal.PropertyData
 
+    var rent_value_id sql.NullInt32
+    var house_cost sql.NullInt32
+    var hotel_cost sql.NullInt32
     err := tx.QueryRow(ctx,`
         SELECT
             id,
@@ -88,17 +92,27 @@ func GetPropertyData(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, se
         `, propertyId).Scan(
         &p.Id,
         &p.Name,
-        &p.RentId,
+        &rent_value_id,
         &p.PurchaseCost,
         &p.MortgageCost,
         &p.UnmortgageCost,
-        &p.HotelCost,
-        &p.HotelCost,
+        &house_cost,
+        &hotel_cost,
         &p.PropertyType,
         )
     if err != nil {
         log.Trace().Err(err).Msg("failed to get property data from db")
         return p, err
+    }
+
+    if rent_value_id.Valid {
+        p.RentId = int(rent_value_id.Int32)
+    }
+    if house_cost.Valid {
+        p.HouseCost = int(house_cost.Int32)
+    }
+    if hotel_cost.Valid {
+        p.HotelCost = int(hotel_cost.Int32)
     }
 
     return p, nil
