@@ -1,4 +1,4 @@
-package internaldb_properties
+package internaldb_tiles
 
 import (
 	"context"

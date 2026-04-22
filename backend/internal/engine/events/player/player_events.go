@@ -1,17 +1,18 @@
 package player
 
 import (
-    "context"
-    "fmt"
-    "math/rand/v2"
-    "monopoly-backend/internal"
-    internaldb_game_state "monopoly-backend/internal/db/game_state"
-    internaldb_players "monopoly-backend/internal/db/player"
-    turn_events "monopoly-backend/internal/engine/events/turn"
-    "net/http"
+	"context"
+	"fmt"
+	"math/rand/v2"
+	"monopoly-backend/internal"
+	internaldb_game_state "monopoly-backend/internal/db/game_state"
+	internaldb_players "monopoly-backend/internal/db/player"
+	internaldb_tiles "monopoly-backend/internal/db/tiles"
+	turn_events "monopoly-backend/internal/engine/events/turn"
+	"net/http"
 
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/rs/zerolog"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 )
 
 func getNewPosition(position int, total int) (int, bool) {
@@ -70,11 +71,20 @@ func EmitInitialGameBoardData(log zerolog.Logger, ctx context.Context, e* intern
 
     // get tiles
 
-    // TODO: populate this data
+    tiles, err := internaldb_tiles.GetAllTiles(
+        log,
+        ctx,
+        tx,
+        data.SessionId,
+        )
+    if err != nil {
+        return err
+    }
 
     var board_data internal.GameBoardData
     board_data.CurrentTurn = current_turn
     board_data.Players = all_players_info
+    board_data.Tiles = tiles
 
 
     e.Broker.Broadcast(log, "InitialGameBoardDataEvent", board_data)

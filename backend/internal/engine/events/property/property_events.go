@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"monopoly-backend/internal"
 	internaldb_players "monopoly-backend/internal/db/player"
-	internaldb_properties "monopoly-backend/internal/db/property"
+	internaldb_tiles "monopoly-backend/internal/db/tiles"
 	turn_events "monopoly-backend/internal/engine/events/turn"
 	"net/http"
 
@@ -59,7 +59,7 @@ func PurchaseProperty(
         //}
     //}
 
-    property, err := internaldb_properties.GetPropertyData(
+    property, err := internaldb_tiles.GetPropertyData(
         log,
         ctx,
         tx,
@@ -89,7 +89,7 @@ func PurchaseProperty(
     }
 
     // try to buy property, also does ownership validation
-    ownershipId, err := internaldb_properties.CreatePropertyOwnerDB(
+    ownershipId, err := internaldb_tiles.CreatePropertyOwnerDB(
         log,
         ctx,
         tx,
