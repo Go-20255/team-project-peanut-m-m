@@ -50,14 +50,12 @@ func PurchaseProperty(
         }
     }
 
-    // TODO undo this temporary comment out :) - Michael
-
-    //if currentPlayer.Id != data.PlayerId {
-        //return internal.UserActionStatus{
-            //Status: http.StatusBadRequest,
-            //Msg:    "it is not this player's turn",
-        //}
-    //}
+    if currentPlayer.Id != data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "it is not this player's turn",
+        }
+    }
 
     property, err := internaldb_tiles.GetPropertyData(
         log,
