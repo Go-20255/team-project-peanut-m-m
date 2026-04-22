@@ -1,20 +1,21 @@
 package monopoly_engine
 
 import (
-    "context"
-    "fmt"
-    "monopoly-backend/handlers"
-    "monopoly-backend/internal"
-    internaldb "monopoly-backend/internal/db"
-    "monopoly-backend/internal/engine/events/player"
-    "monopoly-backend/internal/engine/events/property"
-    "net/http"
-    "sync"
+	"context"
+	"fmt"
+	"monopoly-backend/handlers"
+	"monopoly-backend/internal"
+	internaldb "monopoly-backend/internal/db"
+	internaldb_players "monopoly-backend/internal/db/player"
+	"monopoly-backend/internal/engine/events/player"
+	"monopoly-backend/internal/engine/events/property"
+	"net/http"
+	"sync"
 
-    "github.com/jackc/pgx/v5"
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/rs/zerolog"
-    "github.com/rs/zerolog/log"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -66,6 +67,7 @@ func SetupNewMonopolyEngine(sessionId string) {
 
     ctx := context.Background()
 
+
     // infinite loop so we can recover from errors
     for {
 
@@ -82,8 +84,24 @@ func SetupNewMonopolyEngine(sessionId string) {
     }
 }
 
+
 func runMonopolyEngine(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, db *pgxpool.Pool) error {
-    log.Info().Msgf("started monopoly engine for session id: %v", e.SessionId)
+    log.Info().Msg("started monopoly engine")
+
+
+    tx, err := db.BeginTx(ctx, pgx.TxOptions{})
+    if err != nil {
+        return err
+    }
+    internaldb_players.ResetAllPlayersInGameAndReadyUpStatus(log, ctx, tx.(*pgxpool.Tx), e.SessionId)
+    err = tx.Commit(ctx)
+    if err != nil {
+        if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+            return rollbackErr
+        }
+        return err
+    }
+    log.Info().Msg("reset all player's in game and ready up status'")
 
     for {
 

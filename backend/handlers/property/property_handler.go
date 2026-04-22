@@ -5,9 +5,9 @@ import (
     "strconv"
 
     "monopoly-backend/internal"
-    internaldbgamestate "monopoly-backend/internal/db/game_state"
-    internaldbproperties "monopoly-backend/internal/db/property"
-    monopolyengine "monopoly-backend/internal/engine"
+    "monopoly-backend/internal/db/game_state"
+    internaldb_tiles "monopoly-backend/internal/db/tiles"
+    "monopoly-backend/internal/engine"
     "monopoly-backend/util"
 
     "github.com/jackc/pgx/v5/pgxpool"
@@ -31,7 +31,7 @@ func CheckPropertyOwnerHandler(c echo.Context) error {
     }
 
     tx := c.Get("tx").(*pgxpool.Tx)
-    exists, err := internaldbgamestate.GameStateExists(log, ctx, tx, sessionId)
+    exists, err := internaldb_game_state.GameStateExists(log, ctx, tx, sessionId)
     if err != nil {
         return c.String(http.StatusInternalServerError, "failed to query db about game state")
     }
@@ -40,7 +40,7 @@ func CheckPropertyOwnerHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "session_id does not exist")
     }
 
-    ownerId, owned, err := internaldbproperties.VerifyPropertyOwnerDB(log, ctx, tx, sessionId, propertyId)
+    ownerId, owned, err := internaldb_tiles.VerifyPropertyOwnerDB(log, ctx, tx, sessionId, propertyId)
     if err != nil {
         return c.String(http.StatusInternalServerError, "failed to get property ownership status")
     }
@@ -71,7 +71,7 @@ func PurchasePropertyHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "property_id must be a valid integer")
     }
 
-    res, err := monopolyengine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+    res, err := monopoly_engine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
         Event: "PurchaseProperty",
         Data: struct {
             SessionId  string
@@ -115,7 +115,7 @@ func PurchaseHouseHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "property_id must be a valid integer")
     }
 
-    res, err := monopolyengine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+    res, err := monopoly_engine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
         Event: "PurchaseHouse",
         Data: internal.PropertyActionData{
             SessionId:  sessionId,
@@ -154,7 +154,7 @@ func PurchaseHotelHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "property_id must be a valid integer")
     }
 
-    res, err := monopolyengine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+    res, err := monopoly_engine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
         Event: "PurchaseHotel",
         Data: internal.PropertyActionData{
             SessionId:  sessionId,
@@ -193,7 +193,7 @@ func SellHouseHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "property_id must be a valid integer")
     }
 
-    res, err := monopolyengine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+    res, err := monopoly_engine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
         Event: "SellHouse",
         Data: internal.PropertyActionData{
             SessionId:  sessionId,
@@ -232,7 +232,7 @@ func SellHotelHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "property_id must be a valid integer")
     }
 
-    res, err := monopolyengine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+    res, err := monopoly_engine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
         Event: "SellHotel",
         Data: internal.PropertyActionData{
             SessionId:  sessionId,

@@ -104,3 +104,6 @@ func GetGameSessions(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx) ([
 
     return sessionIds, nil
 }
+
+
+
