@@ -1,16 +1,16 @@
 package property
 
 import (
-	"context"
-	"fmt"
-	"monopoly-backend/internal"
-	internaldb_players "monopoly-backend/internal/db/player"
-	internaldb_tiles "monopoly-backend/internal/db/tiles"
-	turn_events "monopoly-backend/internal/engine/events/turn"
-	"net/http"
+    "context"
+    "fmt"
+    "monopoly-backend/internal"
+    internaldb_players "monopoly-backend/internal/db/player"
+    internaldb_tiles "monopoly-backend/internal/db/tile"
+    turn_events "monopoly-backend/internal/engine/events/turn"
+    "net/http"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/rs/zerolog"
 )
 
 func PurchaseProperty(
@@ -63,26 +63,26 @@ func PurchaseProperty(
         tx,
         data.SessionId,
         data.PropertyId,
-        )
+    )
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
-            Msg: "failed to get property data from db",
+            Msg:    "failed to get property data from db",
         }
     }
 
     if currentPlayer.Money < property.PurchaseCost {
         return internal.UserActionStatus{
             Status: http.StatusBadRequest,
-            Msg: "you can't afford this property",
+            Msg:    "you can't afford this property",
         }
     }
 
-    err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, data.PlayerId, data.SessionId, currentPlayer.Money - property.PurchaseCost)
+    err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, data.PlayerId, data.SessionId, currentPlayer.Money-property.PurchaseCost)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
-            Msg: "failed to purchase property",
+            Msg:    "failed to purchase property",
         }
     }
 

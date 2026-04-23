@@ -1,18 +1,18 @@
 package player
 
 import (
-	"context"
-	"fmt"
-	"math/rand/v2"
-	"monopoly-backend/internal"
-	internaldb_game_state "monopoly-backend/internal/db/game_state"
-	internaldb_players "monopoly-backend/internal/db/player"
-	internaldb_tiles "monopoly-backend/internal/db/tiles"
-	turn_events "monopoly-backend/internal/engine/events/turn"
-	"net/http"
+    "context"
+    "fmt"
+    "math/rand/v2"
+    "monopoly-backend/internal"
+    internaldb_game_state "monopoly-backend/internal/db/game_state"
+    internaldb_players "monopoly-backend/internal/db/player"
+    internaldb_tiles "monopoly-backend/internal/db/tile"
+    turn_events "monopoly-backend/internal/engine/events/turn"
+    "net/http"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/rs/zerolog"
 )
 
 func getNewPosition(position int, total int) (int, bool) {
@@ -20,12 +20,11 @@ func getNewPosition(position int, total int) (int, bool) {
     return newPosition, position+total >= 40
 }
 
-func EmitInitialGameBoardData(log zerolog.Logger, ctx context.Context, e* internal.MonopolyEngine, tx *pgxpool.Tx, data struct {
-    Id string
+func EmitInitialGameBoardData(log zerolog.Logger, ctx context.Context, e *internal.MonopolyEngine, tx *pgxpool.Tx, data struct {
+    Id         string
     PlayerName string
-    SessionId string
-
-} ) error {
+    SessionId  string
+}) error {
 
     // get current turn
     current_turn, err := internaldb_game_state.GetGameStateTurnNumber(
@@ -33,7 +32,7 @@ func EmitInitialGameBoardData(log zerolog.Logger, ctx context.Context, e* intern
         ctx,
         tx,
         data.SessionId,
-        )
+    )
     if err != nil {
         return err
     }
@@ -44,7 +43,7 @@ func EmitInitialGameBoardData(log zerolog.Logger, ctx context.Context, e* intern
         ctx,
         tx,
         data.SessionId,
-        )
+    )
     if err != nil {
         return err
     }
@@ -57,13 +56,13 @@ func EmitInitialGameBoardData(log zerolog.Logger, ctx context.Context, e* intern
             tx,
             p.Id,
             p.SessionId,
-            )
+        )
         if err != nil {
             return err
         }
 
-        player_info := internal.PlayerInfo {
-            Player: p,
+        player_info := internal.PlayerInfo{
+            Player:          p,
             OwnedProperties: player_owned_properties,
         }
         all_players_info = append(all_players_info, player_info)
@@ -76,7 +75,7 @@ func EmitInitialGameBoardData(log zerolog.Logger, ctx context.Context, e* intern
         ctx,
         tx,
         data.SessionId,
-        )
+    )
     if err != nil {
         return err
     }
@@ -85,7 +84,6 @@ func EmitInitialGameBoardData(log zerolog.Logger, ctx context.Context, e* intern
     board_data.CurrentTurn = current_turn
     board_data.Players = all_players_info
     board_data.Tiles = tiles
-
 
     e.Broker.Broadcast(log, "InitialGameBoardDataEvent", board_data)
     return nil
@@ -138,7 +136,7 @@ func Connected(
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
-            Msg: err.Error(),
+            Msg:    err.Error(),
         }
     }
 
@@ -187,7 +185,6 @@ func Disconnected(
         }
     }
 
-
     internaldb_players.UpdatePlayerInGameStatus(log, ctx, tx, data.Id, data.SessionId, false)
 
     // announce to all connected users that another user has left the game
@@ -197,7 +194,7 @@ func Disconnected(
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
-            Msg: err.Error(),
+            Msg:    err.Error(),
         }
     }
 
