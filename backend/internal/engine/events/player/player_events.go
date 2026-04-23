@@ -236,6 +236,13 @@ func RollDice(
         }
     }
 
+    if e.PendingRent != nil && e.PendingRent.FromPlayerId == data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player has a pending rent payment",
+        }
+    }
+
     if _, ok := e.PendingRolls[data.PlayerId]; ok {
         return internal.UserActionStatus{
             Status: http.StatusBadRequest,
@@ -268,7 +275,7 @@ func MovePlayer(
 ) internal.UserActionStatus {
     data := action.Data.(internal.MovePlayerActionData)
 
-    currentPlayer, players, turnNumber, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
+    currentPlayer, _, turnNumber, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -315,15 +322,6 @@ func MovePlayer(
         }
     }
 
-    nextTurnNumber := turn_events.GetCurrentPlayerIndex(turnNumber, len(players)) + 1
-    err = internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx, data.SessionId, nextTurnNumber)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
     delete(e.PendingRolls, data.PlayerId)
 
     playerMovement := internal.PlayerMovement{
@@ -333,8 +331,52 @@ func MovePlayer(
         NewPosition: newPosition,
         Total:       diceRoll.Total,
         PassedGo:    passedGo,
-        TurnNumber:  nextTurnNumber,
+        TurnNumber:  turnNumber,
     }
+
+    tileData, err := internaldb_tiles.GetRentTileData(log, ctx, tx, data.SessionId, newPosition)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    if tileData.HasProperty && tileData.Owned && tileData.OwnerId != data.PlayerId && !tileData.IsMortgaged {
+        rentAmount, err := getRentAmount(ctx, log, tx, data.SessionId, tileData, diceRoll.Total)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+
+        if rentAmount > 0 {
+            e.PendingRent = &internal.PendingRent{
+                FromPlayerId: data.PlayerId,
+                ToPlayerId:   tileData.OwnerId,
+                SessionId:    data.SessionId,
+                PropertyId:   tileData.PropertyId,
+                Position:     newPosition,
+                Amount:       rentAmount,
+                DiceTotal:    diceRoll.Total,
+            }
+
+            playerMovement.RentDue = true
+            playerMovement.RentAmount = rentAmount
+            playerMovement.RentToId = tileData.OwnerId
+            playerMovement.PropertyId = tileData.PropertyId
+
+            e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
+            e.Broker.Broadcast(log, "RentDueEvent", e.PendingRent)
+
+            return internal.UserActionStatus{
+                Status: http.StatusOK,
+                Data:   playerMovement,
+            }
+        }
+    }
+
     e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
 
     return internal.UserActionStatus{
