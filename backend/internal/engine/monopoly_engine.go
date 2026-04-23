@@ -1,21 +1,21 @@
 package monopoly_engine
 
 import (
-	"context"
-	"fmt"
-	"monopoly-backend/handlers"
-	"monopoly-backend/internal"
-	internaldb "monopoly-backend/internal/db"
-	internaldb_players "monopoly-backend/internal/db/player"
-	"monopoly-backend/internal/engine/events/player"
-	"monopoly-backend/internal/engine/events/property"
-	"net/http"
-	"sync"
+    "context"
+    "fmt"
+    "monopoly-backend/handlers"
+    "monopoly-backend/internal"
+    internaldb "monopoly-backend/internal/db"
+    internaldb_players "monopoly-backend/internal/db/player"
+    "monopoly-backend/internal/engine/events/player"
+    "monopoly-backend/internal/engine/events/property"
+    "net/http"
+    "sync"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/rs/zerolog"
+    "github.com/rs/zerolog/log"
 )
 
 var (
@@ -59,6 +59,7 @@ func SetupNewMonopolyEngine(sessionId string) {
         Broker:          handlers.NewSseBroker(),
         UserActionsChan: make(chan internal.UserActionEvent),
         PendingRolls:    map[int]internal.DiceRoll{},
+        PendingRent:     nil,
     }
 
     engineManagerMu.Lock()
@@ -155,6 +156,8 @@ func processUserAction(
         action_status = player.RollDice(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "MovePlayerEvent":
         action_status = player.MovePlayer(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "PayRentEvent":
+        action_status = player.PayRent(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseProperty":
         action_status = property.PurchaseProperty(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseHouse":
