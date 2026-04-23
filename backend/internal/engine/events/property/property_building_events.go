@@ -5,7 +5,7 @@ import (
     "fmt"
     "monopoly-backend/internal"
     internaldb_players "monopoly-backend/internal/db/player"
-    internaldb_tiles "monopoly-backend/internal/db/tiles"
+    internaldb_tiles "monopoly-backend/internal/db/tile"
     turn_events "monopoly-backend/internal/engine/events/turn"
     "net/http"
 
