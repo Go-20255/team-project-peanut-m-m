@@ -29,6 +29,7 @@ type MonopolyEngine struct {
     UserActionsChan   chan UserActionEvent
     UserActionsChanMu sync.Mutex
     PendingRolls      map[int]DiceRoll
+    PendingRent       *PendingRent
     JoinCode          int `json:"join_code"`
     TurnNumber        int `json:"turn_number"`
 }
@@ -59,6 +60,13 @@ type MovePlayerActionData struct {
     SessionId string
 }
 
+type RentPaymentActionData struct {
+    FromPlayerId int
+    ToPlayerId   int
+    SessionId    string
+    Amount       int
+}
+
 type PropertyActionData struct {
     PlayerId   int
     SessionId  string
@@ -81,6 +89,30 @@ type PlayerMovement struct {
     Total       int    `json:"total"`
     PassedGo    bool   `json:"passed_go"`
     TurnNumber  int    `json:"turn_number"`
+    RentDue     bool   `json:"rent_due"`
+    RentAmount  int    `json:"rent_amount"`
+    RentToId    int    `json:"rent_to_id"`
+    PropertyId  int    `json:"property_id"`
+}
+
+type PendingRent struct {
+    FromPlayerId int
+    ToPlayerId   int
+    SessionId    string
+    PropertyId   int
+    Position     int
+    Amount       int
+    DiceTotal    int
+}
+
+type RentPayment struct {
+    FromPlayerId   int    `json:"from_player_id"`
+    ToPlayerId     int    `json:"to_player_id"`
+    SessionId      string `json:"session_id"`
+    PropertyId     int    `json:"property_id"`
+    Amount         int    `json:"amount"`
+    FromPlayerMoney int   `json:"from_player_money"`
+    ToPlayerMoney  int    `json:"to_player_money"`
 }
 
 type PropertyBuildingUpdate struct {
