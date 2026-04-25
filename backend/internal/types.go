@@ -126,6 +126,14 @@ type PropertyBuildingUpdate struct {
     AvailableHotels int  `json:"available_hotels"`
 }
 
+type PropertyMortgageUpdate struct {
+    PlayerId     int    `json:"player_id"`
+    SessionId    string `json:"session_id"`
+    PropertyId   int    `json:"property_id"`
+    IsMortgaged  bool   `json:"is_mortgaged"`
+    PlayerMoney  int    `json:"player_money"`
+}
+
 type PlayerInfo struct {
     Player              Player              `json:"player"`
     // properties attached to above player
