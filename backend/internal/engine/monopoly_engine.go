@@ -3,13 +3,12 @@ package monopoly_engine
 import (
     "context"
     "fmt"
-    "math/rand/v2"
     "monopoly-backend/handlers"
     "monopoly-backend/internal"
     internaldb "monopoly-backend/internal/db"
-    internaldb_game_state "monopoly-backend/internal/db/game_state"
-    internaldb_players "monopoly-backend/internal/db/players"
-    internaldb_properties "monopoly-backend/internal/db/properties"
+    internaldb_players "monopoly-backend/internal/db/player"
+    "monopoly-backend/internal/engine/events/player"
+    "monopoly-backend/internal/engine/events/property"
     "net/http"
     "sync"
 
@@ -60,6 +59,7 @@ func SetupNewMonopolyEngine(sessionId string) {
         Broker:          handlers.NewSseBroker(),
         UserActionsChan: make(chan internal.UserActionEvent),
         PendingRolls:    map[int]internal.DiceRoll{},
+        PendingRent:     nil,
     }
 
     engineManagerMu.Lock()
@@ -67,6 +67,7 @@ func SetupNewMonopolyEngine(sessionId string) {
     engineManagerMu.Unlock()
 
     ctx := context.Background()
+
 
     // infinite loop so we can recover from errors
     for {
@@ -84,8 +85,24 @@ func SetupNewMonopolyEngine(sessionId string) {
     }
 }
 
+
 func runMonopolyEngine(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, db *pgxpool.Pool) error {
-    log.Info().Msgf("started monopoly engine for session id: %v", e.SessionId)
+    log.Info().Msg("started monopoly engine")
+
+
+    tx, err := db.BeginTx(ctx, pgx.TxOptions{})
+    if err != nil {
+        return err
+    }
+    internaldb_players.ResetAllPlayersInGameAndReadyUpStatus(log, ctx, tx.(*pgxpool.Tx), e.SessionId)
+    err = tx.Commit(ctx)
+    if err != nil {
+        if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+            return rollbackErr
+        }
+        return err
+    }
+    log.Info().Msg("reset all player's in game and ready up status'")
 
     for {
 
@@ -132,277 +149,29 @@ func processUserAction(
 
     switch action.Event {
     case "ConnectionEvent":
-        log.Trace().Msg("player attempting to join game")
-
-        data := action.Data.(struct {
-            Id         string
-            PlayerName string
-            SessionId  string
-        })
-
-        // ensure player exists in session
-        player_exists, err := internaldb_players.CheckPlayerExists(
-            log,
-            ctx,
-            tx.(*pgxpool.Tx),
-            data.Id,
-            data.PlayerName,
-            data.SessionId,
-        )
-        if err != nil {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusInternalServerError,
-                Msg:    err.Error(),
-            }
-
-            return nil
-        }
-
-        if !player_exists {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusBadRequest,
-                Msg:    "player does not exist",
-            }
-            return nil
-        }
-
-        // Get all players in the session to broadcast to frontend
-        players, err := internaldb_players.GetPlayersInSession(log, ctx, tx.(*pgxpool.Tx), data.SessionId)
-        if err != nil {
-            log.Error().Err(err).Msg("failed to get players in session for ConnectionEvent")
-            action_status = internal.UserActionStatus{
-                Status: http.StatusInternalServerError,
-                Msg:    err.Error(),
-            }
-            return nil
-        }
-
-        // Broadcast playerJoined event with the new player info
-        playerJoinedData := map[string]interface{}{
-            "id":       data.Id,
-            "name":     data.PlayerName,
-            "position": 0,
-            "money":    1500,
-        }
-        e.Broker.Broadcast(log, "playerJoined", playerJoinedData)
-
-        // Broadcast playersUpdate event with all current players
-        e.Broker.Broadcast(log, "playersUpdate", players)
-
-        log.Trace().Msgf("player %v has joined server, broadcasting to %d connected players", data.PlayerName, len(players))
-
+        action_status = player.Connected(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "DisconnectEvent":
+        action_status = player.Disconnected(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "RollDiceEvent":
-        data := action.Data.(internal.RollDiceActionData)
-
-        players, err := internaldb_players.GetPlayersInSession(log, ctx, tx.(*pgxpool.Tx), data.SessionId)
-        if err != nil {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusInternalServerError,
-                Msg:    err.Error(),
-            }
-            break
-        }
-
-        if len(players) == 0 {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusBadRequest,
-                Msg:    "there are no players in this game session",
-            }
-            break
-        }
-
-        turnNumber, err := internaldb_game_state.GetGameStateTurnNumber(log, ctx, tx.(*pgxpool.Tx), data.SessionId)
-        if err != nil {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusInternalServerError,
-                Msg:    err.Error(),
-            }
-            break
-        }
-
-        currentPlayer := players[getCurrentPlayerIndex(turnNumber, len(players))]
-        if currentPlayer.Id != data.PlayerId {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusBadRequest,
-                Msg:    "it is not this player's turn",
-            }
-            break
-        }
-
-        if _, ok := e.PendingRolls[data.PlayerId]; ok {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusBadRequest,
-                Msg:    "player already has a pending dice roll",
-            }
-            break
-        }
-
-        diceRoll := internal.DiceRoll{
-            PlayerId:  data.PlayerId,
-            SessionId: data.SessionId,
-            DieOne:    rand.IntN(6) + 1,
-            DieTwo:    rand.IntN(6) + 1,
-        }
-        diceRoll.Total = diceRoll.DieOne + diceRoll.DieTwo
-        e.PendingRolls[data.PlayerId] = diceRoll
-        e.Broker.Broadcast(log, "diceRoll", diceRoll)
-
-        // Get updated players and broadcast them
-        updatedPlayers, err := internaldb_players.GetPlayersInSession(log, ctx, tx.(*pgxpool.Tx), data.SessionId)
-        if err == nil {
-            e.Broker.Broadcast(log, "playersUpdate", updatedPlayers)
-        }
-
-        action_status = internal.UserActionStatus{
-            Status: http.StatusOK,
-            Data:   diceRoll,
-        }
-
+        action_status = player.RollDice(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "MovePlayerEvent":
-        data := action.Data.(internal.MovePlayerActionData)
-
-        players, err := internaldb_players.GetPlayersInSession(log, ctx, tx.(*pgxpool.Tx), data.SessionId)
-        if err != nil {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusInternalServerError,
-                Msg:    err.Error(),
-            }
-            break
-        }
-
-        if len(players) == 0 {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusBadRequest,
-                Msg:    "there are no players in this game session",
-            }
-            break
-        }
-
-        turnNumber, err := internaldb_game_state.GetGameStateTurnNumber(log, ctx, tx.(*pgxpool.Tx), data.SessionId)
-        if err != nil {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusInternalServerError,
-                Msg:    err.Error(),
-            }
-            break
-        }
-
-        currentPlayer := players[getCurrentPlayerIndex(turnNumber, len(players))]
-        if currentPlayer.Id != data.PlayerId {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusBadRequest,
-                Msg:    "it is not this player's turn",
-            }
-            break
-        }
-
-        diceRoll, ok := e.PendingRolls[data.PlayerId]
-        if !ok {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusBadRequest,
-                Msg:    "player does not have a pending dice roll",
-            }
-            break
-        }
-
-        player, err := internaldb_players.GetPlayer(log, ctx, tx.(*pgxpool.Tx), data.PlayerId, data.SessionId)
-        if err != nil {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusInternalServerError,
-                Msg:    err.Error(),
-            }
-            break
-        }
-
-        newPosition, passedGo := getNewPosition(player.Position, diceRoll.Total)
-        err = internaldb_players.UpdatePlayerPosition(log, ctx, tx.(*pgxpool.Tx), data.PlayerId, data.SessionId, newPosition)
-        if err != nil {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusInternalServerError,
-                Msg:    err.Error(),
-            }
-            break
-        }
-
-        nextTurnNumber := getCurrentPlayerIndex(turnNumber, len(players)) + 1
-        err = internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx.(*pgxpool.Tx), data.SessionId, nextTurnNumber)
-        if err != nil {
-            action_status = internal.UserActionStatus{
-                Status: http.StatusInternalServerError,
-                Msg:    err.Error(),
-            }
-            break
-        }
-
-        delete(e.PendingRolls, data.PlayerId)
-
-        playerMovement := internal.PlayerMovement{
-            PlayerId:    data.PlayerId,
-            SessionId:   data.SessionId,
-            OldPosition: player.Position,
-            NewPosition: newPosition,
-            Total:       diceRoll.Total,
-            PassedGo:    passedGo,
-            TurnNumber:  nextTurnNumber,
-        }
-        e.Broker.Broadcast(log, "playerMove", playerMovement)
-
-        // Get updated players and broadcast them
-        updatedPlayers, err := internaldb_players.GetPlayersInSession(log, ctx, tx.(*pgxpool.Tx), data.SessionId)
-        if err == nil {
-            e.Broker.Broadcast(log, "playersUpdate", updatedPlayers)
-        }
-
-        action_status = internal.UserActionStatus{
-            Status: http.StatusOK,
-            Data:   playerMovement,
-        }
-
+        action_status = player.MovePlayer(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "PayRentEvent":
+        action_status = player.PayRent(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseProperty":
-        log.Trace().Msg("player attempting to purchase property")
-
-        data, ok := action.Data.(struct {
-            SessionId  string
-            PlayerId   int
-            PropertyId int
-        })
-        if !ok {
-            log.Error().Msg("invalid data format received for PurchaseProperty")
-            action.ReturnChan <- internal.UserActionStatus{
-                Status: http.StatusBadRequest,
-                Msg:    "internal data format error",
-            }
-            break
-        }
-
-        // try to buy property, also does ownership validation
-        ownershipId, err := internaldb_properties.CreatePropertyOwnerDB(
-            log,
-            ctx,
-            tx.(*pgxpool.Tx),
-            data.SessionId,
-            data.PlayerId,
-            data.PropertyId,
-        )
-
-        if err != nil {
-            action.ReturnChan <- internal.UserActionStatus{
-                Status: http.StatusBadRequest,
-                Msg:    err.Error(),
-            }
-            return nil
-        }
-
-        e.Broker.Broadcast(log, "PropertyPurchased", fmt.Sprintf("Player %d purchased property %d", data.PlayerId, data.PropertyId))
-
-        action.ReturnChan <- internal.UserActionStatus{
-            Status: http.StatusOK,
-            Msg:    fmt.Sprintf("property purchased successfully (Ownership ID: %d)", ownershipId),
-        }
-        log.Trace().Msgf("player %d successfully purchased property %d", data.PlayerId, data.PropertyId)
-
-        break
-
+        action_status = property.PurchaseProperty(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "PurchaseHouse":
+        action_status = property.PurchaseHouse(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "PurchaseHotel":
+        action_status = property.PurchaseHotel(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "SellHouse":
+        action_status = property.SellHouse(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "SellHotel":
+        action_status = property.SellHotel(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "MortgageProperty":
+        action_status = property.MortgageProperty(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "UnmortgageProperty":
+        action_status = property.UnmortgageProperty(ctx, log, e, &action, tx.(*pgxpool.Tx))
     default:
         log.Trace().Msgf("received unknown engine action event: %v", action.Event)
         action_status = internal.UserActionStatus{
@@ -429,17 +198,4 @@ func processUserAction(
     }
     action.ReturnChan <- action_status
     return nil
-}
-
-func getCurrentPlayerIndex(turnNumber int, playerCount int) int {
-    if turnNumber < 0 {
-        return 0
-    }
-
-    return turnNumber % playerCount
-}
-
-func getNewPosition(position int, total int) (int, bool) {
-    newPosition := (position + total) % 40
-    return newPosition, position+total >= 40
 }

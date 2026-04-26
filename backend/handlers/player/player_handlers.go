@@ -2,7 +2,7 @@ package players_handlers
 
 import (
     internaldbgamestate "monopoly-backend/internal/db/game_state"
-    internaldbplayers "monopoly-backend/internal/db/players"
+    internaldbplayers "monopoly-backend/internal/db/player"
     "monopoly-backend/util"
     "net/http"
 
@@ -21,6 +21,7 @@ func CreatePlayerHandler(c echo.Context) error {
 
     sessionId := c.FormValue("session_id")
 	if sessionId == "" {
+    if sessionId == "" {
         return c.String(http.StatusBadRequest, "missing session_id")
     }
 
@@ -29,7 +30,7 @@ func CreatePlayerHandler(c echo.Context) error {
     if err != nil {
         return c.String(http.StatusInternalServerError, "failed to query db about game state")
     }
-    
+
     if !exists {
         return c.String(http.StatusBadRequest, "session_id does not exist")
     }
@@ -46,10 +47,9 @@ func CreatePlayerHandler(c echo.Context) error {
     }
 
     return c.JSON(http.StatusOK, map[string]interface{}{
-        "id":           id,
-        "name":         name,
-        "session_id":   sessionId,
-        "color":        color,
+        "id":         id,
+        "name":       name,
+        "session_id": sessionId,
     })
 }
 

@@ -1,22 +1,22 @@
 package main
 
 import (
-	"context"
-	commonhandler "monopoly-backend/handlers/common"
-	gamestatehandlers "monopoly-backend/handlers/game_state"
-	playershandlers "monopoly-backend/handlers/player"
-	properties_handlers "monopoly-backend/handlers/properties"
-	internaldb "monopoly-backend/internal/db"
-	internaldbgamestate "monopoly-backend/internal/db/game_state"
-	monopolyengine "monopoly-backend/internal/engine"
-	"monopoly-backend/util"
+    "context"
+    commonhandler "monopoly-backend/handlers/common"
+    gamestatehandlers "monopoly-backend/handlers/game_state"
+    playershandlers "monopoly-backend/handlers/player"
+    properties_handlers "monopoly-backend/handlers/property"
+    internaldb "monopoly-backend/internal/db"
+    internaldbgamestate "monopoly-backend/internal/db/game_state"
+    monopolyengine "monopoly-backend/internal/engine"
+    "monopoly-backend/util"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"github.com/rs/zerolog/log"
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/joho/godotenv"
+    "github.com/labstack/echo/v4"
+    "github.com/labstack/echo/v4/middleware"
+    "github.com/rs/zerolog/log"
 )
 
 func main() {
@@ -96,9 +96,16 @@ func main() {
     routes.GET("/game/join/live", gamestatehandlers.JoinLiveGameHandler)
     routes.POST("/game/roll", gamestatehandlers.RollDiceHandler)
     routes.POST("/game/move", gamestatehandlers.MovePlayerHandler)
+    routes.POST("/game/rent", gamestatehandlers.PayRentHandler)
 
-	routes.GET("/game/property", properties_handlers.CheckPropertyOwnerHandler)
-	routes.POST("/game/property", properties_handlers.PurchasePropertyHandler)
+    routes.GET("/game/property", properties_handlers.CheckPropertyOwnerHandler)
+    routes.POST("/game/property", properties_handlers.PurchasePropertyHandler)
+    routes.POST("/game/property/house", properties_handlers.PurchaseHouseHandler)
+    routes.POST("/game/property/hotel", properties_handlers.PurchaseHotelHandler)
+    routes.POST("/game/property/house/sell", properties_handlers.SellHouseHandler)
+    routes.POST("/game/property/hotel/sell", properties_handlers.SellHotelHandler)
+    routes.POST("/game/property/mortgage", properties_handlers.MortgagePropertyHandler)
+    routes.POST("/game/property/unmortgage", properties_handlers.UnmortgagePropertyHandler)
 
     // start the echo server
     e.Start(":9876")
