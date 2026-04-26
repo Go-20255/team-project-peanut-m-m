@@ -1,15 +1,16 @@
 package player
 
 import (
-    "context"
-    "monopoly-backend/internal"
-    internaldb_players "monopoly-backend/internal/db/player"
-    internaldb_tiles "monopoly-backend/internal/db/tile"
-    turn_events "monopoly-backend/internal/engine/events/turn"
-    "net/http"
+	"context"
+	"monopoly-backend/internal"
+	internaldb_players "monopoly-backend/internal/db/player"
+	internaldb_tiles "monopoly-backend/internal/db/tile"
+	"monopoly-backend/internal/engine/events"
+	turn_events "monopoly-backend/internal/engine/events/turn"
+	"net/http"
 
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/rs/zerolog"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 )
 
 func getFullSetRent(ctx context.Context, log zerolog.Logger, tx *pgxpool.Tx, sessionId string, propertyId int, ownerId int) (bool, error) {
@@ -267,6 +268,7 @@ func PayRent(
 
     e.PendingRent = nil
     e.Broker.Broadcast(log, "RentPaidEvent", rentPayment)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     return internal.UserActionStatus{
         Status: http.StatusOK,

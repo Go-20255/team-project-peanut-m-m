@@ -1,16 +1,17 @@
 package property
 
 import (
-    "context"
-    "fmt"
-    "monopoly-backend/internal"
-    internaldb_players "monopoly-backend/internal/db/player"
-    internaldb_tiles "monopoly-backend/internal/db/tile"
-    turn_events "monopoly-backend/internal/engine/events/turn"
-    "net/http"
+	"context"
+	"fmt"
+	"monopoly-backend/internal"
+	internaldb_players "monopoly-backend/internal/db/player"
+	internaldb_tiles "monopoly-backend/internal/db/tile"
+	"monopoly-backend/internal/engine/events"
+	turn_events "monopoly-backend/internal/engine/events/turn"
+	"net/http"
 
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/rs/zerolog"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 )
 
 func PurchaseHouse(
@@ -150,6 +151,7 @@ func PurchaseHouse(
     }
 
     e.Broker.Broadcast(log, "HousePurchased", propertyBuildingUpdate)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     return internal.UserActionStatus{
         Status: http.StatusOK,
@@ -294,6 +296,7 @@ func PurchaseHotel(
     }
 
     e.Broker.Broadcast(log, "HotelPurchased", propertyBuildingUpdate)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     return internal.UserActionStatus{
         Status: http.StatusOK,
@@ -416,6 +419,7 @@ func SellHouse(
     }
 
     e.Broker.Broadcast(log, "HouseSold", propertyBuildingUpdate)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     return internal.UserActionStatus{
         Status: http.StatusOK,
@@ -546,6 +550,7 @@ func SellHotel(
     }
 
     e.Broker.Broadcast(log, "HotelSold", propertyBuildingUpdate)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     return internal.UserActionStatus{
         Status: http.StatusOK,
