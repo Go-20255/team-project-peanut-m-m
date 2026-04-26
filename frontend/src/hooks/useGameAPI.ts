@@ -108,33 +108,6 @@ export function useCreatePlayer() {
 }
 
 /**
- * Fetch game state (including turn information)
- */
-export async function fetchGameState(sessionId: string): Promise<any> {
-  try {
-    console.log("Fetching game state for session:", sessionId);
-    const res = await fetch(`${API_URL}/api/game?session_id=${sessionId}`, {
-      method: "GET",
-      credentials: "include",
-    });
-    console.log("Game state fetch response status:", res.status);
-    
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error("Game state fetch error:", res.status, errorText);
-      throw new Error(`Failed to fetch game state: ${res.status} ${errorText}`);
-    }
-    
-    const data = await res.json();
-    console.log("Game state fetched successfully:", data);
-    return data;
-  } catch (err) {
-    console.error("Error fetching game state:", err);
-    return null;
-  }
-}
-
-/**
  * Fetch all players in a game session
  */
 export async function fetchPlayersForSession(sessionId: string): Promise<any[]> {
@@ -154,11 +127,20 @@ export async function fetchPlayersForSession(sessionId: string): Promise<any[]> 
     
     const data = await res.json();
     console.log("Players fetched successfully:", data);
-    return data || [];
+    return flattenPlayerInfo(data || []);
   } catch (err) {
     console.error("Error fetching players:", err);
     return [];
   }
+}
+
+function flattenPlayerInfo(playerInfoList: any[]): any[] {
+  return playerInfoList.map((playerInfo) => {
+    if (playerInfo.player) {
+      return playerInfo.player;
+    }
+    return playerInfo;
+  });
 }
 
 /**
@@ -195,50 +177,119 @@ export function useLiveGameUpdates(
 
     console.log("SSE connection established for session:", sessionId, "player:", playerId);
 
-    eventSource.addEventListener("gameStateUpdate", (event: any) => {
+    eventSource.addEventListener("InitialGameBoardDataEvent", (event: any) => {
       try {
         const data = JSON.parse(event.data);
-        onUpdateRef.current({ type: "gameStateUpdate", data });
+        console.log("Received InitialGameBoardDataEvent:", data);
+        const flattenedPlayers = flattenPlayerInfo(data.Players);
+        onUpdateRef.current({ type: "playersUpdate", data: flattenedPlayers });
+        onUpdateRef.current({ type: "gameStateUpdate", data: { turn_number: data.CurrentTurn } });
       } catch (e) {
-        console.error("Failed to parse gameStateUpdate:", e);
+        console.error("Failed to parse InitialGameBoardDataEvent:", e);
       }
     });
 
-    eventSource.addEventListener("playerJoined", (event: any) => {
+    eventSource.addEventListener("RollDiceEvent", (event: any) => {
       try {
         const data = JSON.parse(event.data);
-        console.log("Received playerJoined event:", data);
-        onUpdateRef.current({ type: "playerJoined", data });
-      } catch (e) {
-        console.error("Failed to parse playerJoined:", e);
-      }
-    });
-
-    eventSource.addEventListener("playersUpdate", (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("Received playersUpdate event:", data);
-        onUpdateRef.current({ type: "playersUpdate", data });
-      } catch (e) {
-        console.error("Failed to parse playersUpdate:", e);
-      }
-    });
-
-    eventSource.addEventListener("diceRoll", (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
+        console.log("Received RollDiceEvent:", data);
         onUpdateRef.current({ type: "diceRoll", data });
       } catch (e) {
-        console.error("Failed to parse diceRoll:", e);
+        console.error("Failed to parse RollDiceEvent:", e);
       }
     });
 
-    eventSource.addEventListener("playerMove", (event: any) => {
+    eventSource.addEventListener("MovePlayerEvent", (event: any) => {
       try {
         const data = JSON.parse(event.data);
+        console.log("Received MovePlayerEvent:", data);
         onUpdateRef.current({ type: "playerMove", data });
       } catch (e) {
-        console.error("Failed to parse playerMove:", e);
+        console.error("Failed to parse MovePlayerEvent:", e);
+      }
+    });
+
+    eventSource.addEventListener("RentPaidEvent", (event: any) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("Received RentPaidEvent:", data);
+        onUpdateRef.current({ type: "rentPaid", data });
+      } catch (e) {
+        console.error("Failed to parse RentPaidEvent:", e);
+      }
+    });
+
+    eventSource.addEventListener("PropertyPurchased", (event: any) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("Received PropertyPurchased:", data);
+        onUpdateRef.current({ type: "propertyPurchased", data });
+      } catch (e) {
+        console.error("Failed to parse PropertyPurchased:", e);
+      }
+    });
+
+    eventSource.addEventListener("HousePurchased", (event: any) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("Received HousePurchased:", data);
+        onUpdateRef.current({ type: "housePurchased", data });
+      } catch (e) {
+        console.error("Failed to parse HousePurchased:", e);
+      }
+    });
+
+    eventSource.addEventListener("HotelPurchased", (event: any) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("Received HotelPurchased:", data);
+        onUpdateRef.current({ type: "hotelPurchased", data });
+      } catch (e) {
+        console.error("Failed to parse HotelPurchased:", e);
+      }
+    });
+
+    // HouseSold: Sent when a house is sold
+    eventSource.addEventListener("HouseSold", (event: any) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("Received HouseSold:", data);
+        onUpdateRef.current({ type: "houseSold", data });
+      } catch (e) {
+        console.error("Failed to parse HouseSold:", e);
+      }
+    });
+
+    // HotelSold: Sent when a hotel is sold
+    eventSource.addEventListener("HotelSold", (event: any) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("Received HotelSold:", data);
+        onUpdateRef.current({ type: "hotelSold", data });
+      } catch (e) {
+        console.error("Failed to parse HotelSold:", e);
+      }
+    });
+
+    // PropertyMortgaged: Sent when a property is mortgaged
+    eventSource.addEventListener("PropertyMortgaged", (event: any) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("Received PropertyMortgaged:", data);
+        onUpdateRef.current({ type: "propertyMortgaged", data });
+      } catch (e) {
+        console.error("Failed to parse PropertyMortgaged:", e);
+      }
+    });
+
+    // PropertyUnmortgaged: Sent when a property is unmortgaged
+    eventSource.addEventListener("PropertyUnmortgaged", (event: any) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("Received PropertyUnmortgaged:", data);
+        onUpdateRef.current({ type: "propertyUnmortgaged", data });
+      } catch (e) {
+        console.error("Failed to parse PropertyUnmortgaged:", e);
       }
     });
 

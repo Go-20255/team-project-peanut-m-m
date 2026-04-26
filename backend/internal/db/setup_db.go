@@ -73,8 +73,6 @@ func SetupDatabase(ctx context.Context, log zerolog.Logger) {
     }
     if tableExists {
         log.Printf("Tables already exist. Skipping setup.")
-        // Run migrations for existing databases
-        RunMigrations(ctx, log, db)
         return
     }
 
