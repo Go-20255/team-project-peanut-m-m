@@ -103,7 +103,16 @@ func PurchaseProperty(
         }
     }
 
-    e.Broker.Broadcast(log, "PropertyPurchased", fmt.Sprintf("Player %d purchased property %d", data.PlayerId, data.PropertyId))
+    var event struct {
+        PlayerId            int     `json:"player_id"`
+        PropertyId          int     `json:"property_id"`
+        OwnershipId         int     `json:"ownership_id"`
+    }
+    event.PlayerId = data.PlayerId
+    event.PropertyId = data.PropertyId
+    event.OwnershipId = ownershipId
+
+    e.Broker.Broadcast(log, "PropertyPurchased", event)
 
     log.Trace().Msgf("player %d successfully purchased property %d", data.PlayerId, data.PropertyId)
     return internal.UserActionStatus{

@@ -94,7 +94,9 @@ func runMonopolyEngine(ctx context.Context, log zerolog.Logger, e *internal.Mono
     if err != nil {
         return err
     }
+
     internaldb_players.ResetAllPlayersInGameStatus(log, ctx, tx.(*pgxpool.Tx), e.SessionId)
+
     err = tx.Commit(ctx)
     if err != nil {
         if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
@@ -102,7 +104,8 @@ func runMonopolyEngine(ctx context.Context, log zerolog.Logger, e *internal.Mono
         }
         return err
     }
-    log.Info().Msg("reset all player's in game and ready up status'")
+
+    log.Info().Msg("reset all player's in game status'")
 
     for {
 
