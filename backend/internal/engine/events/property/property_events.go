@@ -1,16 +1,17 @@
 package property
 
 import (
-    "context"
-    "fmt"
-    "monopoly-backend/internal"
-    internaldb_players "monopoly-backend/internal/db/player"
-    internaldb_tiles "monopoly-backend/internal/db/tile"
-    turn_events "monopoly-backend/internal/engine/events/turn"
-    "net/http"
+	"context"
+	"fmt"
+	"monopoly-backend/internal"
+	internaldb_players "monopoly-backend/internal/db/player"
+	internaldb_tiles "monopoly-backend/internal/db/tile"
+	"monopoly-backend/internal/engine/events"
+	turn_events "monopoly-backend/internal/engine/events/turn"
+	"net/http"
 
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/rs/zerolog"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 )
 
 func PurchaseProperty(
@@ -113,6 +114,7 @@ func PurchaseProperty(
     event.OwnershipId = ownershipId
 
     e.Broker.Broadcast(log, "PropertyPurchased", event)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     log.Trace().Msgf("player %d successfully purchased property %d", data.PlayerId, data.PropertyId)
     return internal.UserActionStatus{
