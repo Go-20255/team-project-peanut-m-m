@@ -11,11 +11,14 @@ export const TOKEN_ICONS = {
 } as const;
 
 export function getTokenIcon(pieceToken: number): string {
-  const icon = TOKEN_ICONS[pieceToken as keyof typeof TOKEN_ICONS];
+  const token = pieceToken ?? 0;
+  const icon = TOKEN_ICONS[token as keyof typeof TOKEN_ICONS];
+  console.debug(`getTokenIcon(${pieceToken}) → ${icon?.icon}`);
   return icon ? `/assets/img/icons/${icon.icon}` : "/assets/img/icons/paw.svg";
 }
 
 export function getTokenName(pieceToken: number): string {
-  const icon = TOKEN_ICONS[pieceToken as keyof typeof TOKEN_ICONS];
+  const token = pieceToken ?? 0;
+  const icon = TOKEN_ICONS[token as keyof typeof TOKEN_ICONS];
   return icon ? icon.name : "Unknown Token";
 }

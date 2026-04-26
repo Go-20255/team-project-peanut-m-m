@@ -26,14 +26,11 @@ export default function PlayerSidebar({
   const [isMoving, setIsMoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check if it's current player's turn
   const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId;
   
-  // Get current player info
   const currentPlayer = players.find((p) => p.id === currentPlayerTurnId);
 
   const handleRollDice = async () => {
-    // Client-side check (server will also validate)
     if (!isCurrentPlayerTurn) {
       setError("It's not your turn!");
       return;
@@ -220,7 +217,7 @@ export default function PlayerSidebar({
                 <div
                   className="font-bold mb-2 flex items-center gap-2"
                   style={{
-                    color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#FFFFFF" : "#000000",
+                    color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#000000" : "#000000",
                   }}
                 >
                   <img
@@ -242,7 +239,7 @@ export default function PlayerSidebar({
                   )}
                   {isPlayerTurn && (
                     <span style={{ fontSize: "0.75em", color: "#F57F17", fontWeight: "bold" }}>
-                      ⭐ PLAYING
+                      PLAYING
                     </span>
                   )}
                 </div>
@@ -251,31 +248,31 @@ export default function PlayerSidebar({
                 <div
                   className="text-sm mb-2"
                   style={{
-                    color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#FFFFFF" : "#7C878E",
+                    color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#000000" : "#7C878E",
                   }}
                 >
-                  📍 Position: {player.position}
+                  Position: {player.position}
                 </div>
 
                 {/* Money */}
                 <div
                   className="text-sm mb-2"
                   style={{
-                    color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#FFFFFF" : "#7C878E",
+                    color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#000000" : "#7C878E",
                   }}
                 >
-                  💵 Money: ${player.money.toLocaleString()}
+                  Money: ${player.money.toLocaleString()}
                 </div>
 
                 {/* Properties placeholder */}
                 <div
                   className="text-xs mt-2 p-2 border-t-2"
                   style={{
-                    borderColor: isPlayerTurn ? "#FFD700" : isCurrentPlayer ? "#FFFFFF" : "#D0D3D4",
-                    color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#FFFFFF" : "#7C878E",
+                    borderColor: isPlayerTurn ? "#FFD700" : isCurrentPlayer ? "#000000" : "#D0D3D4",
+                    color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#000000" : "#7C878E",
                   }}
                 >
-                  🏠 Properties: None
+                  Properties: None
                 </div>
               </div>
             );

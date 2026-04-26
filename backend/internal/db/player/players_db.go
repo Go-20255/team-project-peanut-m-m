@@ -2,7 +2,6 @@ package internaldb_players
 
 import (
     "context"
-    "database/sql"
     "monopoly-backend/internal"
 
     "github.com/jackc/pgx/v5"

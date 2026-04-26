@@ -30,12 +30,10 @@ export default function Home() {
 
     try {
       console.log("Creating game...");
-      // Step 1: Create game session
       const gameData = await createGame.mutateAsync();
       console.log("Game created:", gameData);
 
       console.log("Creating player:", playerName);
-      // Step 2: Create player
       const playerData = await createPlayer.mutateAsync({
         playerName,
         sessionId: gameData.session_id,
@@ -43,13 +41,11 @@ export default function Home() {
       console.log("Player created:", playerData);
 
       console.log("Storing to localStorage and navigating...");
-      // Step 3: Store in localStorage
       storage.setSessionId(gameData.session_id);
       storage.setPlayerId(playerData.id.toString());
       storage.setPlayerName(playerName);
       storage.setGameCode(gameData.code.toString());
 
-      // Step 4: Navigate to game
       router.push("/game");
     } catch (err) {
       setError("Failed to create game. Please try again.");
@@ -72,12 +68,10 @@ export default function Home() {
 
     try {
       console.log("Joining game with code:", gameCode);
-      // Step 1: Get session ID from code
       const sessionId = await joinGame.mutateAsync(gameCode);
       console.log("Joined game, session ID:", sessionId);
 
       console.log("Creating player:", playerName);
-      // Step 2: Create player
       const playerData = await createPlayer.mutateAsync({
         playerName,
         sessionId,
@@ -85,13 +79,11 @@ export default function Home() {
       console.log("Player created:", playerData);
 
       console.log("Storing to localStorage and navigating...");
-      // Step 3: Store in localStorage
       storage.setSessionId(sessionId);
       storage.setPlayerId(playerData.id.toString());
       storage.setPlayerName(playerName);
       storage.setGameCode(gameCode);
 
-      // Step 4: Navigate to game
       router.push("/game");
     } catch (err) {
       setError("Failed to join game. Check your code and try again.");
@@ -111,7 +103,6 @@ export default function Home() {
         </div>
 
         <div className="space-y-4">
-          {/* Player Name Input */}
           <div>
             <input
               type="text"
@@ -127,7 +118,6 @@ export default function Home() {
             />
           </div>
 
-          {/* Create Game Button */}
           <button
             onClick={handleCreate}
             disabled={isLoading}
@@ -141,7 +131,6 @@ export default function Home() {
             Create Game
           </button>
 
-          {/* Join Game Section */}
           <div className="border-t-2 pt-4" style={{ borderColor: "#D0D3D4" }}>
             <div>
               <input
@@ -171,7 +160,6 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="px-4 py-2 text-center" style={{ color: "#F76902" }}>
               {error}

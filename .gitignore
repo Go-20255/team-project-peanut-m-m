@@ -1,4 +1,6 @@
 .internal.env
+.test-multiplayer.sh
+.start-dev.sh
 # ignore all general markdown files
 *.md
 
@@ -7,3 +9,4 @@
 
 # Allow README files
 !README.md
+
