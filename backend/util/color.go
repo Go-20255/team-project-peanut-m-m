@@ -2,34 +2,29 @@ package util
 
 import (
     "context"
-    internaldbplayers "monopoly-backend/internal/db/players"
+    internaldbplayers "monopoly-backend/internal/db/player"
 
     "github.com/jackc/pgx/v5/pgxpool"
     "github.com/rs/zerolog"
 )
 
-// PLAYER_COLORS defines the available colors for players in order
-var PLAYER_COLORS = []string{
-    "#FF0000", // Red
-    "#0000FF", // Blue
-    "#FFD700", // Gold/Yellow
-    "#00AA00", // Green
-    "#FF8800", // Orange
-    "#800080", // Purple
-    "#FF69B4", // Hot Pink
-    "#00FFFF", // Cyan
-}
+// PLAYER_TOKENS defines the available piece tokens for players
+// Tokens are numbered 0-7 representing the 8 classic Monopoly pieces:
+// 0: Top Hat, 1: Boot, 2: Thimble, 3: Iron, 4: Race Car, 5: Battleship, 6: Wheelbarrow, 7: Scottie Dog
+const (
+    TOTAL_PLAYER_TOKENS = 8
+)
 
-// AssignPlayerColor assigns a unique color to a player based on player count in session
-func AssignPlayerColor(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) (string, error) {
-    // Get the count of existing players in the session
+// AssignPlayerToken assigns a unique piece token to a player based on available tokens in session
+func AssignPlayerToken(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) (int, error) {
+    // Get the count of existing players in the session to find next available token
     playerCount, err := internaldbplayers.GetPlayerCountInSession(log, ctx, tx, sessionId)
     if err != nil {
         log.Trace().Err(err).Msgf("failed to get player count for session %v", sessionId)
-        return "", err
+        return -1, err
     }
 
-    // Assign color based on player count (cycling through available colors if needed)
-    colorIndex := playerCount % len(PLAYER_COLORS)
-    return PLAYER_COLORS[colorIndex], nil
+    // Assign token based on player count (cycling through available tokens if needed)
+    tokenId := playerCount % TOTAL_PLAYER_TOKENS
+    return tokenId, nil
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getTokenIcon, getTokenName } from "@/utils/tokens";
 import { Player, GameState } from "@/types";
 
 interface PlayerSidebarProps {
@@ -215,22 +216,23 @@ export default function PlayerSidebar({
                   boxShadow: isPlayerTurn ? "0 0 8px #FFD700" : "none",
                 }}
               >
-                {/* Player color dot and name */}
+                {/* Player token icon and name */}
                 <div
                   className="font-bold mb-2 flex items-center gap-2"
                   style={{
                     color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#FFFFFF" : "#000000",
                   }}
                 >
-                  <div
+                  <img
+                    src={getTokenIcon(player.piece_token)}
+                    alt={getTokenName(player.piece_token)}
                     style={{
-                      width: "14px",
-                      height: "14px",
-                      borderRadius: "50%",
-                      backgroundColor: player.color || "#FF0000",
+                      width: "18px",
+                      height: "18px",
                       border: isPlayerTurn ? "2px solid #FFD700" : "1px solid #000",
-                      boxShadow: isPlayerTurn ? "0 0 4px #FFD700" : "none",
+                      borderRadius: "2px",
                     }}
+                    title={getTokenName(player.piece_token)}
                   />
                   <span>{player.name}</span>
                   {isCurrentPlayer && !isPlayerTurn && (
