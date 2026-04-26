@@ -122,7 +122,9 @@ func Disconnected(
     // announce to all connected users that another user has left the game
     e.Broker.BroadcastComment(log, fmt.Sprintf("Player %v has left", data.PlayerName))
 
-    err = events.EmitInitialGameBoardData(log, ctx, e, tx, data)
+    // only emit simple board update since you don't need to re-emit all the tile
+    // info on disconnect
+    err = events.EmitGameBoardUpdate(log, ctx, e, tx)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
