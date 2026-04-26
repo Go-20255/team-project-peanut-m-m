@@ -79,7 +79,7 @@ export function useCreatePlayer() {
     }: {
       playerName: string;
       sessionId: string;
-    }): Promise<{ id: number; name: string; session_id: string }> => {
+    }): Promise<{ id: number; name: string; session_id: string; piece_token: number }> => {
       console.log("Creating player:", playerName, "in session:", sessionId);
       
       const formData = new FormData();

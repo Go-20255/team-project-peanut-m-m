@@ -58,6 +58,8 @@ func GetPlayer(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, 
         SELECT
             id,
             name,
+            ready_up_status,
+            COALESCE(piece_token, 0),
             COALESCE(player_order, -1),
             money,
             position,
@@ -70,6 +72,8 @@ func GetPlayer(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, 
         `, id, sessionId).Scan(
         &player.Id,
         &player.Name,
+        &player.ReadyUpStatus,
+        &player.PieceToken,
         &player.PlayerOrder,
         &player.Money,
         &player.Position,
@@ -92,7 +96,7 @@ func GetPlayersInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx
             id,
             name,
             ready_up_status,
-            piece_token,
+            COALESCE(piece_token, 0),
             COALESCE(player_order, -1),
             money,
             position,
@@ -113,7 +117,6 @@ func GetPlayersInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx
     }
     defer rows.Close()
 
-    var token_piece sql.NullInt32
     var players []internal.Player
     for rows.Next() {
         var player internal.Player
@@ -121,7 +124,7 @@ func GetPlayersInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx
             &player.Id,
             &player.Name,
             &player.ReadyUpStatus,
-            &token_piece,
+            &player.PieceToken,
             &player.PlayerOrder,
             &player.Money,
             &player.Position,
@@ -133,9 +136,6 @@ func GetPlayersInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx
             log.Trace().Err(err).Msg("failed to scan player in session")
             return nil, err
         }
-        if token_piece.Valid {
-            player.PieceToken = int(token_piece.Int32)
-        }
         players = append(players, player)
     }
 
@@ -145,6 +145,20 @@ func GetPlayersInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx
     }
 
     return players, nil
+}
+
+func GetPlayerCountInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) (int, error) {
+    var count int
+    err := tx.QueryRow(ctx, `
+        SELECT COUNT(*)
+        FROM player
+        WHERE session_id = $1
+        `, sessionId).Scan(&count)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to get player count in session")
+        return 0, err
+    }
+    return count, nil
 }
 
 func UpdatePlayerPosition(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, sessionId string, position int) error {

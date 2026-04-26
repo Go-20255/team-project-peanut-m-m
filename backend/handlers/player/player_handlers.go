@@ -20,7 +20,6 @@ func CreatePlayerHandler(c echo.Context) error {
     }
 
     sessionId := c.FormValue("session_id")
-	if sessionId == "" {
     if sessionId == "" {
         return c.String(http.StatusBadRequest, "missing session_id")
     }
@@ -35,7 +34,6 @@ func CreatePlayerHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "session_id does not exist")
     }
 
-    // Assign a piece token to the player (0-7 for the 8 Monopoly tokens)
     pieceToken, err := util.AssignPlayerToken(log, ctx, tx, sessionId)
     if err != nil {
         return c.String(http.StatusInternalServerError, "failed to assign player token")
@@ -47,9 +45,10 @@ func CreatePlayerHandler(c echo.Context) error {
     }
 
     return c.JSON(http.StatusOK, map[string]interface{}{
-        "id":         id,
-        "name":       name,
-        "session_id": sessionId,
+        "id":           id,
+        "name":         name,
+        "session_id":   sessionId,
+        "piece_token":  pieceToken,
     })
 }
 
