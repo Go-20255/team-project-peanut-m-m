@@ -202,14 +202,14 @@ func UpdatePlayerInGameStatus(log zerolog.Logger, ctx context.Context, tx *pgxpo
     return nil
 }
 
-func ResetAllPlayersInGameAndReadyUpStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) error {
+func ResetAllPlayersInGameStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) error {
     commandTag, err := tx.Exec(ctx, `
         UPDATE player
-        SET in_game = false, ready_up_status = false
+        SET in_game = false
         WHERE session_id = $1
         `, sessionId)
     if err != nil {
-        log.Trace().Err(err).Msg("failed to update players in game and ready up status'")
+        log.Trace().Err(err).Msg("failed to update players in game status'")
         return err
     }
 
