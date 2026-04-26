@@ -34,7 +34,7 @@ func CreatePlayerHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "session_id does not exist")
     }
 
-    // Assign a color to the player
+    // assigns a color to a player - TODO: need to remove this and use tokens instead
     color, err := util.AssignPlayerColor(log, ctx, tx, sessionId)
     if err != nil {
         return c.String(http.StatusInternalServerError, "failed to assign player color")
