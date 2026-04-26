@@ -35,13 +35,13 @@ func CreatePlayerHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "session_id does not exist")
     }
 
-    // assigns a color to a player - TODO: need to remove this and use tokens instead
-    color, err := util.AssignPlayerColor(log, ctx, tx, sessionId)
+    // Assign a piece token to the player (0-7 for the 8 Monopoly tokens)
+    pieceToken, err := util.AssignPlayerToken(log, ctx, tx, sessionId)
     if err != nil {
-        return c.String(http.StatusInternalServerError, "failed to assign player color")
+        return c.String(http.StatusInternalServerError, "failed to assign player token")
     }
 
-    id, err := internaldbplayers.CreatePlayerDB(log, ctx, tx, name, sessionId, color)
+    id, err := internaldbplayers.CreatePlayerDB(log, ctx, tx, name, sessionId, pieceToken)
     if err != nil {
         return c.String(http.StatusInternalServerError, "failed to create player in db")
     }

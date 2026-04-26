@@ -8,7 +8,7 @@ export interface Player {
   jailed: boolean;
   session_id: string;
   in_game: boolean;
-  color: string;
+  piece_token: number;
 }
 
 export interface PropertyData {

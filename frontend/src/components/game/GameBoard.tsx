@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { storage } from "@/utils/storage";
+import { getTokenIcon, getTokenName } from "@/utils/tokens";
 import { Player, GameState } from "@/types";
 
 interface GameBoardProps {
@@ -186,33 +187,33 @@ export default function GameBoard({
                         <div style={{ lineHeight: 1.2 }}>
                           <span>{BOARD_SPACES[spaceIdx]}</span>
                         </div>
-                        {/* Player dots */}
+                        {/* Player tokens */}
                         <div
                           style={{
                             position: "absolute",
-                            bottom: "2px",
+                            bottom: "1px",
                             left: "50%",
                             transform: "translateX(-50%)",
                             display: "flex",
-                            gap: "2px",
+                            gap: "1px",
                             flexWrap: "wrap",
                             justifyContent: "center",
                             width: "100%",
                           }}
                         >
                           {playersOnSpace.map((player, idx) => (
-                            <div
-                              key={`${player.id}-dot`}
+                            <img
+                              key={`${player.id}-token`}
+                              src={getTokenIcon(player.piece_token)}
+                              alt={getTokenName(player.piece_token)}
                               style={{
-                                width: "8px",
-                                height: "8px",
-                                borderRadius: "50%",
-                                backgroundColor: player.color || "#FF0000",
+                                width: "12px",
+                                height: "12px",
                                 border: player.id === currentPlayerTurnId ? "2px solid #FFD700" : "1px solid #000",
                                 cursor: "pointer",
                                 boxShadow: player.id === currentPlayerTurnId ? "0 0 4px #FFD700" : "none",
                               }}
-                              title={`${player.name}${player.id === currentPlayerTurnId ? " (TURN)" : ""}`}
+                              title={`${player.name} (${getTokenName(player.piece_token)})${player.id === currentPlayerTurnId ? " - TURN" : ""}`}
                             />
                           ))}
                         </div>
