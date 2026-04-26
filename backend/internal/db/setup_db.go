@@ -435,34 +435,3 @@ $$ LANGUAGE plpgsql;
     }
     log.Info().Msg("setup database transaction committed successfully.")
 }
-
-// RunMigrations runs database migrations for existing databases
-func RunMigrations(ctx context.Context, log zerolog.Logger, db *pgx.Conn) {
-    // Check if color column exists in Player table
-    var columnExists bool
-    err := db.QueryRow(ctx, `
-        SELECT EXISTS (
-            SELECT 1
-            FROM information_schema.columns
-            WHERE table_name = 'player' AND column_name = 'color'
-        )
-    `).Scan(&columnExists)
-    
-    if err != nil {
-        log.Trace().Err(err).Msg("failed to check if color column exists")
-        return
-    }
-
-    if !columnExists {
-        log.Info().Msg("Adding color column to Player table...")
-        _, err := db.Exec(ctx, `
-            ALTER TABLE Player
-            ADD COLUMN color TEXT NOT NULL DEFAULT '#FF0000'
-        `)
-        if err != nil {
-            log.Trace().Err(err).Msg("failed to add color column to player table")
-        } else {
-            log.Info().Msg("Successfully added color column to Player table")
-        }
-    }
-}
