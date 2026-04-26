@@ -39,9 +39,15 @@ func CreatePlayerHandler(c echo.Context) error {
         return c.String(http.StatusInternalServerError, "failed to create player in db")
     }
 
+    jwt, err := util.CreatePlayerJwt(id, name, sessionId)
+    if err != nil {
+        return c.String(http.StatusInternalServerError, "failed to create player auth token")
+    }
+
     return c.JSON(http.StatusOK, map[string]interface{}{
         "id":         id,
         "name":       name,
         "session_id": sessionId,
+        "jwt":        jwt,
     })
 }
