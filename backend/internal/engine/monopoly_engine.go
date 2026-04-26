@@ -168,6 +168,10 @@ func processUserAction(
         action_status = property.SellHouse(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "SellHotel":
         action_status = property.SellHotel(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "MortgageProperty":
+        action_status = property.MortgageProperty(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "UnmortgageProperty":
+        action_status = property.UnmortgageProperty(ctx, log, e, &action, tx.(*pgxpool.Tx))
     default:
         log.Trace().Msgf("received unknown engine action event: %v", action.Event)
         action_status = internal.UserActionStatus{
