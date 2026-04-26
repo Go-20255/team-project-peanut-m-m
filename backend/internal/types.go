@@ -68,6 +68,7 @@ type Player struct {
     Jailed            bool   `json:"jailed"`
     SessionId         string `json:"session_id"`
     InGame            bool   `json:"in_game"`
+    Color             string `json:"color"`
 }
 
 type OwnedProperty struct {

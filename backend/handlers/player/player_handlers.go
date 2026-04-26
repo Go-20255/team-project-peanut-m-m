@@ -20,7 +20,7 @@ func CreatePlayerHandler(c echo.Context) error {
     }
 
     sessionId := c.FormValue("session_id")
-	if name == "" {
+	if sessionId == "" {
         return c.String(http.StatusBadRequest, "missing session_id")
     }
 
@@ -34,7 +34,13 @@ func CreatePlayerHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "session_id does not exist")
     }
 
-    id, err := internaldbplayers.CreatePlayerDB(log, ctx, tx, name, sessionId)
+    // Assign a color to the player
+    color, err := util.AssignPlayerColor(log, ctx, tx, sessionId)
+    if err != nil {
+        return c.String(http.StatusInternalServerError, "failed to assign player color")
+    }
+
+    id, err := internaldbplayers.CreatePlayerDB(log, ctx, tx, name, sessionId, color)
     if err != nil {
         return c.String(http.StatusInternalServerError, "failed to create player in db")
     }
@@ -43,5 +49,25 @@ func CreatePlayerHandler(c echo.Context) error {
         "id":           id,
         "name":         name,
         "session_id":   sessionId,
+        "color":        color,
     })
+}
+
+func GetPlayersHandler(c echo.Context) error {
+    log := util.GetRequestLogger(c)
+    ctx := c.Request().Context()
+
+    sessionId := c.QueryParam("session_id")
+    if sessionId == "" {
+        return c.String(http.StatusBadRequest, "missing session_id")
+    }
+
+    tx := c.Get("tx").(*pgxpool.Tx)
+    
+    players, err := internaldbplayers.GetPlayersInSession(log, ctx, tx, sessionId)
+    if err != nil {
+        return c.String(http.StatusInternalServerError, "failed to fetch players")
+    }
+
+    return c.JSON(http.StatusOK, players)
 }

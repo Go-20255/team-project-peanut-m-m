@@ -1,39 +1,59 @@
-/**
- * Application-wide type definitions
- */
-
-export interface GameSession {
-  session_id: string;
-  join_code: string;
-  state: string;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Player {
-  id: string;
+  id: number;
   name: string;
-  session_id: string;
-  position: number;
+  player_order: number;
   money: number;
-  in_jail: boolean;
+  position: number;
+  get_out_of_jail_cards: number;
+  jailed: boolean;
+  session_id: string;
+  in_game: boolean;
+  color: string;
 }
 
-export interface LoginCredentials {
-  playerName: string;
-  gameCode?: string;
+export interface PropertyData {
+  id: number;
+  name: string;
+  current_rent: number;
+  purchase_cost: number;
+  mortgage_cost: number;
+  unmortgage_cost: number;
+  house_cost: number;
+  hotel_cost: number;
+  property_type: string;
 }
 
-export interface AuthState {
-  isLoggedIn: boolean;
-  playerName: string | null;
-  sessionId: string | null;
-  playerId: string | null;
+export interface OwnedProperty {
+  id: number;
+  owner_player_id: number;
+  session_id: number;
+  is_mortgaged: boolean;
+  houses: number;
+  has_hotel: boolean;
+  property_info: PropertyData;
 }
 
-export interface GameAction {
-  type: 'ROLL_DICE' | 'END_TURN' | 'BUY_PROPERTY' | 'PAY_RENT' | 'JOIN_GAME' | 'CREATE_GAME';
-  payload?: any;
+export interface GameState {
+  players: Player[];
+  session_id: string;
+  join_code: number;
+  turn_number: number;
 }
 
-export type ScreenType = 'login' | 'lobby';
+export interface DiceRoll {
+  player_id: number;
+  session_id: string;
+  die_one: number;
+  die_two: number;
+  total: number;
+}
+
+export interface PlayerMovement {
+  player_id: number;
+  session_id: string;
+  old_position: number;
+  new_position: number;
+  total: number;
+  passed_go: boolean;
+  turn_number: number;
+}
