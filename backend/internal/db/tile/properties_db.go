@@ -1,14 +1,14 @@
 package internaldb_tiles
 
 import (
-	"context"
-	"database/sql"
-	"fmt"
-	"monopoly-backend/internal"
+    "context"
+    "database/sql"
+    "fmt"
+    "monopoly-backend/internal"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/rs/zerolog"
 )
 
 type PropertyGroupData struct {
@@ -183,6 +183,24 @@ func UpdatePropertyBuildings(log zerolog.Logger, ctx context.Context, tx *pgxpoo
         `, houses, hotel, sessionId, propertyId)
     if err != nil {
         log.Trace().Err(err).Msg("failed to update property buildings")
+        return err
+    }
+
+    if commandTag.RowsAffected() == 0 {
+        return pgx.ErrNoRows
+    }
+
+    return nil
+}
+
+func UpdatePropertyMortgageStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string, propertyId int, mortgaged bool) error {
+    commandTag, err := tx.Exec(ctx, `
+        UPDATE owned_properties
+        SET mortgaged = $1
+        WHERE session_id = $2 AND property_id = $3
+        `, mortgaged, sessionId, propertyId)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to update property mortgage status")
         return err
     }
 
