@@ -1,21 +1,21 @@
 package monopoly_engine
 
 import (
-    "context"
-    "fmt"
-    "monopoly-backend/handlers"
-    "monopoly-backend/internal"
-    internaldb "monopoly-backend/internal/db"
-    internaldb_players "monopoly-backend/internal/db/player"
-    "monopoly-backend/internal/engine/events/player"
-    "monopoly-backend/internal/engine/events/property"
-    "net/http"
-    "sync"
+	"context"
+	"fmt"
+	"monopoly-backend/handlers"
+	"monopoly-backend/internal"
+	internaldb "monopoly-backend/internal/db"
+	internaldb_players "monopoly-backend/internal/db/player"
+	"monopoly-backend/internal/engine/events/player"
+	"monopoly-backend/internal/engine/events/property"
+	"net/http"
+	"sync"
 
-    "github.com/jackc/pgx/v5"
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/rs/zerolog"
-    "github.com/rs/zerolog/log"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 var (
