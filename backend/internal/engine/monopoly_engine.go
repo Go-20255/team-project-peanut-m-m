@@ -166,9 +166,30 @@ func processUserAction(
             return nil
         }
 
-        // announce to all connected users that another user has joined the game
-        e.Broker.Broadcast(log, "ConnectionEvent", fmt.Sprintf("player %v has joined", data.PlayerName))
-        log.Trace().Msgf("player %v has joined server", data.PlayerName)
+        // Get all players in the session to broadcast to frontend
+        players, err := internaldb_players.GetPlayersInSession(log, ctx, tx.(*pgxpool.Tx), data.SessionId)
+        if err != nil {
+            log.Error().Err(err).Msg("failed to get players in session for ConnectionEvent")
+            action_status = internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+            return nil
+        }
+
+        // Broadcast playerJoined event with the new player info
+        playerJoinedData := map[string]interface{}{
+            "id":       data.Id,
+            "name":     data.PlayerName,
+            "position": 0,
+            "money":    1500,
+        }
+        e.Broker.Broadcast(log, "playerJoined", playerJoinedData)
+
+        // Broadcast playersUpdate event with all current players
+        e.Broker.Broadcast(log, "playersUpdate", players)
+
+        log.Trace().Msgf("player %v has joined server, broadcasting to %d connected players", data.PlayerName, len(players))
 
     case "RollDiceEvent":
         data := action.Data.(internal.RollDiceActionData)
@@ -224,7 +245,13 @@ func processUserAction(
         }
         diceRoll.Total = diceRoll.DieOne + diceRoll.DieTwo
         e.PendingRolls[data.PlayerId] = diceRoll
-        e.Broker.Broadcast(log, "RollDiceEvent", diceRoll)
+        e.Broker.Broadcast(log, "diceRoll", diceRoll)
+
+        // Get updated players and broadcast them
+        updatedPlayers, err := internaldb_players.GetPlayersInSession(log, ctx, tx.(*pgxpool.Tx), data.SessionId)
+        if err == nil {
+            e.Broker.Broadcast(log, "playersUpdate", updatedPlayers)
+        }
 
         action_status = internal.UserActionStatus{
             Status: http.StatusOK,
@@ -318,7 +345,13 @@ func processUserAction(
             PassedGo:    passedGo,
             TurnNumber:  nextTurnNumber,
         }
-        e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
+        e.Broker.Broadcast(log, "playerMove", playerMovement)
+
+        // Get updated players and broadcast them
+        updatedPlayers, err := internaldb_players.GetPlayersInSession(log, ctx, tx.(*pgxpool.Tx), data.SessionId)
+        if err == nil {
+            e.Broker.Broadcast(log, "playersUpdate", updatedPlayers)
+        }
 
         action_status = internal.UserActionStatus{
             Status: http.StatusOK,

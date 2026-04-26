@@ -1,6 +1,1 @@
-/**
- * Utils barrel exports
- */
-
-export { api } from './api';
-export { storage } from './storage';
+export { storage } from "./storage";

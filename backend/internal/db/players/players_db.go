@@ -9,15 +9,15 @@ import (
     "github.com/rs/zerolog"
 )
 
-func CreatePlayerDB(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, name string, sessionId string) (int, error) {
+func CreatePlayerDB(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, name string, sessionId string, color string) (int, error) {
     query := `
-        INSERT INTO Player (name, session_id)
-        VALUES ($1, $2)
+        INSERT INTO Player (name, session_id, color)
+        VALUES ($1, $2, $3)
         RETURNING id
         `
 
     var id int
-    err := tx.QueryRow(ctx, query, name, sessionId).Scan(&id)
+    err := tx.QueryRow(ctx, query, name, sessionId, color).Scan(&id)
 
     if err != nil {
         log.Trace().Err(err).Msgf("failed to insert player %v into db with session id %v", name, sessionId)
@@ -35,11 +35,12 @@ func CheckPlayerExists(
     session_id string,
 ) (bool, error) {
     var exists bool
+    
     query := `
     SELECT EXISTS (
     SELECT 1
     FROM Player
-    WHERE id = $1 AND name = $2 AND session_id = $3
+    WHERE id = $1::int AND name = $2 AND session_id = $3
     )
     `
     err := tx.QueryRow(ctx, query, id, name, session_id).Scan(&exists)
@@ -63,7 +64,8 @@ func GetPlayer(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, 
             get_out_of_jail_cards,
             jailed > 0,
             session_id,
-            in_game
+            in_game,
+            COALESCE(color, '#FF0000')
         FROM player
         WHERE id = $1 AND session_id = $2
         `, id, sessionId).Scan(
@@ -76,6 +78,7 @@ func GetPlayer(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, 
         &player.Jailed,
         &player.SessionId,
         &player.InGame,
+        &player.Color,
     )
     if err != nil {
         log.Trace().Err(err).Msg("failed to query player")
@@ -96,7 +99,8 @@ func GetPlayersInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx
             get_out_of_jail_cards,
             jailed > 0,
             session_id,
-            in_game
+            in_game,
+            COALESCE(color, '#FF0000')
         FROM player
         WHERE session_id = $1
         ORDER BY
@@ -123,6 +127,7 @@ func GetPlayersInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx
             &player.Jailed,
             &player.SessionId,
             &player.InGame,
+            &player.Color,
         ); err != nil {
             log.Trace().Err(err).Msg("failed to scan player in session")
             return nil, err
@@ -154,4 +159,19 @@ func UpdatePlayerPosition(log zerolog.Logger, ctx context.Context, tx *pgxpool.T
     }
 
     return nil
+}
+
+func GetPlayerCountInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) (int, error) {
+    var count int
+    err := tx.QueryRow(ctx, `
+        SELECT COUNT(*)
+        FROM player
+        WHERE session_id = $1
+        `, sessionId).Scan(&count)
+    if err != nil {
+        log.Trace().Err(err).Msgf("failed to get player count for session %v", sessionId)
+        return 0, err
+    }
+
+    return count, nil
 }
