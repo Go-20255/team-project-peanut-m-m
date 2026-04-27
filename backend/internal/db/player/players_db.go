@@ -223,7 +223,7 @@ func GetPlayerReadyUpStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool
     return readyup_status, nil
 }
 
-func GetAllPlayersReadyUpStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, playerId int, sessionId string) (struct {
+func GetAllPlayersReadyUpStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) (struct {
     Ready   int
     Total   int
 }, error){

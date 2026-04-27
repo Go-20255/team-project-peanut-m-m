@@ -146,6 +146,7 @@ $$ LANGUAGE plpgsql;
         jailed INTEGER NOT NULL DEFAULT 0, -- number of turns stuck in jail
         session_id UUID REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL,
         in_game BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         CONSTRAINT unique_session_name UNIQUE(name, session_id),
         CONSTRAINT unique_session_token UNIQUE(piece_token, session_id)
         )

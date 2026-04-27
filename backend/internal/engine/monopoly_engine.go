@@ -6,6 +6,7 @@ import (
 	"monopoly-backend/handlers"
 	"monopoly-backend/internal"
 	internaldb "monopoly-backend/internal/db"
+	internaldb_game_state "monopoly-backend/internal/db/game_state"
 	internaldb_players "monopoly-backend/internal/db/player"
 	"monopoly-backend/internal/engine/events/player"
 	"monopoly-backend/internal/engine/events/property"
@@ -90,6 +91,12 @@ func SetupNewMonopolyEngine(sessionId string) {
 func runMonopolyEngine(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, db *pgxpool.Pool) error {
     log.Info().Msg("started monopoly engine")
 
+    // NOTE: About turn number as states:
+    // Turn == -1: Remains -1 until all players have readied up
+    // Turn == 0: All players are ready, start with first player who was created to roll first for deciding order
+    // 0 <= Turn < len(players): Deciding player order
+    // len(players) <= Turn: Turns have decided, start with player whose Turn == current_turn % len(players)
+
 
     tx, err := db.BeginTx(ctx, pgx.TxOptions{})
     if err != nil {
@@ -98,6 +105,50 @@ func runMonopolyEngine(ctx context.Context, log zerolog.Logger, e *internal.Mono
 
     internaldb_players.ResetAllPlayersInGameStatus(log, ctx, tx.(*pgxpool.Tx), e.SessionId)
 
+    log.Info().Msg("reset all player's in game status'")
+
+    // get current turn number of db
+    current_turn, err := internaldb_game_state.GetGameStateTurnNumber(log, ctx, tx.(*pgxpool.Tx), e.SessionId)
+    if err != nil {
+        return err
+    }
+
+    // set the current turn number in the engine
+    e.TurnNumber = current_turn
+
+    // check if all players are ready
+    ready_stats, err := internaldb_players.GetAllPlayersReadyUpStatus(
+        log,
+        ctx,
+        tx.(*pgxpool.Tx),
+        e.SessionId,
+        )
+    if err != nil {
+        return err
+    }
+
+    if ready_stats.Ready == ready_stats.Total && e.TurnNumber < 0 {
+        // everyone is ready and turn number is still -1 for some reason
+        internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx.(*pgxpool.Tx), e.SessionId, 0)
+        log.Info().Msg("all players are ready; Start Game")
+        e.Broker.Broadcast(log, "GameReady", "START")
+    }
+
+
+    players, err := internaldb_players.GetPlayersInSession(log, ctx, tx.(*pgxpool.Tx), e.SessionId)
+    if err != nil {
+        return err
+    }
+
+    // if we were in the middle of deciding turn order after everyone readied up
+    // (i.e. 0 <= turn number < len(players)), reset turns so everyone can re roll as
+    // we have already lost everyone's previous rolls since engine restart
+    if e.TurnNumber < len(players) && e.TurnNumber >= 0 {
+        log.Trace().Msg("was in middle of deciding turn over; reset turn number to 0")
+        internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx.(*pgxpool.Tx), e.SessionId, 0)
+        e.TurnNumber = 0
+    }
+
     err = tx.Commit(ctx)
     if err != nil {
         if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
@@ -105,8 +156,6 @@ func runMonopolyEngine(ctx context.Context, log zerolog.Logger, e *internal.Mono
         }
         return err
     }
-
-    log.Info().Msg("reset all player's in game status'")
 
     for {
 

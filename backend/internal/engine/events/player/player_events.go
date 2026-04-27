@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"monopoly-backend/internal"
+	internaldb_game_state "monopoly-backend/internal/db/game_state"
 	internaldb_players "monopoly-backend/internal/db/player"
 	internaldb_tiles "monopoly-backend/internal/db/tile"
 	"monopoly-backend/internal/engine/events"
@@ -124,7 +125,6 @@ func Disconnected(
         log,
         ctx,
         tx,
-        data.Id,
         data.SessionId,
         )
     if err != nil {
@@ -194,7 +194,6 @@ func ReadyUp(
         log,
         ctx,
         tx,
-        data.PlayerId,
         data.SessionId,
         )
     if err != nil {
@@ -206,6 +205,8 @@ func ReadyUp(
 
     if ready_stats.Ready == ready_stats.Total {
         // everyone is ready
+        internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx,data.SessionId, 0)
+        log.Info().Msg("final player has readied up; Start Game")
         e.Broker.Broadcast(log, "GameReady", "START")
     }
 
