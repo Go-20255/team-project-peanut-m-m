@@ -31,9 +31,9 @@ func ReshuffleEventCardPileDB(log zerolog.Logger, ctx context.Context, db *pgxpo
 		DELETE FROM drawn_event_cards
 		USING event_cards 
 		WHERE drawn_event_cards.card_id = event_cards.id 
-		  AND drawn_event_cards.session_id = $1 
-		  AND event_cards.type = $2 
-		  AND event_cards.id NOT IN (9, 21)
+			AND drawn_event_cards.session_id = $1 
+			AND event_cards.type = $2 
+			AND event_cards.id NOT IN (9, 21)
 	`, sessionId, cardType)
 
 	if err != nil {
@@ -79,7 +79,7 @@ func AssignEventCardDB(log zerolog.Logger, ctx context.Context, db *pgxpool.Pool
 		INSERT INTO drawn_event_cards (session_id, card_id)
 		VALUES ($1, $2)
 	`, sessionId, cardId)
-	
+
 	if err != nil {
 		log.Error().Err(err).Msg("failed to mark event card as drawn")
 		return -1, err
