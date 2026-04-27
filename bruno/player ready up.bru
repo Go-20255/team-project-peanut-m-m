@@ -1,0 +1,20 @@
+meta {
+  name: player ready up
+  type: http
+  seq: 7
+}
+
+post {
+  url: http://localhost:9876/api/player/readyup?status=true
+  body: none
+  auth: inherit
+}
+
+params:query {
+  status: true
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

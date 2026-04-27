@@ -1,15 +1,17 @@
 package players_handlers
 
 import (
-    internaldbgamestate "monopoly-backend/internal/db/game_state"
-    internaldbplayers "monopoly-backend/internal/db/player"
-    "monopoly-backend/util"
-    "net/http"
-    "strconv"
-    "time"
+	"monopoly-backend/internal"
+	internaldbgamestate "monopoly-backend/internal/db/game_state"
+	internaldbplayers "monopoly-backend/internal/db/player"
+	monopoly_engine "monopoly-backend/internal/engine"
+	"monopoly-backend/util"
+	"net/http"
+	"strconv"
+	"time"
 
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/labstack/echo/v4"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/labstack/echo/v4"
 )
 
 func CreatePlayerHandler(c echo.Context) error {
@@ -111,3 +113,45 @@ func JoinPlayerHandler(c echo.Context) error {
         "jwt":        jwt,
     })
 }
+
+
+
+func ReadyUpPlayerHandler(c echo.Context) error {
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
+
+    status_str := c.QueryParam("status")
+    status, err := strconv.ParseBool(status_str)
+    if err != nil {
+        return c.String(http.StatusBadRequest, err.Error())
+    }
+
+    res, err := monopoly_engine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "PlayerReadyUpEvent",
+        Data: struct {
+            SessionId   string
+            PlayerId    int
+            Status      bool
+        }{
+            SessionId: claims.SessionId,
+            PlayerId: claims.PlayerId,
+            Status: status,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.String(http.StatusOK, res.Msg)
+}
+
+
+
