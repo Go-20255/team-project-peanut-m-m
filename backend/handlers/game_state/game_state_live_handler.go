@@ -1,25 +1,27 @@
 package game_state_handlers
 
 import (
-	"fmt"
-	"monopoly-backend/handlers"
-	"monopoly-backend/internal"
-	monopolyengine "monopoly-backend/internal/engine"
-	"net/http"
-	"time"
+    "fmt"
+    "monopoly-backend/handlers"
+    "monopoly-backend/internal"
+    monopolyengine "monopoly-backend/internal/engine"
+    "monopoly-backend/util"
+    "net/http"
+    "strconv"
+    "time"
 
-	"github.com/labstack/echo/v4"
+    "github.com/labstack/echo/v4"
 )
 
 func JoinLiveGameHandler(c echo.Context) error {
-
-    sessionId := c.QueryParam("session_id")
-    playerId := c.QueryParam("player_id")
-    playerName := c.QueryParam("player_name")
-
-    if playerName == "" || playerId == "" {
-        return c.String(http.StatusBadRequest, "missing player id and or player name")
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
     }
+
+    sessionId := claims.SessionId
+    playerId := strconv.Itoa(claims.PlayerId)
+    playerName := claims.PlayerName
 
     w := c.Response().Writer
     handlers.PrepareSseHeaders(w)
