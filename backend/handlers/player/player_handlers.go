@@ -54,10 +54,12 @@ func JoinPlayerHandler(c echo.Context) error {
     log := util.GetRequestLogger(c)
     ctx := c.Request().Context()
 
-    playerId := c.FormValue("player_id")
-    if playerId == "" {
-        return c.String(http.StatusBadRequest, "missing player_id")
+    playerId_str := c.FormValue("player_id")
+    playerId, err := strconv.Atoi(playerId_str)
+    if err != nil {
+        return c.String(http.StatusBadRequest, "player id is not an integer")
     }
+
 
     name := c.FormValue("player_name")
     if name == "" {
@@ -88,12 +90,7 @@ func JoinPlayerHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "player does not exist")
     }
 
-    playerIdInt, err := strconv.Atoi(playerId)
-    if err != nil {
-        return c.String(http.StatusBadRequest, "player_id must be a valid integer")
-    }
-
-    jwt, err := util.CreatePlayerJwt(playerIdInt, name, sessionId)
+    jwt, err := util.CreatePlayerJwt(playerId, name, sessionId)
     if err != nil {
         return c.String(http.StatusInternalServerError, "failed to create player auth token")
     }
@@ -107,7 +104,7 @@ func JoinPlayerHandler(c echo.Context) error {
     })
 
     return c.JSON(http.StatusOK, map[string]interface{}{
-        "id":         playerIdInt,
+        "id":         playerId_str,
         "name":       name,
         "session_id": sessionId,
         "jwt":        jwt,

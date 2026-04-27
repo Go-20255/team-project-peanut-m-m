@@ -31,7 +31,7 @@ func CheckPlayerExists(
     log zerolog.Logger,
     ctx context.Context,
     tx *pgxpool.Tx,
-    id string,
+    id int,
     name string,
     session_id string,
 ) (bool, error) {
@@ -185,7 +185,7 @@ func UpdatePlayerMoney(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, 
     return nil
 }
 
-func UpdatePlayerInGameStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id string, sessionId string, inGameStatus bool) error {
+func UpdatePlayerInGameStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, sessionId string, inGameStatus bool) error {
 
     commandTag, err := tx.Exec(ctx, `
         UPDATE player
@@ -227,12 +227,12 @@ func SetPlayerReadyUpStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool
 
     commandTag, err := tx.Exec(ctx, `
         UPDATE player
-        SET in_game = $1
+        SET ready_up_status = $1
         WHERE id = $2 AND session_id = $3
         `, status, playerId, sessionId)
 
     if err != nil {
-        log.Trace().Err(err).Msg("failed to update players in ready up status'")
+        log.Trace().Err(err).Msg("failed to update players in ready up status")
         return err
     }
 

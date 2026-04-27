@@ -44,11 +44,11 @@ func JoinLiveGameHandler(c echo.Context) error {
     res, err := monopolyengine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
         Event: "ConnectionEvent",
         Data: struct {
-            Id string
+            Id int
             PlayerName string
             SessionId string
         }{
-            Id: playerId,
+            Id: claims.PlayerId,
             PlayerName: playerName,
             SessionId: sessionId,
         },
@@ -79,11 +79,11 @@ func JoinLiveGameHandler(c echo.Context) error {
             res, err := monopolyengine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
                 Event: "DisconnectEvent",
                 Data: struct {
-                    Id string
+                    Id int
                     PlayerName string
                     SessionId string
                 }{
-                    Id: playerId,
+                    Id: claims.PlayerId,
                     PlayerName: playerName,
                     SessionId: sessionId,
                 },
