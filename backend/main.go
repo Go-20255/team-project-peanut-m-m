@@ -89,6 +89,7 @@ func main() {
 
     routes.POST("/player", playershandlers.CreatePlayerHandler)
     routes.POST("/player/join", playershandlers.JoinPlayerHandler)
+    routes.POST("/player/readyup", playershandlers.ReadyUpPlayerHandler)
 
     routes.POST("/game", gamestatehandlers.NewGameHandler)
     routes.GET("/game", gamestatehandlers.GetAllGameSessions)

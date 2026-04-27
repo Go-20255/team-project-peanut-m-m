@@ -138,6 +138,54 @@ func Disconnected(
     }
 }
 
+func ReadyUp(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    data := action.Data.(struct {
+        SessionId   string
+        PlayerId    int
+        Status      bool
+    })
+
+
+    err := internaldb_players.SetPlayerReadyUpStatus(
+        log,
+        ctx,
+        tx,
+        data.PlayerId,
+        data.SessionId,
+        data.Status,
+        )
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    readyUpEvent := struct {
+        PlayerId    int         `json:"player_id"`
+        SessionId   string      `json:"session_id"`
+        ReadyUp     bool        `json:"ready_up"`
+    } {
+        data.PlayerId,
+        data.SessionId,
+        data.Status,
+    }
+
+    e.Broker.Broadcast(log, "PlayerReadyUpEvent", readyUpEvent)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   readyUpEvent,
+    }
+}
+
 func RollDice(
     ctx context.Context,
     log zerolog.Logger,
