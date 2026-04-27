@@ -150,5 +150,35 @@ func ReadyUpPlayerHandler(c echo.Context) error {
     return c.String(http.StatusOK, res.Msg)
 }
 
+func EndTurnHandler(c echo.Context) error {
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
+
+    res, err := monopoly_engine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "EndTurnEvent",
+        Data: struct {
+            PlayerId    int
+            SessionId   string
+        }{
+            PlayerId: claims.PlayerId,
+            SessionId: claims.SessionId,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.String(http.StatusOK, res.Msg)
+
+}
+
 
 
