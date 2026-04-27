@@ -31,7 +31,7 @@ func Connected(
     log.Trace().Msg("player attempting to join game")
 
     data := action.Data.(struct {
-        Id         string
+        Id         int
         PlayerName string
         SessionId  string
     })
@@ -89,7 +89,7 @@ func Disconnected(
     log.Trace().Msg("player attempting to leave game")
 
     data := action.Data.(struct {
-        Id         string
+        Id         int
         PlayerName string
         SessionId  string
     })
@@ -118,6 +118,7 @@ func Disconnected(
     }
 
     internaldb_players.UpdatePlayerInGameStatus(log, ctx, tx, data.Id, data.SessionId, false)
+    internaldb_players.SetPlayerReadyUpStatus(log, ctx, tx, data.Id, data.SessionId, false)
 
     // announce to all connected users that another user has left the game
     e.Broker.BroadcastComment(log, fmt.Sprintf("Player %v has left", data.PlayerName))
@@ -177,7 +178,6 @@ func ReadyUp(
         data.Status,
     }
 
-    e.Broker.Broadcast(log, "PlayerReadyUpEvent", readyUpEvent)
     events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     return internal.UserActionStatus{

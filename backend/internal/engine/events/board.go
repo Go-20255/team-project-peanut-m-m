@@ -11,7 +11,7 @@ import (
 	"github.com/rs/zerolog"
 )
 func EmitInitialGameBoardData(log zerolog.Logger, ctx context.Context, e *internal.MonopolyEngine, tx *pgxpool.Tx, data struct {
-    Id         string
+    Id         int
     PlayerName string
     SessionId  string
 }) error {
