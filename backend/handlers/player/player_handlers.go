@@ -6,6 +6,7 @@ import (
     "monopoly-backend/util"
     "net/http"
     "strconv"
+    "time"
 
     "github.com/jackc/pgx/v5/pgxpool"
     "github.com/labstack/echo/v4"
@@ -94,6 +95,14 @@ func JoinPlayerHandler(c echo.Context) error {
     if err != nil {
         return c.String(http.StatusInternalServerError, "failed to create player auth token")
     }
+
+    c.SetCookie(&http.Cookie{
+        Name:    util.PlayerAuthCookieName,
+        Value:   jwt,
+        Path:    "/",
+        Secure:  true,
+        Expires: time.Now().Add(24 * time.Hour),
+    })
 
     return c.JSON(http.StatusOK, map[string]interface{}{
         "id":         playerIdInt,
