@@ -317,6 +317,8 @@ $$ LANGUAGE plpgsql;
             (9, 6, 'Connecticut Avenue'),
 
             (7, NULL, 'Chance'),
+            
+            (10, NULL, 'Just Visiting'),
 
             -- Pink (House cost: 100)
             (11, 7, 'St. Charles Place'),
@@ -376,7 +378,6 @@ $$ LANGUAGE plpgsql;
     if err != nil {
         log.Fatal().Err(err).Msg("failed to insert tiles into db")
     }
-
 
     _, err = tx.Exec(ctx, `
         CREATE TABLE Event_Cards ( -- Community and Chance Cards
