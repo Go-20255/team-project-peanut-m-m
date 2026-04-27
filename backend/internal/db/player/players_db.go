@@ -223,6 +223,37 @@ func GetPlayerReadyUpStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool
     return readyup_status, nil
 }
 
+func GetAllPlayersReadyUpStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, playerId int, sessionId string) (struct {
+    Ready   int
+    Total   int
+}, error){
+
+    res := struct {
+        Ready int
+        Total int
+    } {
+        0,
+        0,
+    }
+    err := tx.QueryRow(ctx, `
+        SELECT
+            COUNT(*) FILTER (WHERE ready_up_status = True) AS ready,
+            COUNT(*) AS total
+        FROM player
+        WHERE session_id = $1
+        `, sessionId).Scan(
+        &res.Ready,
+        &res.Total,
+    )
+
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to query players ready up status and total players")
+        return res, err
+    }
+
+    return res, nil
+}
+
 func SetPlayerReadyUpStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, playerId int, sessionId string, status bool) (error){
 
     commandTag, err := tx.Exec(ctx, `
