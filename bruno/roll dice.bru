@@ -1,18 +1,13 @@
 meta {
   name: roll dice
   type: http
-  seq: 11
+  seq: 12
 }
 
 post {
   url: http://localhost:9876/api/game/roll
   body: formUrlEncoded
   auth: inherit
-}
-
-body:form-urlencoded {
-  session_id: {{session_id}}
-  player_id: {{id}}
 }
 
 vars:pre-request {

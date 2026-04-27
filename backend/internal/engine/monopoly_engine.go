@@ -207,6 +207,8 @@ func processUserAction(
         action_status = player.Disconnected(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PlayerReadyUpEvent":
         action_status = player.ReadyUp(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "EndTurnEvent":
+        action_status = player.EndTurn(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "RollDiceEvent":
         action_status = player.RollDice(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "MovePlayerEvent":

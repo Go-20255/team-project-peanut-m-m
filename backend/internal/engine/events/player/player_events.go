@@ -1,19 +1,19 @@
 package player
 
 import (
-	"context"
-	"fmt"
-	"math/rand/v2"
-	"monopoly-backend/internal"
-	internaldb_game_state "monopoly-backend/internal/db/game_state"
-	internaldb_players "monopoly-backend/internal/db/player"
-	internaldb_tiles "monopoly-backend/internal/db/tile"
-	"monopoly-backend/internal/engine/events"
-	turn_events "monopoly-backend/internal/engine/events/turn"
-	"net/http"
+    "context"
+    "fmt"
+    "math/rand/v2"
+    "monopoly-backend/internal"
+    internaldb_game_state "monopoly-backend/internal/db/game_state"
+    internaldb_players "monopoly-backend/internal/db/player"
+    internaldb_tiles "monopoly-backend/internal/db/tile"
+    "monopoly-backend/internal/engine/events"
+    turn_events "monopoly-backend/internal/engine/events/turn"
+    "net/http"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/rs/zerolog"
 )
 
 func getNewPosition(position int, total int) (int, bool) {
@@ -276,6 +276,56 @@ func RollDice(
     return internal.UserActionStatus{
         Status: http.StatusOK,
         Data:   diceRoll,
+    }
+}
+
+func EndTurn(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+
+    data := action.Data.(struct {
+        PlayerId    int
+        SessionId   string
+    }) 
+
+    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    if currentPlayer == nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there are no players in this game session",
+        }
+    }
+
+    if currentPlayer.Id != data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "it is not this player's turn",
+        }
+    }
+
+    err = internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx, data.SessionId, e.TurnNumber + 1)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg: err.Error(),
+        }
+    }
+    // turn update succeeded, update internal counter
+    e.TurnNumber += 1
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
     }
 }
 
