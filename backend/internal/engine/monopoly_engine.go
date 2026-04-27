@@ -147,6 +147,7 @@ func runMonopolyEngine(ctx context.Context, log zerolog.Logger, e *internal.Mono
         log.Trace().Msg("was in middle of deciding turn over; reset turn number to 0")
         internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx.(*pgxpool.Tx), e.SessionId, 0)
         e.TurnNumber = 0
+        e.TempStore["turn_decision_rolls"] = make([]internal.DiceRoll, 0)
     }
 
     err = tx.Commit(ctx)
