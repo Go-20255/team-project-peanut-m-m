@@ -2,11 +2,6 @@ package internaldb_event_cards
 
 import (
     "context"
-    "database/sql"
-    "fmt"
-    "monopoly-backend/internal"
-
-    "github.com/jackc/pgx/v5"
     "github.com/jackc/pgx/v5/pgxpool"
     "github.com/rs/zerolog"
 )
