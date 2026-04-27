@@ -118,7 +118,26 @@ func Disconnected(
     }
 
     internaldb_players.UpdatePlayerInGameStatus(log, ctx, tx, data.Id, data.SessionId, false)
-    internaldb_players.SetPlayerReadyUpStatus(log, ctx, tx, data.Id, data.SessionId, false)
+
+    // check if all players are ready
+    ready_stats, err := internaldb_players.GetAllPlayersReadyUpStatus(
+        log,
+        ctx,
+        tx,
+        data.Id,
+        data.SessionId,
+        )
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Data: err.Error(),
+        }
+    }
+
+    if ready_stats.Ready != ready_stats.Total {
+        // everyone is ready, don't reset ready up
+        internaldb_players.SetPlayerReadyUpStatus(log, ctx, tx, data.Id, data.SessionId, false)
+    }
 
     // announce to all connected users that another user has left the game
     e.Broker.BroadcastComment(log, fmt.Sprintf("Player %v has left", data.PlayerName))
@@ -168,21 +187,31 @@ func ReadyUp(
         }
     }
 
-    readyUpEvent := struct {
-        PlayerId    int         `json:"player_id"`
-        SessionId   string      `json:"session_id"`
-        ReadyUp     bool        `json:"ready_up"`
-    } {
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+    // check if all players are ready
+    ready_stats, err := internaldb_players.GetAllPlayersReadyUpStatus(
+        log,
+        ctx,
+        tx,
         data.PlayerId,
         data.SessionId,
-        data.Status,
+        )
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Data: err.Error(),
+        }
     }
 
-    events.EmitGameBoardUpdate(log, ctx, e, tx)
+    if ready_stats.Ready == ready_stats.Total {
+        // everyone is ready
+        e.Broker.Broadcast(log, "GameReady", "START")
+    }
 
     return internal.UserActionStatus{
         Status: http.StatusOK,
-        Data:   readyUpEvent,
+        Data:   "",
     }
 }
 

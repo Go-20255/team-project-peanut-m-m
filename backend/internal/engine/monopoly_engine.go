@@ -58,6 +58,7 @@ func SetupNewMonopolyEngine(sessionId string) {
         SessionId:       sessionId,
         Broker:          handlers.NewSseBroker(),
         UserActionsChan: make(chan internal.UserActionEvent),
+        TempStore:       make(map[string]any),
         PendingRolls:    map[int]internal.DiceRoll{},
         PendingRent:     nil,
     }

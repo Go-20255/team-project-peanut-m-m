@@ -28,6 +28,7 @@ type MonopolyEngine struct {
     Broker            *handlers.SseBroker
     UserActionsChan   chan UserActionEvent
     UserActionsChanMu sync.Mutex
+    TempStore         map[string]any
     PendingRolls      map[int]DiceRoll
     PendingRent       *PendingRent
     JoinCode          int `json:"join_code"`
