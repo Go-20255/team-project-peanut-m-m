@@ -185,6 +185,23 @@ func UpdatePlayerMoney(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, 
     return nil
 }
 
+func UpdatePlayerTurnOrder(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, playerId int, sessionId string, turn_number int) error {
+    commandTag, err := tx.Exec(ctx, `
+        UPDATE player
+        SET player_order = $1
+        WHERE id = $2 AND session_id = $3
+        `, turn_number, playerId, sessionId)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to update player turn order")
+        return err
+    }
+
+    if commandTag.RowsAffected() == 0 {
+        return pgx.ErrNoRows
+    }
+    return nil
+}
+
 func UpdatePlayerInGameStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, sessionId string, inGameStatus bool) error {
 
     commandTag, err := tx.Exec(ctx, `

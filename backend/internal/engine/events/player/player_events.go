@@ -1,19 +1,20 @@
 package player
 
 import (
-    "context"
-    "fmt"
-    "math/rand/v2"
-    "monopoly-backend/internal"
-    internaldb_game_state "monopoly-backend/internal/db/game_state"
-    internaldb_players "monopoly-backend/internal/db/player"
-    internaldb_tiles "monopoly-backend/internal/db/tile"
-    "monopoly-backend/internal/engine/events"
-    turn_events "monopoly-backend/internal/engine/events/turn"
-    "net/http"
+	"context"
+	"fmt"
+	"math/rand/v2"
+	"monopoly-backend/internal"
+	internaldb_game_state "monopoly-backend/internal/db/game_state"
+	internaldb_players "monopoly-backend/internal/db/player"
+	internaldb_tiles "monopoly-backend/internal/db/tile"
+	"monopoly-backend/internal/engine/events"
+	turn_events "monopoly-backend/internal/engine/events/turn"
+	"net/http"
+	"sort"
 
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/rs/zerolog"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 )
 
 func getNewPosition(position int, total int) (int, bool) {
@@ -225,7 +226,7 @@ func RollDice(
 ) internal.UserActionStatus {
     data := action.Data.(internal.RollDiceActionData)
 
-    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
+    currentPlayer, players, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -247,20 +248,6 @@ func RollDice(
         }
     }
 
-    if e.PendingRent != nil && e.PendingRent.FromPlayerId == data.PlayerId {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "player has a pending rent payment",
-        }
-    }
-
-    if _, ok := e.PendingRolls[data.PlayerId]; ok {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "player already has a pending dice roll",
-        }
-    }
-
     diceRoll := internal.DiceRoll{
         PlayerId:  data.PlayerId,
         SessionId: data.SessionId,
@@ -268,7 +255,42 @@ func RollDice(
         DieTwo:    rand.IntN(6) + 1,
     }
     diceRoll.Total = diceRoll.DieOne + diceRoll.DieTwo
-    e.PendingRolls[data.PlayerId] = diceRoll
+
+    if e.TurnNumber >= 0 && e.TurnNumber < len(players) {
+        rolls := e.TempStore["turn_decision_rolls"].([]internal.DiceRoll)
+        rolls = append(rolls, diceRoll)
+
+        // sort rolls so highest roll is first
+        sort.SliceStable(rolls, func(i, j int) bool {
+            if rolls[i].Total == rolls[j].Total {
+                if rolls[i].DieOne == rolls[j].DieOne {
+                    if rolls[i].DieTwo == rolls[j].DieTwo {
+                        return rolls[i].PlayerId < rolls[j].PlayerId
+                    }
+                    return rolls[i].DieTwo > rolls[j].DieTwo
+                }
+                return rolls[i].DieOne > rolls[j].DieOne
+            }
+            return rolls[i].Total > rolls[j].Total
+        })
+
+        e.TempStore["turn_decision_rolls"] = rolls
+    } else {
+        if e.PendingRent != nil && e.PendingRent.FromPlayerId == data.PlayerId {
+            return internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    "player has a pending rent payment",
+            }
+        }
+
+        if _, ok := e.PendingRolls[data.PlayerId]; ok {
+            return internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    "player already has a pending dice roll",
+            }
+        }
+        e.PendingRolls[data.PlayerId] = diceRoll
+    }
 
     e.Broker.Broadcast(log, "RollDiceEvent", diceRoll)
     events.EmitGameBoardUpdate(log, ctx, e, tx)
@@ -292,7 +314,7 @@ func EndTurn(
         SessionId   string
     }) 
 
-    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
+    currentPlayer, players, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -323,6 +345,31 @@ func EndTurn(
     }
     // turn update succeeded, update internal counter
     e.TurnNumber += 1
+
+    // all players have rolled to determine their turn order
+    if e.TurnNumber == len(players) {
+        // give all players their turn order
+        for i, roll := range e.TempStore["turn_decision_rolls"].([]internal.DiceRoll) {
+            log.Trace().Msgf("%#v",roll)
+            err := internaldb_players.UpdatePlayerTurnOrder(
+                log,
+                ctx,
+                tx,
+                roll.PlayerId,
+                roll.SessionId,
+                i,
+                )
+            if err != nil {
+                return internal.UserActionStatus{
+                    Status: http.StatusInternalServerError,
+                    Msg: err.Error(),
+                }
+            }
+        }
+    }
+
+    // TODO:: Prevent ending turn if there is a pending rent. If player can't pay
+    // rent and is bankrupt, handle that here.
 
     return internal.UserActionStatus{
         Status: http.StatusOK,
@@ -404,6 +451,8 @@ func MovePlayer(
             Msg:    err.Error(),
         }
     }
+
+    playerMovement.PropertyId = tileData.PropertyId
 
     if tileData.HasProperty && tileData.Owned && tileData.OwnerId != data.PlayerId && !tileData.IsMortgaged {
         rentAmount, err := getRentAmount(ctx, log, tx, data.SessionId, tileData, diceRoll.Total)
