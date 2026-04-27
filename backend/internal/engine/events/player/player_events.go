@@ -371,6 +371,8 @@ func EndTurn(
     // TODO:: Prevent ending turn if there is a pending rent. If player can't pay
     // rent and is bankrupt, handle that here.
 
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
+
     return internal.UserActionStatus{
         Status: http.StatusOK,
     }
