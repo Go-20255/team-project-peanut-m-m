@@ -9,6 +9,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// GetAllTiles retrieves all tiles from the database and includes property
+// data when a tile is linked to a property.
 func GetAllTiles(
     log zerolog.Logger,
     ctx context.Context,
@@ -83,6 +85,8 @@ func GetAllTiles(
 }
 
 
+// GetTileByPosition retrieves a single tile by its position/id and includes
+// property data if the tile is linked to a property.
 func GetTileByPosition(
     log zerolog.Logger,
     ctx context.Context,
