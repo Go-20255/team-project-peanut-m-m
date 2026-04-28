@@ -24,6 +24,9 @@ var (
     engineManagerMu sync.Mutex
 )
 
+// GetEngineBroker returns the SSE broker for the given game session.
+// It returns an error if no engine exists for the session or if the broker
+// has not been initialized.
 func GetEngineBroker(sessionId string) (*handlers.SseBroker, error) {
     engine := engineManager[sessionId]
     if engine == nil {
@@ -36,7 +39,9 @@ func GetEngineBroker(sessionId string) (*handlers.SseBroker, error) {
     return broker, nil
 }
 
-// NotifyEngineOfAction passes a user action event to the engine
+// NotifyEngineOfAction sends a user action to the engine for the given session
+// and waits for the action result to be returned.
+// Use this when an incoming request needs to be processed by the running engine.
 func NotifyEngineOfAction(sessionId string, actionEvent internal.UserActionEvent) (internal.UserActionStatus, error) {
     var action_status internal.UserActionStatus
     engine, ok := engineManager[sessionId]
@@ -50,8 +55,11 @@ func NotifyEngineOfAction(sessionId string, actionEvent internal.UserActionEvent
     return action_status, nil
 }
 
-// SetupNewMonopolyEngine sets up new monopoly game with own unique state and players.
-// This is typically run in a goroutine and lives for life of server.
+// SetupNewMonopolyEngine creates and starts a new engine for a session.
+// It initializes in-memory engine state, stores the engine in the global
+// manager, and keeps the engine running for the lifetime of the server.
+//
+// This function is typically started in a goroutine.
 func SetupNewMonopolyEngine(sessionId string) {
     log := log.Logger.With().Str("session_id", sessionId).Logger()
 
@@ -87,7 +95,11 @@ func SetupNewMonopolyEngine(sessionId string) {
     }
 }
 
-
+// runMonopolyEngine initializes engine state from the database and then enters
+// the main event loop for the session.
+// It resets player connection state, restores the current turn state, handles
+// partial turn-order setup after restarts, and continuously processes user
+// actions until the context is cancelled or an error occurs.
 func runMonopolyEngine(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, db *pgxpool.Pool) error {
     log.Info().Msg("started monopoly engine")
 
@@ -178,6 +190,13 @@ func runMonopolyEngine(ctx context.Context, log zerolog.Logger, e *internal.Mono
 
 }
 
+// processUserAction handles a single user action inside a database transaction.
+// It routes the action to the correct handler, rolls back the transaction if
+// the action fails, and commits the transaction if the action succeeds.
+//
+// This should be used by the engine loop so that each action is processed
+// serially and returns a status to the caller through the action's return
+// channel.
 func processUserAction(
     ctx context.Context,
     log zerolog.Logger,
