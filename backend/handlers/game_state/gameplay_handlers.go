@@ -18,7 +18,7 @@ func RollDiceHandler(c echo.Context) error {
 
     res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
         Event: "RollDiceEvent",
-        Data: internal.RollDiceActionData{
+        Data: internal.SimpleActionData{
             PlayerId:  claims.PlayerId,
             SessionId: claims.SessionId,
         },
@@ -43,7 +43,7 @@ func MovePlayerHandler(c echo.Context) error {
 
     res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
         Event: "MovePlayerEvent",
-        Data: internal.MovePlayerActionData{
+        Data: internal.SimpleActionData{
             PlayerId:  claims.PlayerId,
             SessionId: claims.SessionId,
         },

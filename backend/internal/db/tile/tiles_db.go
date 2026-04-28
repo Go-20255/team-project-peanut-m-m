@@ -9,7 +9,14 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func GetAllTiles(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) ([]internal.Tile, error) {
+// GetAllTiles retrieves all tiles from the database and includes property
+// data when a tile is linked to a property.
+func GetAllTiles(
+    log zerolog.Logger,
+    ctx context.Context,
+    tx *pgxpool.Tx,
+    sessionId string,
+) ([]internal.Tile, error) {
     var tiles []internal.Tile
 
     var raw_tiles []struct {
@@ -47,8 +54,6 @@ func GetAllTiles(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessio
         raw_tiles = append(raw_tiles, raw_t)
     }
 
-
-
     for _, r := range raw_tiles {
 
         if r.PropertyId.Valid {
@@ -78,3 +83,64 @@ func GetAllTiles(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessio
 
     return tiles, nil
 }
+
+
+// GetTileByPosition retrieves a single tile by its position/id and includes
+// property data if the tile is linked to a property.
+func GetTileByPosition(
+    log zerolog.Logger,
+    ctx context.Context,
+    tx *pgxpool.Tx,
+    sessionId string,
+    position int,
+) (*internal.Tile, error) {
+    var tile internal.Tile
+    var raw_t struct {
+        Id  int
+        Name string
+        PropertyId sql.NullInt32
+    }
+    err := tx.QueryRow(ctx, `
+        SELECT
+            id,
+            name,
+            property_id
+        FROM tiles
+        WHERE id = $1
+        `, position).Scan(
+        &raw_t.Id,
+        &raw_t.Name,
+        &raw_t.PropertyId,
+    )
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to query tile data")
+        return nil, err
+    }
+    if raw_t.PropertyId.Valid {
+        p, err := GetPropertyData(
+            log,
+            ctx,
+            tx,
+            sessionId,
+            int(raw_t.PropertyId.Int32),
+            )
+        if err != nil {
+            return nil, err
+        }
+        tile = internal.Tile{
+            Id: raw_t.Id,
+            Name: raw_t.Name,
+            PropertyData: &p,
+        }
+    } else {
+        tile = internal.Tile{
+            Id: raw_t.Id,
+            Name: raw_t.Name,
+            PropertyData: nil,
+        }
+    }
+
+    return &tile, nil
+}
+
+
