@@ -26,7 +26,7 @@ func PurchaseProperty(
     data, ok := action.Data.(struct {
         SessionId  string
         PlayerId   int
-        PropertyId int
+        //PropertyId int
     })
     if !ok {
         log.Error().Msg("invalid data format received for PurchaseProperty")
@@ -58,17 +58,41 @@ func PurchaseProperty(
         }
     }
 
-    property, err := internaldb_tiles.GetPropertyData(
+    tile, err := internaldb_tiles.GetTileByPosition(
         log,
         ctx,
         tx,
         data.SessionId,
-        data.PropertyId,
-    )
+        currentPlayer.Position,
+        )
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
-            Msg:    "failed to get property data from db",
+            Msg:    "failed to get tile data from db",
+        }
+    }
+
+    property := tile.PropertyData
+
+    // check ownership of property
+    _, is_owned, err := internaldb_tiles.VerifyPropertyOwnerDB(
+        log,
+        ctx,
+        tx,
+        data.SessionId,
+        property.Id,
+        )
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    "failed to determine owner of this property",
+        }
+    }
+
+    if is_owned {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg: "property is already owned",
         }
     }
 
@@ -94,7 +118,7 @@ func PurchaseProperty(
         tx,
         data.SessionId,
         data.PlayerId,
-        data.PropertyId,
+        property.Id,
     )
 
     if err != nil {
@@ -110,13 +134,13 @@ func PurchaseProperty(
         OwnershipId         int     `json:"ownership_id"`
     }
     event.PlayerId = data.PlayerId
-    event.PropertyId = data.PropertyId
+    event.PropertyId = property.Id
     event.OwnershipId = ownershipId
 
     e.Broker.Broadcast(log, "PropertyPurchased", event)
     events.EmitGameBoardUpdate(log, ctx, e, tx)
 
-    log.Trace().Msgf("player %d successfully purchased property %d", data.PlayerId, data.PropertyId)
+    log.Trace().Msgf("player %d successfully purchased property %d", data.PlayerId, property.Id)
     return internal.UserActionStatus{
         Status: http.StatusOK,
         Msg:    fmt.Sprintf("property purchased successfully (Ownership ID: %d)", ownershipId),
