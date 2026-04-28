@@ -205,7 +205,7 @@ func processUserAction(
     db *pgxpool.Pool,
 ) error {
 
-    // NOTE: Here is where user actions will be handled
+    //Here is where user actions are be handled
     log.Trace().Msgf("got action event: %v with data: %v", action.Event, action.Data)
     tx, err := db.BeginTx(ctx, pgx.TxOptions{})
     if err != nil {

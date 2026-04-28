@@ -92,7 +92,6 @@ func SetupDatabase(ctx context.Context, log zerolog.Logger) {
         }
     }()
 
-    // TODO: start adding tables here
     _, err = tx.Exec(ctx, `
 CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED', 'YELLOW', 'GREEN', 'DARKBLUE', 'RAILROAD', 'UTILITY')
         `)
@@ -391,7 +390,6 @@ $$ LANGUAGE plpgsql;
         log.Fatal().Err(err).Msg("failed to create event cards table")
     }
 
-    // TODO: update with actual cards
     _, err = tx.Exec(ctx, `
         INSERT INTO Event_Cards (name, description, type)
         VALUES 
