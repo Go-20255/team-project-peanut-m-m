@@ -248,6 +248,9 @@ func RollDice(
         }
     }
 
+    // FIXME: If I roll, then move, and if I haven't ended my turn, I can roll again
+    // and move again and keep repeating.
+
     diceRoll := internal.DiceRoll{
         PlayerId:  data.PlayerId,
         SessionId: data.SessionId,

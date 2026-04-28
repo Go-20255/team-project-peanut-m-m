@@ -59,21 +59,14 @@ func PurchasePropertyHandler(c echo.Context) error {
         return c.String(http.StatusUnauthorized, err.Error())
     }
 
-    propertyId, err := getPropertyIdFromForm(c)
-    if err != nil {
-        return c.String(http.StatusBadRequest, err.Error())
-    }
-
     res, err := monopoly_engine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
         Event: "PurchaseProperty",
         Data: struct {
             SessionId  string
             PlayerId   int
-            PropertyId int
         }{
             SessionId:  claims.SessionId,
             PlayerId:   claims.PlayerId,
-            PropertyId: propertyId,
         },
         ReturnChan: make(chan internal.UserActionStatus),
     })
