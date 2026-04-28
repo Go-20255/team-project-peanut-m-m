@@ -158,10 +158,7 @@ func EndTurnHandler(c echo.Context) error {
 
     res, err := monopoly_engine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
         Event: "EndTurnEvent",
-        Data: struct {
-            PlayerId    int
-            SessionId   string
-        }{
+        Data: internal.SimpleActionData {
             PlayerId: claims.PlayerId,
             SessionId: claims.SessionId,
         },

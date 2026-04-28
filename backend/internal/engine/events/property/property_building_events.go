@@ -14,6 +14,10 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// PurchaseHouse lets the current player buy a house on one of their properties.
+// It validates turn ownership, confirms the player owns the full color set,
+// enforces even building rules, checks bank inventory and player funds, updates
+// the building state, and broadcasts the result.
 func PurchaseHouse(
     ctx context.Context,
     log zerolog.Logger,
@@ -159,6 +163,11 @@ func PurchaseHouse(
     }
 }
 
+// PurchaseHotel lets the current player buy a hotel on one of their properties.
+// The property must already have four houses, the full set must be owned and
+// unmortgaged, and hotel building must follow the even-building rules for the
+// group. On success, it updates the property, player money, and broadcasts the
+// change.
 func PurchaseHotel(
     ctx context.Context,
     log zerolog.Logger,
@@ -304,6 +313,10 @@ func PurchaseHotel(
     }
 }
 
+// SellHouse lets the current player sell a house from one of their properties.
+// It validates turn ownership, confirms the property has a house and no hotel,
+// enforces even-selling rules across the group, refunds half the house cost to
+// the player, updates the building state, and broadcasts the result.
 func SellHouse(
     ctx context.Context,
     log zerolog.Logger,
@@ -427,6 +440,11 @@ func SellHouse(
     }
 }
 
+// SellHotel lets the current player sell a hotel from one of their properties.
+// It validates turn ownership, confirms the property has a hotel, enforces
+// even-selling rules, checks that the bank has enough houses to replace the
+// hotel with four houses, refunds half the hotel cost, and broadcasts the
+// update.
 func SellHotel(
     ctx context.Context,
     log zerolog.Logger,
@@ -558,6 +576,11 @@ func SellHotel(
     }
 }
 
+// getValidatedPropertyGroup loads and validates the full property group for a
+// building action.
+// It ensures the property exists, is a buildable property type, that the player
+// owns the full set, and that no property in the set is mortgaged. It returns
+// both the full group and the requested property's data.
 func getValidatedPropertyGroup(
     ctx context.Context,
     log zerolog.Logger,
@@ -602,6 +625,8 @@ func getValidatedPropertyGroup(
     return propertyGroup, propertyData, nil
 }
 
+// getMinPropertyLevel returns the lowest building level in a property group.
+// This is used to enforce even building rules when adding houses or hotels.
 func getMinPropertyLevel(propertyGroup []internaldb_tiles.PropertyGroupData) int {
     minLevel := getPropertyLevel(propertyGroup[0])
     for _, groupProperty := range propertyGroup[1:] {
@@ -614,6 +639,8 @@ func getMinPropertyLevel(propertyGroup []internaldb_tiles.PropertyGroupData) int
     return minLevel
 }
 
+// getMaxPropertyLevel returns the highest building level in a property group.
+// This is used to enforce even selling rules when removing houses or hotels.
 func getMaxPropertyLevel(propertyGroup []internaldb_tiles.PropertyGroupData) int {
     maxLevel := getPropertyLevel(propertyGroup[0])
     for _, groupProperty := range propertyGroup[1:] {
@@ -626,6 +653,9 @@ func getMaxPropertyLevel(propertyGroup []internaldb_tiles.PropertyGroupData) int
     return maxLevel
 }
 
+// getPropertyLevel returns the building level for a property.
+// A hotel counts as level 5, otherwise the level is the current number of
+// houses.
 func getPropertyLevel(propertyData internaldb_tiles.PropertyGroupData) int {
     if propertyData.HasHotel {
         return 5

@@ -17,12 +17,18 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// getNewPosition returns the player's new board position after moving by the
+// given total and reports whether the move passed Go.
+// The board is treated as a 40-tile loop.
 func getNewPosition(position int, total int) (int, bool) {
     newPosition := (position + total) % 40
     return newPosition, position+total >= 40
 }
 
 
+// Connected handles a player joining the running game session.
+// It verifies that the player exists in the session, marks them as in-game,
+// notifies connected clients, and sends the full initial board state.
 func Connected(
     ctx context.Context,
     log zerolog.Logger,
@@ -80,6 +86,10 @@ func Connected(
     }
 }
 
+// Disconnected handles a player leaving the running game session.
+// It verifies that the player exists, marks them as out of the game, updates
+// ready status when needed, notifies connected clients, and broadcasts a board
+// state update.
 func Disconnected(
     ctx context.Context,
     log zerolog.Logger,
@@ -159,6 +169,9 @@ func Disconnected(
     }
 }
 
+// ReadyUp updates a player's ready-up status for the session.
+// After updating the player's state, it broadcasts a board update and starts
+// the game when all players in the session are ready.
 func ReadyUp(
     ctx context.Context,
     log zerolog.Logger,
@@ -217,6 +230,11 @@ func ReadyUp(
     }
 }
 
+// RollDice rolls the dice for the current player and stores the result in the
+// engine state.
+// During turn-order setup, the roll is added to the temporary turn-decision
+// list. During normal gameplay, the roll becomes a pending move for that
+// player. The result is then broadcast to connected clients.
 func RollDice(
     ctx context.Context,
     log zerolog.Logger,
@@ -224,7 +242,7 @@ func RollDice(
     action *internal.UserActionEvent,
     tx *pgxpool.Tx,
 ) internal.UserActionStatus {
-    data := action.Data.(internal.RollDiceActionData)
+    data := action.Data.(internal.SimpleActionData)
 
     currentPlayer, players, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
     if err != nil {
@@ -252,7 +270,7 @@ func RollDice(
     // and move again and keep repeating.
 
     diceRoll := internal.DiceRoll{
-        PlayerId:  data.PlayerId,
+        PlayerId: data.PlayerId,
         SessionId: data.SessionId,
         DieOne:    rand.IntN(6) + 1,
         DieTwo:    rand.IntN(6) + 1,
@@ -304,6 +322,10 @@ func RollDice(
     }
 }
 
+// EndTurn advances the game to the next turn for the current player.
+// While the game is still deciding player order, it also assigns final turn
+// order once all setup rolls have been completed. After updating turn state,
+// it broadcasts the latest board update.
 func EndTurn(
     ctx context.Context,
     log zerolog.Logger,
@@ -312,10 +334,7 @@ func EndTurn(
     tx *pgxpool.Tx,
 ) internal.UserActionStatus {
 
-    data := action.Data.(struct {
-        PlayerId    int
-        SessionId   string
-    }) 
+    data := action.Data.(internal.SimpleActionData) 
 
     currentPlayer, players, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
     if err != nil {
@@ -381,6 +400,11 @@ func EndTurn(
     }
 }
 
+// MovePlayer moves the current player using their pending dice roll.
+// It validates that the player has already rolled, updates their board
+// position, clears the pending roll, checks whether rent is now owed, and
+// broadcasts either the movement alone or both the movement and a rent-due
+// event.
 func MovePlayer(
     ctx context.Context,
     log zerolog.Logger,
@@ -388,7 +412,7 @@ func MovePlayer(
     action *internal.UserActionEvent,
     tx *pgxpool.Tx,
 ) internal.UserActionStatus {
-    data := action.Data.(internal.MovePlayerActionData)
+    data := action.Data.(internal.SimpleActionData)
 
     currentPlayer, _, turnNumber, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
     if err != nil {
@@ -440,8 +464,8 @@ func MovePlayer(
     delete(e.PendingRolls, data.PlayerId)
 
     playerMovement := internal.PlayerMovement{
-        PlayerId:    data.PlayerId,
-        SessionId:   data.SessionId,
+        PlayerId: data.PlayerId,
+        SessionId: data.SessionId,
         OldPosition: player.Position,
         NewPosition: newPosition,
         Total:       diceRoll.Total,
