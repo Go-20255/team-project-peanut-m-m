@@ -51,15 +51,11 @@ type Tile struct {
     PropertyData    *PropertyData   `json:"property_data"`
 }
 
-type RollDiceActionData struct {
-    PlayerId  int
-    SessionId string
+type SimpleActionData struct {
+    PlayerId    int     `json:"player_id"`
+    SessionId   string  `json:"session_id"`
 }
 
-type MovePlayerActionData struct {
-    PlayerId  int
-    SessionId string
-}
 
 type RentPaymentActionData struct {
     FromPlayerId int
@@ -69,22 +65,22 @@ type RentPaymentActionData struct {
 }
 
 type PropertyActionData struct {
-    PlayerId   int
-    SessionId  string
+    PlayerId    int     `json:"player_id"`
+    SessionId   string  `json:"session_id"`
     PropertyId int
 }
 
 type DiceRoll struct {
-    PlayerId  int    `json:"player_id"`
-    SessionId string `json:"session_id"`
+    PlayerId    int     `json:"player_id"`
+    SessionId   string  `json:"session_id"`
     DieOne    int    `json:"die_one"`
     DieTwo    int    `json:"die_two"`
     Total     int    `json:"total"`
 }
 
 type PlayerMovement struct {
-    PlayerId    int    `json:"player_id"`
-    SessionId   string `json:"session_id"`
+    PlayerId    int     `json:"player_id"`
+    SessionId   string  `json:"session_id"`
     OldPosition int    `json:"old_position"`
     NewPosition int    `json:"new_position"`
     Total       int    `json:"total"`
