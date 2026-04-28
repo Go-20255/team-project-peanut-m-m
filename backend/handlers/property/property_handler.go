@@ -46,7 +46,7 @@ func CheckPropertyOwnerHandler(c echo.Context) error {
         return c.String(http.StatusInternalServerError, "failed to get property ownership status")
     }
 
-    return c.JSON(http.StatusOK, map[string]interface{}{
+    return c.JSON(http.StatusOK, map[string]any{
         "ownerId":    ownerId,
         "owned":      owned,
         "session_id": sessionId,
@@ -59,21 +59,11 @@ func PurchasePropertyHandler(c echo.Context) error {
         return c.String(http.StatusUnauthorized, err.Error())
     }
 
-    propertyId, err := getPropertyIdFromForm(c)
-    if err != nil {
-        return c.String(http.StatusBadRequest, err.Error())
-    }
-
     res, err := monopoly_engine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
         Event: "PurchaseProperty",
-        Data: struct {
-            SessionId  string
-            PlayerId   int
-            PropertyId int
-        }{
+        Data: internal.SimpleActionData{
             SessionId:  claims.SessionId,
             PlayerId:   claims.PlayerId,
-            PropertyId: propertyId,
         },
         ReturnChan: make(chan internal.UserActionStatus),
     })

@@ -29,6 +29,9 @@ type playerJwtHeader struct {
     Typ string `json:"typ"`
 }
 
+// CreatePlayerJwt creates a signed JWT for a player session.
+// The token includes the player id, player name, session id, issue time,
+// and expiration time.
 func CreatePlayerJwt(playerId int, playerName string, sessionId string) (string, error) {
     now := time.Now()
     claims := PlayerJwtClaims{
@@ -42,6 +45,10 @@ func CreatePlayerJwt(playerId int, playerName string, sessionId string) (string,
     return signPlayerJwt(claims)
 }
 
+// GetPlayerJwtClaims extracts the player auth token from the request and
+// returns its validated claims.
+// It supports reading the token from either the auth cookie or the
+// Authorization header.
 func GetPlayerJwtClaims(c echo.Context) (PlayerJwtClaims, error) {
     token, err := getPlayerJwtToken(c.Request())
     if err != nil {
@@ -51,6 +58,9 @@ func GetPlayerJwtClaims(c echo.Context) (PlayerJwtClaims, error) {
     return parsePlayerJwt(token)
 }
 
+// getPlayerJwtToken retrieves the player auth token from an HTTP request.
+// It first checks the player auth cookie, then falls back to a Bearer token
+// in the Authorization header.
 func getPlayerJwtToken(r *http.Request) (string, error) {
     cookie, err := r.Cookie(PlayerAuthCookieName)
     if err == nil && cookie.Value != "" {
@@ -68,6 +78,8 @@ func getPlayerJwtToken(r *http.Request) (string, error) {
     return "", fmt.Errorf("missing auth token")
 }
 
+// signPlayerJwt creates and signs a JWT using the provided player claims.
+// It builds the token manually using an HS256 signature.
 func signPlayerJwt(claims PlayerJwtClaims) (string, error) {
     secret, err := getPlayerJwtSecret()
     if err != nil {
@@ -101,6 +113,9 @@ func signPlayerJwt(claims PlayerJwtClaims) (string, error) {
     return signingInput + "." + signature, nil
 }
 
+// parsePlayerJwt validates a player JWT and returns its claims.
+// It checks the token format, header values, signature, claim contents,
+// and expiration time before returning the decoded claims.
 func parsePlayerJwt(token string) (PlayerJwtClaims, error) {
     secret, err := getPlayerJwtSecret()
     if err != nil {
@@ -166,6 +181,9 @@ func parsePlayerJwt(token string) (PlayerJwtClaims, error) {
     return claims, nil
 }
 
+// getPlayerJwtSecret returns the secret used to sign and verify player JWTs.
+// It reads the value from environment configuration and returns an error if
+// the secret is missing.
 func getPlayerJwtSecret() (string, error) {
     secret := os.Getenv("POSTGRES_PASSWORD")
     if secret == "" {

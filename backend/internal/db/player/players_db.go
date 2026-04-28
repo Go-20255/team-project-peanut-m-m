@@ -31,7 +31,7 @@ func CheckPlayerExists(
     log zerolog.Logger,
     ctx context.Context,
     tx *pgxpool.Tx,
-    id string,
+    id int,
     name string,
     session_id string,
 ) (bool, error) {
@@ -58,6 +58,7 @@ func GetPlayer(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, 
         SELECT
             id,
             name,
+            ready_up_status,
             COALESCE(player_order, -1),
             money,
             position,
@@ -70,6 +71,7 @@ func GetPlayer(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, 
         `, id, sessionId).Scan(
         &player.Id,
         &player.Name,
+        &player.ReadyUpStatus,
         &player.PlayerOrder,
         &player.Money,
         &player.Position,
@@ -183,7 +185,24 @@ func UpdatePlayerMoney(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, 
     return nil
 }
 
-func UpdatePlayerInGameStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id string, sessionId string, inGameStatus bool) error {
+func UpdatePlayerTurnOrder(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, playerId int, sessionId string, turn_number int) error {
+    commandTag, err := tx.Exec(ctx, `
+        UPDATE player
+        SET player_order = $1
+        WHERE id = $2 AND session_id = $3
+        `, turn_number, playerId, sessionId)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to update player turn order")
+        return err
+    }
+
+    if commandTag.RowsAffected() == 0 {
+        return pgx.ErrNoRows
+    }
+    return nil
+}
+
+func UpdatePlayerInGameStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, sessionId string, inGameStatus bool) error {
 
     commandTag, err := tx.Exec(ctx, `
         UPDATE player
@@ -192,6 +211,76 @@ func UpdatePlayerInGameStatus(log zerolog.Logger, ctx context.Context, tx *pgxpo
         `, inGameStatus, id, sessionId)
     if err != nil {
         log.Trace().Err(err).Msg("failed to update players in game status")
+        return err
+    }
+
+    if commandTag.RowsAffected() == 0 {
+        return pgx.ErrNoRows
+    }
+
+    return nil
+}
+
+func GetPlayerReadyUpStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, playerId int, sessionId string) (bool, error){
+    var readyup_status bool 
+    err := tx.QueryRow(ctx, `
+        SELECT
+            ready_up_status
+        FROM player
+        WHERE id = $1 AND session_id = $2
+        `, playerId, sessionId).Scan(
+        &readyup_status,
+    )
+
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to query player's ready up status")
+        return false, err
+    }
+
+    return readyup_status, nil
+}
+
+func GetAllPlayersReadyUpStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) (struct {
+    Ready   int
+    Total   int
+}, error){
+
+    res := struct {
+        Ready int
+        Total int
+    } {
+        0,
+        0,
+    }
+    err := tx.QueryRow(ctx, `
+        SELECT
+            COUNT(*) FILTER (WHERE ready_up_status = True) AS ready,
+            COUNT(*) AS total
+        FROM player
+        WHERE session_id = $1
+        `, sessionId).Scan(
+        &res.Ready,
+        &res.Total,
+    )
+
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to query players ready up status and total players")
+        return res, err
+    }
+
+    return res, nil
+}
+
+func SetPlayerReadyUpStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, playerId int, sessionId string, status bool) (error){
+
+    commandTag, err := tx.Exec(ctx, `
+        UPDATE player
+        SET ready_up_status = $1
+        WHERE id = $2 AND session_id = $3
+        `, status, playerId, sessionId)
+
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to update players in ready up status")
         return err
     }
 
