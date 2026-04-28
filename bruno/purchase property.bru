@@ -10,12 +10,6 @@ post {
   auth: inherit
 }
 
-body:form-urlencoded {
-  ~property_id: {{property_id}}
-  ~session_id: {{session_id}}
-  ~player_id: {{player_id}}
-}
-
 vars:pre-request {
   session_id: 2ab36b1a-f2fc-4543-a146-6b4bc31d55bd
   player_id: 1
