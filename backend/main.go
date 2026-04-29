@@ -102,6 +102,8 @@ func main() {
     routes.POST("/game/move", gamestatehandlers.MovePlayerHandler)
     routes.POST("/game/jail/release", gamestatehandlers.UseGetOutOfJailCardHandler)
     routes.POST("/game/bank/pay", gamestatehandlers.PayBankHandler)
+    routes.POST("/game/bank/get", gamestatehandlers.SetBankPayoutHandler)
+    routes.POST("/game/bank/receive", gamestatehandlers.ReceiveBankPayoutHandler)
     routes.POST("/game/rent", gamestatehandlers.PayRentHandler)
 
     routes.GET("/game/property", properties_handlers.CheckPropertyOwnerHandler)

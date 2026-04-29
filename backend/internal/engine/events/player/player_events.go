@@ -25,6 +25,13 @@ func SetPendingBankPayment(
     amount int,
     reason string,
 ) internal.UserActionStatus {
+    if e.PendingBankPayout != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is already a pending bank payout",
+        }
+    }
+
     if e.PendingBankPayment != nil {
         return internal.UserActionStatus{
             Status: http.StatusBadRequest,
@@ -44,6 +51,43 @@ func SetPendingBankPayment(
     return internal.UserActionStatus{
         Status: http.StatusOK,
         Data:   *e.PendingBankPayment,
+    }
+}
+
+func SetPendingBankPayout(
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    playerId int,
+    sessionId string,
+    amount int,
+    reason string,
+) internal.UserActionStatus {
+    if e.PendingBankPayment != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is already a pending bank payment",
+        }
+    }
+
+    if e.PendingBankPayout != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is already a pending bank payout",
+        }
+    }
+
+    e.PendingBankPayout = &internal.PendingBankPayout{
+        PlayerId:  playerId,
+        SessionId: sessionId,
+        Amount:    amount,
+        Reason:    reason,
+    }
+
+    e.Broker.Broadcast(log, "BankPayoutDueEvent", e.PendingBankPayout)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   *e.PendingBankPayout,
     }
 }
 
@@ -494,6 +538,13 @@ func EndTurn(
         }
     }
 
+    if e.PendingBankPayout != nil && e.PendingBankPayout.PlayerId == data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player has a pending bank payout",
+        }
+    }
+
     if e.PendingRent != nil && e.PendingRent.FromPlayerId == data.PlayerId {
         return internal.UserActionStatus{
             Status: http.StatusBadRequest,
@@ -837,6 +888,134 @@ func PayBank(
     return internal.UserActionStatus{
         Status: http.StatusOK,
         Data:   bankPayment,
+    }
+}
+
+func SetBankPayout(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    data := action.Data.(internal.BankPayoutActionData)
+
+    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    if currentPlayer == nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there are no players in this game session",
+        }
+    }
+
+    if currentPlayer.Id != data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "it is not this player's turn",
+        }
+    }
+
+    if data.Amount < 1 {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "amount must be greater than 0",
+        }
+    }
+
+    return SetPendingBankPayout(log, e, data.PlayerId, data.SessionId, data.Amount, data.Reason)
+}
+
+func ReceiveBankPayout(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    data := action.Data.(internal.BankPaymentActionData)
+
+    if e.PendingBankPayout == nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is no pending bank payout",
+        }
+    }
+
+    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    if currentPlayer == nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there are no players in this game session",
+        }
+    }
+
+    if currentPlayer.Id != data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "it is not this player's turn",
+        }
+    }
+
+    if e.PendingBankPayout.PlayerId != data.PlayerId || e.PendingBankPayout.SessionId != data.SessionId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "bank payout recipient is incorrect",
+        }
+    }
+
+    player, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    err = internaldb_players.UpdatePlayerMoney(
+        log,
+        ctx,
+        tx,
+        data.PlayerId,
+        data.SessionId,
+        player.Money+e.PendingBankPayout.Amount,
+    )
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    bankPayout := internal.BankPayout{
+        PlayerId:    data.PlayerId,
+        SessionId:   data.SessionId,
+        Amount:      e.PendingBankPayout.Amount,
+        Reason:      e.PendingBankPayout.Reason,
+        PlayerMoney: player.Money + e.PendingBankPayout.Amount,
+    }
+
+    e.PendingBankPayout = nil
+
+    e.Broker.Broadcast(log, "BankPayoutEvent", bankPayout)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   bankPayout,
     }
 }
 
