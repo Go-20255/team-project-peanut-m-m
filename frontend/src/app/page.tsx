@@ -46,7 +46,7 @@ export default function Home() {
       storage.setPlayerName(playerName);
       storage.setGameCode(gameData.code.toString());
 
-      router.push("/game");
+      router.push("/select-token");
     } catch (err) {
       setError("Failed to create game. Please try again.");
       console.error("Create game error:", err);
@@ -84,7 +84,7 @@ export default function Home() {
       storage.setPlayerName(playerName);
       storage.setGameCode(gameCode);
 
-      router.push("/game");
+      router.push("/select-token");
     } catch (err) {
       setError("Failed to join game. Check your code and try again.");
       console.error("Join game error:", err);

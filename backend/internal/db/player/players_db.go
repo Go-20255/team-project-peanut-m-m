@@ -233,6 +233,23 @@ func ResetAllPlayersInGameAndReadyUpStatus(log zerolog.Logger, ctx context.Conte
     return nil
 }
 
+func UpdatePlayerPieceToken(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, sessionId string, pieceToken int) error {
+    commandTag, err := tx.Exec(ctx, `
+        UPDATE player
+        SET piece_token = $1
+        WHERE id = $2 AND session_id = $3
+        `, pieceToken, id, sessionId)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to update player piece token")
+        return err
+    }
+
+    if commandTag.RowsAffected() == 0 {
+        return pgx.ErrNoRows
+    }
+
+    return nil
+}
 
 func GetPlayerOwnedProperties(
     log zerolog.Logger,
