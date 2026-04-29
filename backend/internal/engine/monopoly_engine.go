@@ -70,6 +70,10 @@ func SetupNewMonopolyEngine(sessionId string) {
         TempStore:       make(map[string]any),
         PendingRolls:    map[int]internal.DiceRoll{},
         PendingRent:     nil,
+        PendingBankPayment: nil,
+        TurnHasRolled:   map[int]bool{},
+        ExtraRollAllowed: map[int]bool{},
+        DoubleRollCounts: map[int]int{},
     }
 
     engineManagerMu.Lock()
@@ -233,8 +237,10 @@ func processUserAction(
         action_status = player.RollDice(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "MovePlayerEvent":
         action_status = player.MovePlayer(ctx, log, e, &action, tx.(*pgxpool.Tx))
-    case "UseGetOutOfJailCardEvent":
-        action_status = player.UseGetOutOfJailCard(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "ReleaseFromJailEvent":
+        action_status = player.ReleaseFromJail(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "BankPaymentEvent":
+        action_status = player.PayBank(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PayRentEvent":
         action_status = player.PayRent(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseProperty":
