@@ -11,14 +11,15 @@ export default function SelectTokenPage() {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [playerId, setPlayerId] = useState<number | null>(null)
   const [playerName, setPlayerName] = useState<string | null>(null)
-  const [currentToken, setCurrentToken] = useState<number>(0)
+  const [currentToken, setCurrentToken] = useState<number | null>(null)
   const [selectedToken, setSelectedToken] = useState<number | null>(null)
   const updateToken = useUpdatePlayerToken()
 
   useEffect(() => {
+    const player = storage.getPlayer()
     const storedSessionId = storage.getSessionId()
-    const storedPlayerId = storage.getPlayerId()
-    const storedPlayerName = storage.getPlayerName()
+    const storedPlayerId = player?.id
+    const storedPlayerName = player?.name
 
     if (!storedSessionId || !storedPlayerId || !storedPlayerName) {
       router.push("/")
@@ -26,9 +27,9 @@ export default function SelectTokenPage() {
     }
 
     setSessionId(storedSessionId)
-    setPlayerId(parseInt(storedPlayerId))
+    setPlayerId(storedPlayerId)
     setPlayerName(storedPlayerName)
-    setCurrentToken(parseInt(storedPlayerId) % 2) // Default based on player ID
+    setCurrentToken(player?.piece_token) // Default based on players data
   }, [router])
 
   const handleTokenSelected = async (token: number) => {
