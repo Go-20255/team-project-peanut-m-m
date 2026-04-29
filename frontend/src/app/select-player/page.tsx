@@ -18,8 +18,9 @@ export default function SelectPlayer() {
   const players = fetchPlayers.data ?? []
 
   const joinGame = (p: Player) => {
-    storage.setPlayerName(p.name)
-    storage.setPlayerId(p.id.toString())
+    storage.setPlayer(p)
+    //storage.setPlayerName(p.name)
+    //storage.setPlayerId(p.id.toString())
     router.push("/select-token")
   }
 

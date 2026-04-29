@@ -1,20 +1,37 @@
+import { Player } from "@/types"
+
 export const storage = {
-  getSessionId: () => localStorage.getItem("sessionId"),
-  setSessionId: (id: string) => localStorage.setItem("sessionId", id),
+  getItem<T>(key: string): T | null {
+    const value = localStorage.getItem(key)
+    if (!value) return null
 
-  getPlayerId: () => localStorage.getItem("playerId"),
-  setPlayerId: (id: string) => localStorage.setItem("playerId", id),
+    try {
+      return JSON.parse(value) as T
+    } catch {
+      return value as T
+    }
+  },
 
-  getPlayerName: () => localStorage.getItem("playerName"),
-  setPlayerName: (name: string) => localStorage.setItem("playerName", name),
+  setItem<T>(key: string, value: T): void {
+    localStorage.setItem(key, JSON.stringify(value))
+  },
 
-  getGameCode: () => localStorage.getItem("gameCode"),
-  setGameCode: (code: string) => localStorage.setItem("gameCode", code),
+  removeItem(key: string): void {
+    localStorage.removeItem(key)
+  },
+
+  getSessionId: () => storage.getItem<string>("sessionId"),
+  setSessionId: (id: string) => storage.setItem("sessionId", id),
+
+  getPlayer: () => storage.getItem<Player>("player"),
+  setPlayer: (p: Player) => storage.setItem("player", p),
+
+  getGameCode: () => storage.getItem<string>("gameCode"),
+  setGameCode: (code: string) => storage.setItem("gameCode", code),
 
   clear: () => {
     localStorage.removeItem("sessionId")
-    localStorage.removeItem("playerId")
-    localStorage.removeItem("playerName")
     localStorage.removeItem("gameCode")
+    localStorage.removeItem("player")
   },
 }
