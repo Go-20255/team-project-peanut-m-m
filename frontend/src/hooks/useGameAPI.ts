@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -24,7 +23,6 @@ export async function checkBackendHealth(): Promise<boolean> {
  * Create a new game session
  */
 export function useCreateGame() {
-  const router = useRouter();
   return useMutation({
     mutationFn: async (): Promise<{ session_id: string; code: number }> => {
       // Check if backend is accessible
@@ -52,7 +50,6 @@ export function useCreateGame() {
  * Join game with a code and get session ID
  */
 export function useJoinGameByCode() {
-  const router = useRouter();
   return useMutation({
     mutationFn: async (code: string): Promise<string> => {
       const res = await fetch(`${API_URL}/api/game/join?code=${code}`, {
@@ -71,7 +68,6 @@ export function useJoinGameByCode() {
  * Create a player in a game session
  */
 export function useCreatePlayer() {
-  const router = useRouter();
   return useMutation({
     mutationFn: async ({
       playerName,
@@ -79,7 +75,7 @@ export function useCreatePlayer() {
     }: {
       playerName: string;
       sessionId: string;
-    }): Promise<{ id: number; name: string; session_id: string; piece_token: number }> => {
+    }): Promise<{ id: number; name: string; session_id: string}> => {
       console.log("Creating player:", playerName, "in session:", sessionId);
       
       const formData = new FormData();
@@ -107,9 +103,53 @@ export function useCreatePlayer() {
   });
 }
 
-/**
- * Fetch all players in a game session
- */
+
+export async function getAvailableTokens(sessionId: string): Promise<number[]> {
+  try {
+    const players = await fetchPlayersForSession(sessionId);
+    const takenTokens = new Set(players.map((p) => p.piece_token));
+    
+    const availableTokens = [0, 1].filter((token) => !takenTokens.has(token));
+    
+    console.log("Available tokens:", availableTokens, "Taken tokens:", Array.from(takenTokens));
+    return availableTokens;
+  } catch (err) {
+    console.error("Error fetching available tokens:", err);
+    return [0, 1]; 
+  }
+}
+
+export function useUpdatePlayerToken() {
+  return useMutation({
+    mutationFn: async ({
+      playerId,
+      sessionId,
+      pieceToken,
+    }: {
+      playerId: number;
+      sessionId: string;
+      pieceToken: number;
+    }) => {
+      const formData = new FormData();
+      formData.append("player_id", playerId.toString());
+      formData.append("session_id", sessionId);
+      formData.append("piece_token", pieceToken.toString());
+
+      const res = await fetch(`${API_URL}/api/player`, {
+        method: "PATCH",
+        credentials: "include",
+        body: formData,
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Failed to update player token: ${res.status} ${errorText}`);
+      }
+      return res.json();
+    },
+  });
+}
+
+
 export async function fetchPlayersForSession(sessionId: string): Promise<any[]> {
   try {
     console.log("Fetching players for session:", sessionId);
@@ -127,20 +167,25 @@ export async function fetchPlayersForSession(sessionId: string): Promise<any[]> 
     
     const data = await res.json();
     console.log("Players fetched successfully:", data);
-    return flattenPlayerInfo(data || []);
+    return data || [];
   } catch (err) {
     console.error("Error fetching players:", err);
     return [];
   }
 }
 
-function flattenPlayerInfo(playerInfoList: any[]): any[] {
-  return playerInfoList.map((playerInfo) => {
-    if (playerInfo.player) {
-      return playerInfo.player;
-    }
-    return playerInfo;
-  });
+function handleSSEEvent(
+  eventData: string,
+  eventType: string,
+  callback: (type: string, data: any) => void
+) {
+  try {
+    const data = JSON.parse(eventData);
+    console.log(`Received ${eventType}:`, data);
+    callback(eventType, data);
+  } catch (e) {
+    console.error(`Failed to parse ${eventType}:`, e);
+  }
 }
 
 /**
@@ -177,120 +222,34 @@ export function useLiveGameUpdates(
 
     console.log("SSE connection established for session:", sessionId, "player:", playerId);
 
+    // Special case: InitialGameBoardDataEvent sends multiple updates
     eventSource.addEventListener("InitialGameBoardDataEvent", (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("Received InitialGameBoardDataEvent:", data);
-        const flattenedPlayers = flattenPlayerInfo(data.Players);
-        onUpdateRef.current({ type: "playersUpdate", data: flattenedPlayers });
+      handleSSEEvent(event.data, "InitialGameBoardDataEvent", (_, data) => {
+        onUpdateRef.current({ type: "playersUpdate", data: data.Players });
         onUpdateRef.current({ type: "gameStateUpdate", data: { turn_number: data.CurrentTurn } });
-      } catch (e) {
-        console.error("Failed to parse InitialGameBoardDataEvent:", e);
-      }
+      });
     });
 
-    eventSource.addEventListener("RollDiceEvent", (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("Received RollDiceEvent:", data);
-        onUpdateRef.current({ type: "diceRoll", data });
-      } catch (e) {
-        console.error("Failed to parse RollDiceEvent:", e);
-      }
-    });
+    // Map event names to their corresponding update types
+    const eventMap: { [key: string]: string } = {
+      "RollDiceEvent": "diceRoll",
+      "MovePlayerEvent": "playerMove",
+      "RentPaidEvent": "rentPaid",
+      "PropertyPurchased": "propertyPurchased",
+      "HousePurchased": "housePurchased",
+      "HotelPurchased": "hotelPurchased",
+      "HouseSold": "houseSold",
+      "HotelSold": "hotelSold",
+      "PropertyMortgaged": "propertyMortgaged",
+      "PropertyUnmortgaged": "propertyUnmortgaged",
+    };
 
-    eventSource.addEventListener("MovePlayerEvent", (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("Received MovePlayerEvent:", data);
-        onUpdateRef.current({ type: "playerMove", data });
-      } catch (e) {
-        console.error("Failed to parse MovePlayerEvent:", e);
-      }
-    });
-
-    eventSource.addEventListener("RentPaidEvent", (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("Received RentPaidEvent:", data);
-        onUpdateRef.current({ type: "rentPaid", data });
-      } catch (e) {
-        console.error("Failed to parse RentPaidEvent:", e);
-      }
-    });
-
-    eventSource.addEventListener("PropertyPurchased", (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("Received PropertyPurchased:", data);
-        onUpdateRef.current({ type: "propertyPurchased", data });
-      } catch (e) {
-        console.error("Failed to parse PropertyPurchased:", e);
-      }
-    });
-
-    eventSource.addEventListener("HousePurchased", (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("Received HousePurchased:", data);
-        onUpdateRef.current({ type: "housePurchased", data });
-      } catch (e) {
-        console.error("Failed to parse HousePurchased:", e);
-      }
-    });
-
-    eventSource.addEventListener("HotelPurchased", (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("Received HotelPurchased:", data);
-        onUpdateRef.current({ type: "hotelPurchased", data });
-      } catch (e) {
-        console.error("Failed to parse HotelPurchased:", e);
-      }
-    });
-
-    // HouseSold: Sent when a house is sold
-    eventSource.addEventListener("HouseSold", (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("Received HouseSold:", data);
-        onUpdateRef.current({ type: "houseSold", data });
-      } catch (e) {
-        console.error("Failed to parse HouseSold:", e);
-      }
-    });
-
-    // HotelSold: Sent when a hotel is sold
-    eventSource.addEventListener("HotelSold", (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("Received HotelSold:", data);
-        onUpdateRef.current({ type: "hotelSold", data });
-      } catch (e) {
-        console.error("Failed to parse HotelSold:", e);
-      }
-    });
-
-    // PropertyMortgaged: Sent when a property is mortgaged
-    eventSource.addEventListener("PropertyMortgaged", (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("Received PropertyMortgaged:", data);
-        onUpdateRef.current({ type: "propertyMortgaged", data });
-      } catch (e) {
-        console.error("Failed to parse PropertyMortgaged:", e);
-      }
-    });
-
-    // PropertyUnmortgaged: Sent when a property is unmortgaged
-    eventSource.addEventListener("PropertyUnmortgaged", (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("Received PropertyUnmortgaged:", data);
-        onUpdateRef.current({ type: "propertyUnmortgaged", data });
-      } catch (e) {
-        console.error("Failed to parse PropertyUnmortgaged:", e);
-      }
+    Object.entries(eventMap).forEach(([eventName, updateType]) => {
+      eventSource.addEventListener(eventName, (event: any) => {
+        handleSSEEvent(event.data, eventName, (_, data) => {
+          onUpdateRef.current({ type: updateType, data });
+        });
+      });
     });
 
     eventSource.onerror = (error) => {
