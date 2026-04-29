@@ -233,6 +233,8 @@ func processUserAction(
         action_status = player.RollDice(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "MovePlayerEvent":
         action_status = player.MovePlayer(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "UseGetOutOfJailCardEvent":
+        action_status = player.UseGetOutOfJailCard(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PayRentEvent":
         action_status = player.PayRent(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseProperty":

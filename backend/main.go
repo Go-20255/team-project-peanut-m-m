@@ -98,6 +98,7 @@ func main() {
     routes.GET("/game/join/live", gamestatehandlers.JoinLiveGameHandler)
     routes.POST("/game/roll", gamestatehandlers.RollDiceHandler)
     routes.POST("/game/move", gamestatehandlers.MovePlayerHandler)
+    routes.POST("/game/jail/release", gamestatehandlers.UseGetOutOfJailCardHandler)
     routes.POST("/game/rent", gamestatehandlers.PayRentHandler)
 
     routes.GET("/game/property", properties_handlers.CheckPropertyOwnerHandler)
