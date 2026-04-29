@@ -3,6 +3,7 @@ package game_state_handlers
 import (
     "monopoly-backend/internal"
     monopolyengine "monopoly-backend/internal/engine"
+    "monopoly-backend/util"
     "net/http"
     "strconv"
 
@@ -10,26 +11,16 @@ import (
 )
 
 func RollDiceHandler(c echo.Context) error {
-    sessionId := c.FormValue("session_id")
-    if sessionId == "" {
-        return c.String(http.StatusBadRequest, "missing session_id")
-    }
-
-    playerIdStr := c.FormValue("player_id")
-    if playerIdStr == "" {
-        return c.String(http.StatusBadRequest, "missing player_id")
-    }
-
-    playerId, err := strconv.Atoi(playerIdStr)
+    claims, err := util.GetPlayerJwtClaims(c)
     if err != nil {
-        return c.String(http.StatusBadRequest, "invalid player_id")
+        return c.String(http.StatusUnauthorized, err.Error())
     }
 
-    res, err := monopolyengine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
         Event: "RollDiceEvent",
-        Data: internal.RollDiceActionData{
-            PlayerId:  playerId,
-            SessionId: sessionId,
+        Data: internal.SimpleActionData{
+            PlayerId:  claims.PlayerId,
+            SessionId: claims.SessionId,
         },
         ReturnChan: make(chan internal.UserActionStatus),
     })
@@ -45,26 +36,16 @@ func RollDiceHandler(c echo.Context) error {
 }
 
 func MovePlayerHandler(c echo.Context) error {
-    sessionId := c.FormValue("session_id")
-    if sessionId == "" {
-        return c.String(http.StatusBadRequest, "missing session_id")
-    }
-
-    playerIdStr := c.FormValue("player_id")
-    if playerIdStr == "" {
-        return c.String(http.StatusBadRequest, "missing player_id")
-    }
-
-    playerId, err := strconv.Atoi(playerIdStr)
+    claims, err := util.GetPlayerJwtClaims(c)
     if err != nil {
-        return c.String(http.StatusBadRequest, "invalid player_id")
+        return c.String(http.StatusUnauthorized, err.Error())
     }
 
-    res, err := monopolyengine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
         Event: "MovePlayerEvent",
-        Data: internal.MovePlayerActionData{
-            PlayerId:  playerId,
-            SessionId: sessionId,
+        Data: internal.SimpleActionData{
+            PlayerId:  claims.PlayerId,
+            SessionId: claims.SessionId,
         },
         ReturnChan: make(chan internal.UserActionStatus),
     })
@@ -80,14 +61,9 @@ func MovePlayerHandler(c echo.Context) error {
 }
 
 func PayRentHandler(c echo.Context) error {
-    sessionId := c.FormValue("session_id")
-    if sessionId == "" {
-        return c.String(http.StatusBadRequest, "missing session_id")
-    }
-
-    fromPlayerIdStr := c.FormValue("from_player_id")
-    if fromPlayerIdStr == "" {
-        return c.String(http.StatusBadRequest, "missing from_player_id")
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
     }
 
     toPlayerIdStr := c.FormValue("to_player_id")
@@ -100,11 +76,6 @@ func PayRentHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "missing amount")
     }
 
-    fromPlayerId, err := strconv.Atoi(fromPlayerIdStr)
-    if err != nil {
-        return c.String(http.StatusBadRequest, "invalid from_player_id")
-    }
-
     toPlayerId, err := strconv.Atoi(toPlayerIdStr)
     if err != nil {
         return c.String(http.StatusBadRequest, "invalid to_player_id")
@@ -115,13 +86,38 @@ func PayRentHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "invalid amount")
     }
 
-    res, err := monopolyengine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
         Event: "PayRentEvent",
         Data: internal.RentPaymentActionData{
-            FromPlayerId: fromPlayerId,
+            FromPlayerId: claims.PlayerId,
             ToPlayerId:   toPlayerId,
-            SessionId:    sessionId,
+            SessionId:    claims.SessionId,
             Amount:       amount,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.JSON(http.StatusOK, res.Data)
+}
+
+func UseGetOutOfJailCardHandler(c echo.Context) error {
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
+
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "UseGetOutOfJailCardEvent",
+        Data: internal.SimpleActionData{
+            PlayerId:  claims.PlayerId,
+            SessionId: claims.SessionId,
         },
         ReturnChan: make(chan internal.UserActionStatus),
     })

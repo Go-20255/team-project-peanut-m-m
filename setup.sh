@@ -16,5 +16,4 @@ manually and editing the file"
 fi
 
 
-printf "\nCompleted setup!\n"
-
+printf "\nCompleted setup! :)\n"

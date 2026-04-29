@@ -1,19 +1,23 @@
 meta {
-  name: purchase property
+  name: player join game
   type: http
-  seq: 13
+  seq: 6
 }
 
 post {
-  url: http://localhost:9876/api/game/property
+  url: http://localhost:9876/api/player/join
   body: formUrlEncoded
   auth: inherit
 }
 
+body:form-urlencoded {
+  player_id: 4
+  player_name: banana_man4
+  session_id: {{session_id}}
+}
+
 vars:pre-request {
   session_id: 2ab36b1a-f2fc-4543-a146-6b4bc31d55bd
-  player_id: 1
-  property_id: 3
 }
 
 settings {

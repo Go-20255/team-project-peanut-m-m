@@ -1,7 +1,7 @@
 meta {
   name: roll dice
   type: http
-  seq: 7
+  seq: 12
 }
 
 post {
@@ -10,14 +10,9 @@ post {
   auth: inherit
 }
 
-body:form-urlencoded {
-  session_id: {{session_id}}
-  player_id: {{id}}
-}
-
 vars:pre-request {
   id: 1
-  session_id: 64ac7727-9ba7-422f-8220-b99a8dde67d4
+  session_id: 2ab36b1a-f2fc-4543-a146-6b4bc31d55bd
 }
 
 settings {

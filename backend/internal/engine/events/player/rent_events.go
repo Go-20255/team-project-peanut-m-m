@@ -1,17 +1,22 @@
 package player
 
 import (
-    "context"
-    "monopoly-backend/internal"
-    internaldb_players "monopoly-backend/internal/db/player"
-    internaldb_tiles "monopoly-backend/internal/db/tile"
-    turn_events "monopoly-backend/internal/engine/events/turn"
-    "net/http"
+	"context"
+	"monopoly-backend/internal"
+	internaldb_players "monopoly-backend/internal/db/player"
+	internaldb_tiles "monopoly-backend/internal/db/tile"
+	"monopoly-backend/internal/engine/events"
+	turn_events "monopoly-backend/internal/engine/events/turn"
+	"net/http"
 
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/rs/zerolog"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 )
 
+// getFullSetRent checks whether the property owner owns the full property set
+// for the given property.
+// It is used to determine whether color-set rent should be charged for standard
+// properties.
 func getFullSetRent(ctx context.Context, log zerolog.Logger, tx *pgxpool.Tx, sessionId string, propertyId int, ownerId int) (bool, error) {
     propertyGroup, err := internaldb_tiles.GetPropertyGroupData(log, ctx, tx, sessionId, propertyId)
     if err != nil {
@@ -27,6 +32,9 @@ func getFullSetRent(ctx context.Context, log zerolog.Logger, tx *pgxpool.Tx, ses
     return true, nil
 }
 
+// getRentAmount calculates the rent owed for a landed-on property.
+// It applies the correct Monopoly rent rules for railroads, utilities,
+// houses, hotels, full color sets, and base rent.
 func getRentAmount(
     ctx context.Context,
     log zerolog.Logger,
@@ -106,6 +114,11 @@ func getRentAmount(
     return tileData.BaseRent, nil
 }
 
+// PayRent processes a pending rent payment from the current player to the
+// property owner.
+// It validates the pending rent state, confirms the payer, recipient, tile,
+// and amount are all correct, updates both players' money, clears the pending
+// rent, and broadcasts the payment result.
 func PayRent(
     ctx context.Context,
     log zerolog.Logger,
@@ -267,6 +280,7 @@ func PayRent(
 
     e.PendingRent = nil
     e.Broker.Broadcast(log, "RentPaidEvent", rentPayment)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     return internal.UserActionStatus{
         Status: http.StatusOK,
