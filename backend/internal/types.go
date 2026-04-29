@@ -31,6 +31,10 @@ type MonopolyEngine struct {
     TempStore         map[string]any
     PendingRolls      map[int]DiceRoll
     PendingRent       *PendingRent
+    PendingBankPayment *PendingBankPayment
+    TurnHasRolled      map[int]bool
+    ExtraRollAllowed   map[int]bool
+    DoubleRollCounts   map[int]int
     JoinCode          int `json:"join_code"`
     TurnNumber        int `json:"turn_number"`
 }
@@ -56,6 +60,16 @@ type SimpleActionData struct {
     SessionId   string  `json:"session_id"`
 }
 
+type JailReleaseActionData struct {
+    PlayerId    int    `json:"player_id"`
+    SessionId   string `json:"session_id"`
+    Method      string `json:"method"`
+}
+
+type BankPaymentActionData struct {
+    PlayerId    int    `json:"player_id"`
+    SessionId   string `json:"session_id"`
+}
 
 type RentPaymentActionData struct {
     FromPlayerId int
@@ -76,6 +90,11 @@ type DiceRoll struct {
     DieOne    int    `json:"die_one"`
     DieTwo    int    `json:"die_two"`
     Total     int    `json:"total"`
+    IsDouble  bool   `json:"is_double"`
+    RollAgain bool   `json:"roll_again"`
+    ReleasedFromJail bool `json:"released_from_jail"`
+    SentToJail bool `json:"sent_to_jail"`
+    Jailed int `json:"jailed"`
 }
 
 type PlayerMovement struct {
@@ -90,6 +109,7 @@ type PlayerMovement struct {
     RentAmount  int    `json:"rent_amount"`
     RentToId    int    `json:"rent_to_id"`
     PropertyId  int    `json:"property_id"`
+    RollAgain   bool   `json:"roll_again"`
 }
 
 type PendingRent struct {
@@ -102,6 +122,13 @@ type PendingRent struct {
     DiceTotal    int
 }
 
+type PendingBankPayment struct {
+    PlayerId    int    `json:"player_id"`
+    SessionId   string `json:"session_id"`
+    Amount      int    `json:"amount"`
+    Reason      string `json:"reason"`
+}
+
 type RentPayment struct {
     FromPlayerId   int    `json:"from_player_id"`
     ToPlayerId     int    `json:"to_player_id"`
@@ -112,11 +139,22 @@ type RentPayment struct {
     ToPlayerMoney  int    `json:"to_player_money"`
 }
 
+type BankPayment struct {
+    PlayerId    int    `json:"player_id"`
+    SessionId   string `json:"session_id"`
+    Amount      int    `json:"amount"`
+    Reason      string `json:"reason"`
+    PlayerMoney int    `json:"player_money"`
+    Jailed      int    `json:"jailed"`
+}
+
 type JailRelease struct {
     PlayerId            int    `json:"player_id"`
     SessionId           string `json:"session_id"`
+    Method              string `json:"method"`
     GetOutOfJailCards   int    `json:"get_out_of_jail_cards"`
-    Jailed              bool   `json:"jailed"`
+    PlayerMoney         int    `json:"player_money"`
+    Jailed              int    `json:"jailed"`
 }
 
 type PropertyBuildingUpdate struct {
@@ -153,7 +191,7 @@ type Player struct {
     Money               int     `json:"money"`
     Position            int     `json:"position"`
     GetOutOfJailCards   int     `json:"get_out_of_jail_cards"`
-    Jailed              bool    `json:"jailed"`
+    Jailed              int     `json:"jailed"`
     SessionId           string  `json:"session_id"`
     InGame              bool    `json:"in_game"`
 }

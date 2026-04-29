@@ -107,17 +107,52 @@ func PayRentHandler(c echo.Context) error {
     return c.JSON(http.StatusOK, res.Data)
 }
 
-func UseGetOutOfJailCardHandler(c echo.Context) error {
+func PayBankHandler(c echo.Context) error {
     claims, err := util.GetPlayerJwtClaims(c)
     if err != nil {
         return c.String(http.StatusUnauthorized, err.Error())
     }
 
     res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
-        Event: "UseGetOutOfJailCardEvent",
-        Data: internal.SimpleActionData{
+        Event: "BankPaymentEvent",
+        Data: internal.BankPaymentActionData{
             PlayerId:  claims.PlayerId,
             SessionId: claims.SessionId,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.JSON(http.StatusOK, res.Data)
+}
+
+func UseGetOutOfJailCardHandler(c echo.Context) error {
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
+
+    method := c.FormValue("method")
+    if method == "" {
+        method = "card"
+    }
+
+    if method != "card" && method != "pay" {
+        return c.String(http.StatusBadRequest, "invalid method")
+    }
+
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "ReleaseFromJailEvent",
+        Data: internal.JailReleaseActionData{
+            PlayerId:  claims.PlayerId,
+            SessionId: claims.SessionId,
+            Method:    method,
         },
         ReturnChan: make(chan internal.UserActionStatus),
     })
