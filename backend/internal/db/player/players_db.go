@@ -185,6 +185,25 @@ func UpdatePlayerMoney(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, 
     return nil
 }
 
+func UpdatePlayerJailState(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, sessionId string, getOutOfJailCards int, jailed int) error {
+    commandTag, err := tx.Exec(ctx, `
+        UPDATE player
+        SET get_out_of_jail_cards = $1,
+            jailed = $2
+        WHERE id = $3 AND session_id = $4
+        `, getOutOfJailCards, jailed, id, sessionId)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to update player jail state")
+        return err
+    }
+
+    if commandTag.RowsAffected() == 0 {
+        return pgx.ErrNoRows
+    }
+
+    return nil
+}
+
 func UpdatePlayerTurnOrder(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, playerId int, sessionId string, turn_number int) error {
     commandTag, err := tx.Exec(ctx, `
         UPDATE player
@@ -395,6 +414,5 @@ func GetPlayerOwnedProperties(
 
     return ownedProperties, nil
 }
-
 
 
