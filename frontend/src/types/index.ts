@@ -1,20 +1,26 @@
 export interface Player {
   id: number
   name: string
+  ready_up_status: boolean
+  piece_token: number
   player_order: number
   money: number
   position: number
   get_out_of_jail_cards: number
-  jailed: boolean
+  jailed: number
   session_id: string
   in_game: boolean
-  piece_token: number
+}
+
+export interface PlayerInfo {
+  player: Player
+  owned_properties: OwnedProperty[]
 }
 
 export interface PropertyData {
   id: number
   name: string
-  current_rent: number
+  rent_id: number
   purchase_cost: number
   mortgage_cost: number
   unmortgage_cost: number
@@ -27,17 +33,36 @@ export interface OwnedProperty {
   id: number
   owner_player_id: number
   session_id: number
+  current_rent: number
   is_mortgaged: boolean
   houses: number
   has_hotel: boolean
   property_info: PropertyData
 }
 
-export interface GameState {
+export interface GameStateUpdate {
+  current_turn: number
   players: Player[]
+}
+
+export interface GameBoardData {
+  tiles: Tile[]
+  current_turn: number
+  players: Player[]
+}
+
+export interface GameState {
+  current_turn: number
+  tiles: Tile[]
+  players: PlayerInfo[]
   session_id: string
   join_code: number
-  turn_number: number
+}
+
+export interface Tile {
+  id: number
+  name: string
+  property_data: PropertyData | null
 }
 
 export interface DiceRoll {

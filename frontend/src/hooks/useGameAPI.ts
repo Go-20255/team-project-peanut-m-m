@@ -107,9 +107,9 @@ export function useCreatePlayer() {
   })
 }
 
-export async function getAvailableTokens(sessionId: string): Promise<number[]> {
+export async function getAvailableTokens(players: Player[], sessionId: string): Promise<number[]> {
   try {
-    const players = await fetchPlayersForSession(sessionId)
+    //const players = await fetchPlayersForSession(sessionId)
     const takenTokens = new Set(players.map((p) => p.piece_token))
 
     const availableTokens = [0, 1].filter((token) => !takenTokens.has(token))
@@ -214,7 +214,7 @@ function handleSSEEvent(eventData: string, eventType: string, callback: (type: s
  */
 export function useLiveGameUpdates(
   sessionId: string | null,
-  playerId: string | null,
+  playerId: number | null,
   playerName: string | null,
   onUpdate: (data: any) => void,
   enabled = true,
@@ -233,7 +233,7 @@ export function useLiveGameUpdates(
 
     const params = new URLSearchParams({
       session_id: sessionId,
-      player_id: playerId,
+      player_id: playerId.toString(),
       player_name: playerName,
     })
 

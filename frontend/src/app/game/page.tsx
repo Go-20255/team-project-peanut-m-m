@@ -11,7 +11,7 @@ import { Player, GameState } from "@/types"
 export default function GamePage() {
   const router = useRouter()
   const [sessionId, setSessionId] = useState<string | null>(null)
-  const [playerId, setPlayerId] = useState<string | null>(null)
+  const [playerId, setPlayerId] = useState<number | null>(null)
   const [playerName, setPlayerName] = useState<string | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [gameState, setGameState] = useState<GameState | null>(null)
@@ -56,9 +56,10 @@ export default function GamePage() {
   )
 
   useEffect(() => {
+    const player = storage.getPlayer()
     const storedSessionId = storage.getSessionId()
-    const storedPlayerId = storage.getPlayerId()
-    const storedPlayerName = storage.getPlayerName()
+    const storedPlayerId = player?.id
+    const storedPlayerName = player?.name
 
     if (!storedSessionId || !storedPlayerId || !storedPlayerName) {
       router.push("/")
@@ -122,7 +123,7 @@ export default function GamePage() {
       <div className="flex-1" style={{ flex: "4" }}>
         <GameBoard
           sessionId={sessionId}
-          playerId={playerId}
+          playerId={playerId.toString()}
           playerName={playerName}
           players={players}
           currentPlayerTurnId={currentPlayerTurn}
@@ -133,7 +134,7 @@ export default function GamePage() {
       <div style={{ flex: "1", borderLeft: "2px solid #D0D3D4" }}>
         <PlayerSidebar
           sessionId={sessionId}
-          playerId={playerId}
+          playerId={playerId.toString()}
           playerName={playerName}
           players={players}
           currentPlayerTurnId={currentPlayerTurn}

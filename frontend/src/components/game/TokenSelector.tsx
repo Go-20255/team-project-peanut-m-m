@@ -1,13 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { getAvailableTokens } from "@/hooks/useGameAPI"
+import { getAvailableTokens, useFetchPlayersForSession } from "@/hooks/useGameAPI"
 import { TOKEN_ICONS } from "@/utils/tokens"
 
 interface TokenSelectorProps {
   sessionId: string
   playerId: number
-  currentToken: number
+  currentToken: number | null
   onTokenSelected: (token: number) => void
   isLoading?: boolean
 }
@@ -22,11 +22,14 @@ export default function TokenSelector({
   const [availableTokens, setAvailableTokens] = useState<number[]>([])
   const [loadingTokens, setLoadingTokens] = useState(true)
 
+  const fetchPlayers = useFetchPlayersForSession()
+  const players = fetchPlayers.data ?? []
+
   useEffect(() => {
     const fetchAvailable = async () => {
       try {
         setLoadingTokens(true)
-        const available = await getAvailableTokens(sessionId)
+        const available = await getAvailableTokens(players, sessionId)
         setAvailableTokens(available)
       } catch (err) {
         console.error("Failed to fetch available tokens:", err)
