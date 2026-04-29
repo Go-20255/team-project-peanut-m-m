@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Player } from "@/types";
+import { storage } from "@/utils";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -68,6 +70,7 @@ export function useJoinGameByCode() {
  * Create a player in a game session
  */
 export function useCreatePlayer() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({
       playerName,
@@ -100,6 +103,9 @@ export function useCreatePlayer() {
       console.log("Player created successfully:", data);
       return data;
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({queryKey: ["fetchPlayersForSession"]})
+    }
   });
 }
 
@@ -149,6 +155,30 @@ export function useUpdatePlayerToken() {
   });
 }
 
+
+export function useFetchPlayersForSession() {
+  return useQuery<Player[]>({
+    queryKey: ["fetchPlayersForSession"],
+    staleTime: 10000,
+    retry: 3,
+    queryFn: async (): Promise<Player[]> => {
+    
+      const sessionId = storage.getSessionId()
+      const res = await fetch(`${API_URL}/api/game/players?session_id=${sessionId}`, {
+        method: "GET",
+        credentials: "include"
+      })
+      console.log("Players fetch response status:", res.status);
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Players fetch error:", res.status, errorText);
+        throw new Error(`Failed to fetch players: ${res.status} ${errorText}`);
+      }
+
+      return res.json();
+    },
+  })
+}
 
 export async function fetchPlayersForSession(sessionId: string): Promise<any[]> {
   try {
