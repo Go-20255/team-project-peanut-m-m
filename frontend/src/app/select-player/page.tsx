@@ -17,11 +17,21 @@ export default function SelectPlayer() {
   const fetchPlayers = useFetchPlayersForSession()
   const players = fetchPlayers.data ?? []
 
+  const joinGame = (p: Player) => {
+    storage.setPlayerName(p.name)
+    storage.setPlayerId(p.id.toString())
+    router.push("/select-token")
+  }
+
   return (
     <div className="flex flex-col gap-3">
       {players?.length > 0 ? (
         players.map((p) => (
-            <button key={p.id} className="bg-gray-100 px-2 hover:cursor-pointer hover:bg-gray-300 ">{p.name}</button>
+            <button
+            key={p.id}
+            className="bg-gray-100 px-2 hover:cursor-pointer hover:bg-gray-300 "
+            onClick={() => joinGame(p)}
+          >{p.name}</button>
         ))
       ) : (
         <div>
