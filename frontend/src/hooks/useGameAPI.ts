@@ -107,9 +107,9 @@ export function useCreatePlayer() {
   })
 }
 
-export async function getAvailableTokens(sessionId: string): Promise<number[]> {
+export async function getAvailableTokens(players: Player[], sessionId: string): Promise<number[]> {
   try {
-    const players = await fetchPlayersForSession(sessionId)
+    //const players = await fetchPlayersForSession(sessionId)
     const takenTokens = new Set(players.map((p) => p.piece_token))
 
     const availableTokens = [0, 1].filter((token) => !takenTokens.has(token))
