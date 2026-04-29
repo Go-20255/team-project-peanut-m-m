@@ -112,6 +112,13 @@ type RentPayment struct {
     ToPlayerMoney  int    `json:"to_player_money"`
 }
 
+type JailRelease struct {
+    PlayerId            int    `json:"player_id"`
+    SessionId           string `json:"session_id"`
+    GetOutOfJailCards   int    `json:"get_out_of_jail_cards"`
+    Jailed              bool   `json:"jailed"`
+}
+
 type PropertyBuildingUpdate struct {
     PlayerId        int  `json:"player_id"`
     SessionId       string `json:"session_id"`

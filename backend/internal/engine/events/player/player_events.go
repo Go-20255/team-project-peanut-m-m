@@ -526,3 +526,88 @@ func MovePlayer(
         Data:   playerMovement,
     }
 }
+
+func UseGetOutOfJailCard(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    data := action.Data.(internal.SimpleActionData)
+
+    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    if currentPlayer == nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there are no players in this game session",
+        }
+    }
+
+    if currentPlayer.Id != data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "it is not this player's turn",
+        }
+    }
+
+    player, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    if !player.Jailed {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player is not in jail",
+        }
+    }
+
+    if player.GetOutOfJailCards < 1 {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player does not have a get out of jail card",
+        }
+    }
+
+    err = internaldb_players.UpdatePlayerJailState(
+        log,
+        ctx,
+        tx,
+        data.PlayerId,
+        data.SessionId,
+        player.GetOutOfJailCards - 1,
+        0,
+    )
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    jailRelease := internal.JailRelease{
+        PlayerId:          data.PlayerId,
+        SessionId:         data.SessionId,
+        GetOutOfJailCards: player.GetOutOfJailCards - 1,
+        Jailed:            false,
+    }
+
+    e.Broker.Broadcast(log, "UseGetOutOfJailCardEvent", jailRelease)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   jailRelease,
+    }
+}

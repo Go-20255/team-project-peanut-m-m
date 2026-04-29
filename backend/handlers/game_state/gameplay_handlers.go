@@ -106,3 +106,28 @@ func PayRentHandler(c echo.Context) error {
 
     return c.JSON(http.StatusOK, res.Data)
 }
+
+func UseGetOutOfJailCardHandler(c echo.Context) error {
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
+
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "UseGetOutOfJailCardEvent",
+        Data: internal.SimpleActionData{
+            PlayerId:  claims.PlayerId,
+            SessionId: claims.SessionId,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.JSON(http.StatusOK, res.Data)
+}
