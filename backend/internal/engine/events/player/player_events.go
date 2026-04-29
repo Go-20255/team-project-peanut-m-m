@@ -1,9 +1,9 @@
 package player
 
 import (
-	"context"
-	"fmt"
-	"math/rand/v2"
+    "context"
+    "fmt"
+    "math/rand/v2"
 	"monopoly-backend/internal"
 	internaldb_game_state "monopoly-backend/internal/db/game_state"
 	internaldb_players "monopoly-backend/internal/db/player"
@@ -13,9 +13,39 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/rs/zerolog"
 )
+
+func SetPendingBankPayment(
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    playerId int,
+    sessionId string,
+    amount int,
+    reason string,
+) internal.UserActionStatus {
+    if e.PendingBankPayment != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is already a pending bank payment",
+        }
+    }
+
+    e.PendingBankPayment = &internal.PendingBankPayment{
+        PlayerId:  playerId,
+        SessionId: sessionId,
+        Amount:    amount,
+        Reason:    reason,
+    }
+
+    e.Broker.Broadcast(log, "BankPaymentDueEvent", e.PendingBankPayment)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   *e.PendingBankPayment,
+    }
+}
 
 // getNewPosition returns the player's new board position after moving by the
 // given total and reports whether the move passed Go.
@@ -304,6 +334,13 @@ func RollDice(
             }
         }
 
+        if e.PendingBankPayment != nil && e.PendingBankPayment.PlayerId == data.PlayerId {
+            return internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    "player has a pending bank payment",
+            }
+        }
+
         if _, ok := e.PendingRolls[data.PlayerId]; ok {
             return internal.UserActionStatus{
                 Status: http.StatusBadRequest,
@@ -355,6 +392,13 @@ func EndTurn(
         return internal.UserActionStatus{
             Status: http.StatusBadRequest,
             Msg:    "it is not this player's turn",
+        }
+    }
+
+    if e.PendingBankPayment != nil && e.PendingBankPayment.PlayerId == data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player has a pending bank payment",
         }
     }
 
@@ -436,6 +480,13 @@ func MovePlayer(
         }
     }
 
+    if e.PendingBankPayment != nil && e.PendingBankPayment.PlayerId == data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player has a pending bank payment",
+        }
+    }
+
     diceRoll, ok := e.PendingRolls[data.PlayerId]
     if !ok {
         return internal.UserActionStatus{
@@ -449,6 +500,13 @@ func MovePlayer(
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
             Msg:    err.Error(),
+        }
+    }
+
+    if player.Jailed {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player is in jail",
         }
     }
 
@@ -527,14 +585,137 @@ func MovePlayer(
     }
 }
 
-func UseGetOutOfJailCard(
+func PayBank(
     ctx context.Context,
     log zerolog.Logger,
     e *internal.MonopolyEngine,
     action *internal.UserActionEvent,
     tx *pgxpool.Tx,
 ) internal.UserActionStatus {
-    data := action.Data.(internal.SimpleActionData)
+    data := action.Data.(internal.BankPaymentActionData)
+
+    if e.PendingBankPayment == nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is no pending bank payment",
+        }
+    }
+
+    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    if currentPlayer == nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there are no players in this game session",
+        }
+    }
+
+    if currentPlayer.Id != data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "it is not this player's turn",
+        }
+    }
+
+    if e.PendingBankPayment.PlayerId != data.PlayerId || e.PendingBankPayment.SessionId != data.SessionId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "bank payment payer is incorrect",
+        }
+    }
+
+    player, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    if player.Money < e.PendingBankPayment.Amount {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player does not have enough money",
+        }
+    }
+
+    err = internaldb_players.UpdatePlayerMoney(
+        log,
+        ctx,
+        tx,
+        data.PlayerId,
+        data.SessionId,
+        player.Money - e.PendingBankPayment.Amount,
+    )
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    bankPayment := internal.BankPayment{
+        PlayerId:    data.PlayerId,
+        SessionId:   data.SessionId,
+        Amount:      e.PendingBankPayment.Amount,
+        Reason:      e.PendingBankPayment.Reason,
+        PlayerMoney: player.Money - e.PendingBankPayment.Amount,
+        Jailed:      player.Jailed,
+    }
+
+    if e.PendingBankPayment.Reason == "jail release" {
+        err = internaldb_players.UpdatePlayerJailState(
+            log,
+            ctx,
+            tx,
+            data.PlayerId,
+            data.SessionId,
+            player.GetOutOfJailCards,
+            0,
+        )
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+
+        bankPayment.Jailed = false
+        e.Broker.Broadcast(log, "PayToLeaveJailEvent", internal.JailRelease{
+            PlayerId:          data.PlayerId,
+            SessionId:         data.SessionId,
+            Method:            "pay",
+            GetOutOfJailCards: player.GetOutOfJailCards,
+            PlayerMoney:       bankPayment.PlayerMoney,
+            Jailed:            false,
+        })
+    }
+
+    e.PendingBankPayment = nil
+
+    e.Broker.Broadcast(log, "BankPaymentEvent", bankPayment)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   bankPayment,
+    }
+}
+
+func ReleaseFromJail(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    data := action.Data.(internal.JailReleaseActionData)
 
     currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
     if err != nil {
@@ -573,10 +754,72 @@ func UseGetOutOfJailCard(
         }
     }
 
+    jailRelease := internal.JailRelease{
+        PlayerId:          data.PlayerId,
+        SessionId:         data.SessionId,
+        Method:            data.Method,
+        GetOutOfJailCards: player.GetOutOfJailCards,
+        PlayerMoney:       player.Money,
+        Jailed:            false,
+    }
+
+    diceRoll, ok := e.PendingRolls[data.PlayerId]
+    if !ok {
+        if data.Method == "pay" {
+            return internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    "player must roll before paying to get out of jail",
+            }
+        }
+
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player must roll before using a get out of jail card",
+        }
+    }
+
+    if data.Method == "pay" {
+        if diceRoll.DieOne == diceRoll.DieTwo {
+            return internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    "player rolled doubles and does not need to pay to get out of jail",
+            }
+        }
+
+        if player.Money < 50 {
+            pendingBankPaymentStatus := SetPendingBankPayment(log, e, data.PlayerId, data.SessionId, 50, "jail release")
+            if pendingBankPaymentStatus.Status != http.StatusOK {
+                return pendingBankPaymentStatus
+            }
+
+            return internal.UserActionStatus{
+                Status: http.StatusOK,
+                Data:   pendingBankPaymentStatus.Data,
+            }
+        }
+
+        pendingBankPaymentStatus := SetPendingBankPayment(log, e, data.PlayerId, data.SessionId, 50, "jail release")
+        if pendingBankPaymentStatus.Status != http.StatusOK {
+            return pendingBankPaymentStatus
+        }
+
+        return internal.UserActionStatus{
+            Status: http.StatusOK,
+            Data:   pendingBankPaymentStatus.Data,
+        }
+    }
+
     if player.GetOutOfJailCards < 1 {
         return internal.UserActionStatus{
             Status: http.StatusBadRequest,
             Msg:    "player does not have a get out of jail card",
+        }
+    }
+
+    if diceRoll.DieOne == diceRoll.DieTwo {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player rolled doubles and does not need to use a get out of jail card",
         }
     }
 
@@ -596,12 +839,7 @@ func UseGetOutOfJailCard(
         }
     }
 
-    jailRelease := internal.JailRelease{
-        PlayerId:          data.PlayerId,
-        SessionId:         data.SessionId,
-        GetOutOfJailCards: player.GetOutOfJailCards - 1,
-        Jailed:            false,
-    }
+    jailRelease.GetOutOfJailCards = player.GetOutOfJailCards - 1
 
     e.Broker.Broadcast(log, "UseGetOutOfJailCardEvent", jailRelease)
     events.EmitGameBoardUpdate(log, ctx, e, tx)
