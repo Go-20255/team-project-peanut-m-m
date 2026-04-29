@@ -72,7 +72,7 @@ func SetupDatabase(ctx context.Context, log zerolog.Logger) {
         log.Panic().Err(err).Msg("failed to check if tables exist")
     }
     if tableExists {
-        log.Printf("Tables already exist. Skipping setup.")
+        log.Info().Msg("Tables already exist. Skipping setup.")
         return
     }
 

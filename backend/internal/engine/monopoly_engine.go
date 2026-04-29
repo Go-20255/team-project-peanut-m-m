@@ -143,7 +143,7 @@ func runMonopolyEngine(ctx context.Context, log zerolog.Logger, e *internal.Mono
         return err
     }
 
-    if ready_stats.Ready == ready_stats.Total && e.TurnNumber < 0 {
+    if ready_stats.Total > 0 && ready_stats.Ready == ready_stats.Total && e.TurnNumber < 0 {
         // everyone is ready and turn number is still -1 for some reason
         internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx.(*pgxpool.Tx), e.SessionId, 0)
         log.Info().Msg("all players are ready; Start Game")
