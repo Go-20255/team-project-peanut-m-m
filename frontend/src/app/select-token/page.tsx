@@ -16,9 +16,10 @@ export default function SelectTokenPage() {
   const updateToken = useUpdatePlayerToken()
 
   useEffect(() => {
+    const player = storage.getPlayer()
     const storedSessionId = storage.getSessionId()
-    const storedPlayerId = storage.getPlayerId()
-    const storedPlayerName = storage.getPlayerName()
+    const storedPlayerId = player?.id
+    const storedPlayerName = player?.name
 
     if (!storedSessionId || !storedPlayerId || !storedPlayerName) {
       router.push("/")
@@ -26,9 +27,9 @@ export default function SelectTokenPage() {
     }
 
     setSessionId(storedSessionId)
-    setPlayerId(parseInt(storedPlayerId))
+    setPlayerId(storedPlayerId)
     setPlayerName(storedPlayerName)
-    setCurrentToken(parseInt(storedPlayerId) % 2) // Default based on player ID
+    //setCurrentToken(storedPlayerId % 2) // Default based on player ID
   }, [router])
 
   const handleTokenSelected = async (token: number) => {

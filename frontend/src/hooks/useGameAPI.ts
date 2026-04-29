@@ -214,7 +214,7 @@ function handleSSEEvent(eventData: string, eventType: string, callback: (type: s
  */
 export function useLiveGameUpdates(
   sessionId: string | null,
-  playerId: string | null,
+  playerId: number | null,
   playerName: string | null,
   onUpdate: (data: any) => void,
   enabled = true,
@@ -233,7 +233,7 @@ export function useLiveGameUpdates(
 
     const params = new URLSearchParams({
       session_id: sessionId,
-      player_id: playerId,
+      player_id: playerId.toString(),
       player_name: playerName,
     })
 
