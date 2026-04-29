@@ -1,97 +1,93 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import {
-  useCreateGame,
-  useJoinGameByCode,
-  useCreatePlayer,
-} from "@/hooks/useGameAPI";
-import { storage } from "@/utils/storage";
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useCreateGame, useJoinGameByCode, useCreatePlayer } from "@/hooks/useGameAPI"
+import { storage } from "@/utils/storage"
 
 export default function Home() {
-  const router = useRouter();
-  const [playerName, setPlayerName] = useState("");
-  const [gameCode, setGameCode] = useState("");
-  const [error, setError] = useState("");
-  const [createdCode, setCreatedCode] = useState<number | null>(null);
+  const router = useRouter()
+  const [playerName, setPlayerName] = useState("")
+  const [gameCode, setGameCode] = useState("")
+  const [error, setError] = useState("")
+  const [createdCode, setCreatedCode] = useState<number | null>(null)
 
-  const createGame = useCreateGame();
-  const joinGame = useJoinGameByCode();
-  const createPlayer = useCreatePlayer();
+  const createGame = useCreateGame()
+  const joinGame = useJoinGameByCode()
+  const createPlayer = useCreatePlayer()
 
   const handleCreate = async () => {
-    setError("");
+    setError("")
 
     //if (!playerName.trim()) {
-      //setError("Please enter a name");
-      //return;
+    //setError("Please enter a name");
+    //return;
     //}
 
     try {
-      console.log("Creating game...");
-      const gameData = await createGame.mutateAsync();
-      console.log("Game created:", gameData);
+      console.log("Creating game...")
+      const gameData = await createGame.mutateAsync()
+      console.log("Game created:", gameData)
 
       //console.log("Creating player:", playerName);
       //const playerData = await createPlayer.mutateAsync({
-        //playerName,
-        //sessionId: gameData.session_id,
+      //playerName,
+      //sessionId: gameData.session_id,
       //});
       //console.log("Player created:", playerData);
 
-      console.log("Storing to localStorage and navigating...");
-      storage.setSessionId(gameData.session_id);
+      console.log("Storing to localStorage and navigating...")
+      storage.setSessionId(gameData.session_id)
       //storage.setPlayerId(playerData.id.toString());
       //storage.setPlayerName(playerName);
-      storage.setGameCode(gameData.code.toString());
+      storage.setGameCode(gameData.code.toString())
 
-      router.push("/select-player");
+      router.push("/select-player")
     } catch (err) {
-      setError("Failed to create game. Please try again.");
-      console.error("Create game error:", err);
+      setError("Failed to create game. Please try again.")
+      console.error("Create game error:", err)
     }
-  };
+  }
 
   const handleJoin = async () => {
-    setError("");
+    setError("")
 
     //if (!playerName.trim()) {
-      //setError("Please enter a name");
-      //return;
+    //setError("Please enter a name");
+    //return;
     //}
 
     if (!gameCode.trim()) {
-      setError("Please enter a game code");
-      return;
+      setError("Please enter a game code")
+      return
     }
 
     try {
-      console.log("Joining game with code:", gameCode);
-      const sessionId = await joinGame.mutateAsync(gameCode);
-      console.log("Joined game, session ID:", sessionId);
+      console.log("Joining game with code:", gameCode)
+      const sessionId = await joinGame.mutateAsync(gameCode)
+      console.log("Joined game, session ID:", sessionId)
 
       //console.log("Creating player:", playerName);
       //const playerData = await createPlayer.mutateAsync({
-        //playerName,
-        //sessionId,
+      //playerName,
+      //sessionId,
       //});
       //console.log("Player created:", playerData);
 
-      console.log("Storing to localStorage and navigating...");
-      storage.setSessionId(sessionId);
+      console.log("Storing to localStorage and navigating...")
+      storage.setSessionId(sessionId)
       //storage.setPlayerId(playerData.id.toString());
       //storage.setPlayerName(playerName);
-      storage.setGameCode(gameCode);
+      storage.setGameCode(gameCode)
 
-      router.push("/select-player");
+      router.push("/select-player")
     } catch (err) {
-      setError("Failed to join game. Check your code and try again.");
-      console.error("Join game error:", err);
+      setError("Failed to join game. Check your code and try again.")
+      console.error("Join game error:", err)
     }
-  };
+  }
 
-  const isLoading = createGame.isPending || joinGame.isPending || createPlayer.isPending;
+  const isLoading = createGame.isPending || joinGame.isPending || createPlayer.isPending
 
   return (
     <div className="w-full h-screen flex items-center justify-center" style={{ backgroundColor: "#FFFFFF" }}>
@@ -103,22 +99,22 @@ export default function Home() {
         </div>
 
         <div className="space-y-4">
-        {
-          //<div>
+          {
+            //<div>
             //<input
-              //type="text"
-              //placeholder="Enter your name"
-              //value={playerName}
-              //onChange={(e) => setPlayerName(e.target.value)}
-              //disabled={isLoading}
-              //className="w-full px-4 py-2 border-2"
-              //style={{
-                //borderColor: "#D0D3D4",
-                //color: "#000000",
-              //}}
+            //type="text"
+            //placeholder="Enter your name"
+            //value={playerName}
+            //onChange={(e) => setPlayerName(e.target.value)}
+            //disabled={isLoading}
+            //className="w-full px-4 py-2 border-2"
+            //style={{
+            //borderColor: "#D0D3D4",
+            //color: "#000000",
+            //}}
             ///>
-          //</div>
-}
+            //</div>
+          }
 
           <div className="border-t-2 pt-4" style={{ borderColor: "#D0D3D4" }}>
             <div>
@@ -169,5 +165,5 @@ export default function Home() {
         </div>
       </div>
     </div>
-  );
+  )
 }

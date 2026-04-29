@@ -1,17 +1,17 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import { storage } from "@/utils/storage";
-import { getTokenIcon, getTokenName } from "@/utils/tokens";
-import { Player, GameState } from "@/types";
+import { useState, useEffect } from "react"
+import { storage } from "@/utils/storage"
+import { getTokenIcon, getTokenName } from "@/utils/tokens"
+import { Player, GameState } from "@/types"
 
 interface GameBoardProps {
-  sessionId: string;
-  playerId: string;
-  playerName: string;
-  players: Player[];
-  currentPlayerTurnId?: number | null;
-  gameState?: GameState | null;
+  sessionId: string
+  playerId: string
+  playerName: string
+  players: Player[]
+  currentPlayerTurnId?: number | null
+  gameState?: GameState | null
 }
 
 const BOARD_SPACES = [
@@ -55,7 +55,7 @@ const BOARD_SPACES = [
   "Park Pl",
   "Tax",
   "Boardwalk",
-];
+]
 
 export default function GameBoard({
   sessionId,
@@ -65,41 +65,38 @@ export default function GameBoard({
   currentPlayerTurnId,
   gameState,
 }: GameBoardProps) {
-  const [joinCode, setJoinCode] = useState<string>("");
-  
+  const [joinCode, setJoinCode] = useState<string>("")
+
   // Find current player's turn info
-  const currentPlayer = players.find((p) => p.id === currentPlayerTurnId);
-  const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId;
+  const currentPlayer = players.find((p) => p.id === currentPlayerTurnId)
+  const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId
 
   useEffect(() => {
-    const code = storage.getGameCode();
+    const code = storage.getGameCode()
     if (code) {
-      setJoinCode(code);
+      setJoinCode(code)
     }
-  }, []);
+  }, [])
 
   const getPlayerPositions = () => {
-    const positions: { [key: number]: Player[] } = {};
+    const positions: { [key: number]: Player[] } = {}
     players.forEach((player) => {
       if (!positions[player.position]) {
-        positions[player.position] = [];
+        positions[player.position] = []
       }
-      positions[player.position].push(player);
-    });
-    return positions;
-  };
+      positions[player.position].push(player)
+    })
+    return positions
+  }
 
-  const playerPositions = getPlayerPositions();
+  const playerPositions = getPlayerPositions()
 
-  const SPACE_SIZE = 50;
-  const CORNER_SIZE = 50;
-  const BOARD_DIM = 11;
+  const SPACE_SIZE = 50
+  const CORNER_SIZE = 50
+  const BOARD_DIM = 11
 
   return (
-    <div
-      className="w-full h-full flex flex-col p-3"
-      style={{ backgroundColor: "#FFFFFF" }}
-    >
+    <div className="w-full h-full flex flex-col p-3" style={{ backgroundColor: "#FFFFFF" }}>
       {/* Top Bar with Game Code and Turn Info */}
       <div className="flex justify-between items-center mb-3">
         <h2 className="text-2xl font-bold" style={{ color: "#F76902" }}>
@@ -125,23 +122,23 @@ export default function GameBoard({
               {Array.from({ length: BOARD_DIM }).map((_, row) => (
                 <tr key={row}>
                   {Array.from({ length: BOARD_DIM }).map((_, col) => {
-                    let spaceIdx = -1;
+                    let spaceIdx = -1
 
                     // Bottom row (left to right): 0-10
                     if (row === BOARD_DIM - 1) {
-                      spaceIdx = col;
+                      spaceIdx = col
                     }
                     // Top row (right to left): 30-20
                     else if (row === 0) {
-                      spaceIdx = 30 - (BOARD_DIM - 1 - col);
+                      spaceIdx = 30 - (BOARD_DIM - 1 - col)
                     }
                     // Left column (bottom to top): 39-31
                     else if (col === 0) {
-                      spaceIdx = 40 - row;
+                      spaceIdx = 40 - row
                     }
                     // Right column (top to bottom): 11-19
                     else if (col === BOARD_DIM - 1) {
-                      spaceIdx = 10 + row;
+                      spaceIdx = 10 + row
                     }
                     // Center (empty space)
                     else {
@@ -154,15 +151,11 @@ export default function GameBoard({
                             backgroundColor: "#F0F0F0",
                           }}
                         />
-                      );
+                      )
                     }
 
-                    const playersOnSpace = playerPositions[spaceIdx] || [];
-                    const isCorner =
-                      spaceIdx === 0 ||
-                      spaceIdx === 10 ||
-                      spaceIdx === 20 ||
-                      spaceIdx === 30;
+                    const playersOnSpace = playerPositions[spaceIdx] || []
+                    const isCorner = spaceIdx === 0 || spaceIdx === 10 || spaceIdx === 20 || spaceIdx === 30
 
                     return (
                       <td
@@ -218,7 +211,7 @@ export default function GameBoard({
                           ))}
                         </div>
                       </td>
-                    );
+                    )
                   })}
                 </tr>
               ))}
@@ -227,5 +220,5 @@ export default function GameBoard({
         </div>
       </div>
     </div>
-  );
+  )
 }
