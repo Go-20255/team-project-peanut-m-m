@@ -71,6 +71,9 @@ func SetupNewMonopolyEngine(sessionId string) {
         PendingRolls:    map[int]internal.DiceRoll{},
         PendingRent:     nil,
         PendingBankPayment: nil,
+        TurnHasRolled:   map[int]bool{},
+        ExtraRollAllowed: map[int]bool{},
+        DoubleRollCounts: map[int]int{},
     }
 
     engineManagerMu.Lock()

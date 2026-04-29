@@ -4,14 +4,14 @@ import (
     "context"
     "fmt"
     "math/rand/v2"
-	"monopoly-backend/internal"
-	internaldb_game_state "monopoly-backend/internal/db/game_state"
-	internaldb_players "monopoly-backend/internal/db/player"
-	internaldb_tiles "monopoly-backend/internal/db/tile"
-	"monopoly-backend/internal/engine/events"
-	turn_events "monopoly-backend/internal/engine/events/turn"
-	"net/http"
-	"sort"
+    "monopoly-backend/internal"
+    internaldb_game_state "monopoly-backend/internal/db/game_state"
+    internaldb_players "monopoly-backend/internal/db/player"
+    internaldb_tiles "monopoly-backend/internal/db/tile"
+    "monopoly-backend/internal/engine/events"
+    turn_events "monopoly-backend/internal/engine/events/turn"
+    "net/http"
+    "sort"
 
     "github.com/jackc/pgx/v5/pgxpool"
     "github.com/rs/zerolog"
@@ -47,6 +47,13 @@ func SetPendingBankPayment(
     }
 }
 
+func clearPlayerTurnState(e *internal.MonopolyEngine, playerId int) {
+    delete(e.PendingRolls, playerId)
+    delete(e.TurnHasRolled, playerId)
+    delete(e.ExtraRollAllowed, playerId)
+    delete(e.DoubleRollCounts, playerId)
+}
+
 // getNewPosition returns the player's new board position after moving by the
 // given total and reports whether the move passed Go.
 // The board is treated as a 40-tile loop.
@@ -54,7 +61,6 @@ func getNewPosition(position int, total int) (int, bool) {
     newPosition := (position + total) % 40
     return newPosition, position+total >= 40
 }
-
 
 // Connected handles a player joining the running game session.
 // It verifies that the player exists in the session, marks them as in-game,
@@ -167,11 +173,11 @@ func Disconnected(
         ctx,
         tx,
         data.SessionId,
-        )
+    )
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
-            Data: err.Error(),
+            Data:   err.Error(),
         }
     }
 
@@ -210,11 +216,10 @@ func ReadyUp(
     tx *pgxpool.Tx,
 ) internal.UserActionStatus {
     data := action.Data.(struct {
-        SessionId   string
-        PlayerId    int
-        Status      bool
+        SessionId string
+        PlayerId  int
+        Status    bool
     })
-
 
     err := internaldb_players.SetPlayerReadyUpStatus(
         log,
@@ -223,7 +228,7 @@ func ReadyUp(
         data.PlayerId,
         data.SessionId,
         data.Status,
-        )
+    )
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -239,17 +244,17 @@ func ReadyUp(
         ctx,
         tx,
         data.SessionId,
-        )
+    )
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
-            Data: err.Error(),
+            Data:   err.Error(),
         }
     }
 
     if ready_stats.Ready == ready_stats.Total {
         // everyone is ready
-        internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx,data.SessionId, 0)
+        internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx, data.SessionId, 0)
         log.Info().Msg("final player has readied up; Start Game")
         e.Broker.Broadcast(log, "GameReady", "START")
     }
@@ -296,16 +301,21 @@ func RollDice(
         }
     }
 
-    // FIXME: If I roll, then move, and if I haven't ended my turn, I can roll again
-    // and move again and keep repeating.
+    if e.TurnNumber >= len(players) && e.TurnHasRolled[data.PlayerId] && !e.ExtraRollAllowed[data.PlayerId] {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player has already rolled this turn",
+        }
+    }
 
     diceRoll := internal.DiceRoll{
-        PlayerId: data.PlayerId,
+        PlayerId:  data.PlayerId,
         SessionId: data.SessionId,
         DieOne:    rand.IntN(6) + 1,
         DieTwo:    rand.IntN(6) + 1,
     }
     diceRoll.Total = diceRoll.DieOne + diceRoll.DieTwo
+    diceRoll.IsDouble = diceRoll.DieOne == diceRoll.DieTwo
 
     if e.TurnNumber >= 0 && e.TurnNumber < len(players) {
         rolls := e.TempStore["turn_decision_rolls"].([]internal.DiceRoll)
@@ -347,7 +357,89 @@ func RollDice(
                 Msg:    "player already has a pending dice roll",
             }
         }
-        e.PendingRolls[data.PlayerId] = diceRoll
+
+        player, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+
+        e.TurnHasRolled[data.PlayerId] = true
+        e.ExtraRollAllowed[data.PlayerId] = false
+
+        if player.Jailed > 0 {
+            if diceRoll.IsDouble {
+                err = internaldb_players.UpdatePlayerJailState(
+                    log,
+                    ctx,
+                    tx,
+                    data.PlayerId,
+                    data.SessionId,
+                    player.GetOutOfJailCards,
+                    0,
+                )
+                if err != nil {
+                    return internal.UserActionStatus{
+                        Status: http.StatusInternalServerError,
+                        Msg:    err.Error(),
+                    }
+                }
+
+                e.DoubleRollCounts[data.PlayerId] += 1
+                diceRoll.ReleasedFromJail = true
+                diceRoll.Jailed = 0
+                e.PendingRolls[data.PlayerId] = diceRoll
+            } else {
+                jailedTurns := player.Jailed
+                if jailedTurns < 3 {
+                    jailedTurns += 1
+                    err = internaldb_players.UpdatePlayerJailState(
+                        log,
+                        ctx,
+                        tx,
+                        data.PlayerId,
+                        data.SessionId,
+                        player.GetOutOfJailCards,
+                        jailedTurns,
+                    )
+                    if err != nil {
+                        return internal.UserActionStatus{
+                            Status: http.StatusInternalServerError,
+                            Msg:    err.Error(),
+                        }
+                    }
+                }
+
+                diceRoll.Jailed = jailedTurns
+                e.DoubleRollCounts[data.PlayerId] = 0
+                e.PendingRolls[data.PlayerId] = diceRoll
+            }
+        } else {
+            if diceRoll.IsDouble {
+                e.DoubleRollCounts[data.PlayerId] += 1
+                if e.DoubleRollCounts[data.PlayerId] >= 3 {
+                    err = internaldb_players.UpdatePlayerPositionAndJailed(log, ctx, tx, data.PlayerId, data.SessionId, 10, 1)
+                    if err != nil {
+                        return internal.UserActionStatus{
+                            Status: http.StatusInternalServerError,
+                            Msg:    err.Error(),
+                        }
+                    }
+
+                    e.ExtraRollAllowed[data.PlayerId] = false
+                    diceRoll.SentToJail = true
+                    diceRoll.Jailed = 1
+                } else {
+                    diceRoll.RollAgain = true
+                    e.PendingRolls[data.PlayerId] = diceRoll
+                }
+            } else {
+                e.DoubleRollCounts[data.PlayerId] = 0
+                e.PendingRolls[data.PlayerId] = diceRoll
+            }
+        }
     }
 
     e.Broker.Broadcast(log, "RollDiceEvent", diceRoll)
@@ -371,7 +463,7 @@ func EndTurn(
     tx *pgxpool.Tx,
 ) internal.UserActionStatus {
 
-    data := action.Data.(internal.SimpleActionData) 
+    data := action.Data.(internal.SimpleActionData)
 
     currentPlayer, players, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
     if err != nil {
@@ -402,11 +494,51 @@ func EndTurn(
         }
     }
 
-    err = internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx, data.SessionId, e.TurnNumber + 1)
+    if e.TurnNumber >= len(players) {
+        if !e.TurnHasRolled[data.PlayerId] {
+            return internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    "player must roll to start the turn",
+            }
+        }
+
+        if e.ExtraRollAllowed[data.PlayerId] {
+            return internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    "player must roll again",
+            }
+        }
+
+        if _, ok := e.PendingRolls[data.PlayerId]; ok {
+            player, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
+            if err != nil {
+                return internal.UserActionStatus{
+                    Status: http.StatusInternalServerError,
+                    Msg:    err.Error(),
+                }
+            }
+
+            if player.Jailed == 0 {
+                return internal.UserActionStatus{
+                    Status: http.StatusBadRequest,
+                    Msg:    "player has a pending dice roll",
+                }
+            }
+
+            if player.Jailed >= 3 {
+                return internal.UserActionStatus{
+                    Status: http.StatusBadRequest,
+                    Msg:    "player must leave jail",
+                }
+            }
+        }
+    }
+
+    err = internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx, data.SessionId, e.TurnNumber+1)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
-            Msg: err.Error(),
+            Msg:    err.Error(),
         }
     }
     // turn update succeeded, update internal counter
@@ -416,7 +548,7 @@ func EndTurn(
     if e.TurnNumber == len(players) {
         // give all players their turn order
         for i, roll := range e.TempStore["turn_decision_rolls"].([]internal.DiceRoll) {
-            log.Trace().Msgf("%#v",roll)
+            log.Trace().Msgf("%#v", roll)
             err := internaldb_players.UpdatePlayerTurnOrder(
                 log,
                 ctx,
@@ -424,11 +556,11 @@ func EndTurn(
                 roll.PlayerId,
                 roll.SessionId,
                 i,
-                )
+            )
             if err != nil {
                 return internal.UserActionStatus{
                     Status: http.StatusInternalServerError,
-                    Msg: err.Error(),
+                    Msg:    err.Error(),
                 }
             }
         }
@@ -436,6 +568,8 @@ func EndTurn(
 
     // FIXME: Prevent ending turn if there is a pending rent. If player can't pay
     // rent and is bankrupt, handle that here.
+
+    clearPlayerTurnState(e, data.PlayerId)
 
     events.EmitGameBoardUpdate(log, ctx, e, tx)
 
@@ -503,7 +637,7 @@ func MovePlayer(
         }
     }
 
-    if player.Jailed {
+    if player.Jailed > 0 {
         return internal.UserActionStatus{
             Status: http.StatusBadRequest,
             Msg:    "player is in jail",
@@ -522,13 +656,21 @@ func MovePlayer(
     delete(e.PendingRolls, data.PlayerId)
 
     playerMovement := internal.PlayerMovement{
-        PlayerId: data.PlayerId,
-        SessionId: data.SessionId,
+        PlayerId:    data.PlayerId,
+        SessionId:   data.SessionId,
         OldPosition: player.Position,
         NewPosition: newPosition,
         Total:       diceRoll.Total,
         PassedGo:    passedGo,
         TurnNumber:  turnNumber,
+    }
+
+    if diceRoll.IsDouble {
+        e.ExtraRollAllowed[data.PlayerId] = true
+        playerMovement.RollAgain = true
+    } else {
+        e.ExtraRollAllowed[data.PlayerId] = false
+        e.DoubleRollCounts[data.PlayerId] = 0
     }
 
     tileData, err := internaldb_tiles.GetRentTileData(log, ctx, tx, data.SessionId, newPosition)
@@ -651,7 +793,7 @@ func PayBank(
         tx,
         data.PlayerId,
         data.SessionId,
-        player.Money - e.PendingBankPayment.Amount,
+        player.Money-e.PendingBankPayment.Amount,
     )
     if err != nil {
         return internal.UserActionStatus{
@@ -686,14 +828,14 @@ func PayBank(
             }
         }
 
-        bankPayment.Jailed = false
+        bankPayment.Jailed = 0
         e.Broker.Broadcast(log, "PayToLeaveJailEvent", internal.JailRelease{
             PlayerId:          data.PlayerId,
             SessionId:         data.SessionId,
             Method:            "pay",
             GetOutOfJailCards: player.GetOutOfJailCards,
             PlayerMoney:       bankPayment.PlayerMoney,
-            Jailed:            false,
+            Jailed:            0,
         })
     }
 
@@ -747,10 +889,17 @@ func ReleaseFromJail(
         }
     }
 
-    if !player.Jailed {
+    if player.Jailed == 0 {
         return internal.UserActionStatus{
             Status: http.StatusBadRequest,
             Msg:    "player is not in jail",
+        }
+    }
+
+    if e.PendingBankPayment != nil && e.PendingBankPayment.PlayerId == data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player has a pending bank payment",
         }
     }
 
@@ -760,7 +909,7 @@ func ReleaseFromJail(
         Method:            data.Method,
         GetOutOfJailCards: player.GetOutOfJailCards,
         PlayerMoney:       player.Money,
-        Jailed:            false,
+        Jailed:            0,
     }
 
     diceRoll, ok := e.PendingRolls[data.PlayerId]
@@ -829,7 +978,7 @@ func ReleaseFromJail(
         tx,
         data.PlayerId,
         data.SessionId,
-        player.GetOutOfJailCards - 1,
+        player.GetOutOfJailCards-1,
         0,
     )
     if err != nil {
