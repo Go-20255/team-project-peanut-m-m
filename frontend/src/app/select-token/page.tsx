@@ -11,7 +11,7 @@ export default function SelectTokenPage() {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [playerId, setPlayerId] = useState<number | null>(null)
   const [playerName, setPlayerName] = useState<string | null>(null)
-  const [currentToken, setCurrentToken] = useState<number>(0)
+  const [currentToken, setCurrentToken] = useState<number | null>(null)
   const [selectedToken, setSelectedToken] = useState<number | null>(null)
   const updateToken = useUpdatePlayerToken()
 
@@ -29,7 +29,7 @@ export default function SelectTokenPage() {
     setSessionId(storedSessionId)
     setPlayerId(storedPlayerId)
     setPlayerName(storedPlayerName)
-    //setCurrentToken(storedPlayerId % 2) // Default based on player ID
+    setCurrentToken(player?.piece_token) // Default based on players data
   }, [router])
 
   const handleTokenSelected = async (token: number) => {

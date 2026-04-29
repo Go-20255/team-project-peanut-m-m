@@ -1,4 +1,4 @@
-import { Player } from "@/types"
+import { GameState, Player } from "@/types"
 
 export const storage = {
   getItem<T>(key: string): T | null {
@@ -25,6 +25,9 @@ export const storage = {
 
   getPlayer: () => storage.getItem<Player>("player"),
   setPlayer: (p: Player) => storage.setItem("player", p),
+
+  getGameState: () => storage.getItem<GameState>("game_state"),
+  setGameState: (gs: GameState) => storage.setItem("game_state", gs),
 
   getGameCode: () => storage.getItem<string>("gameCode"),
   setGameCode: (code: string) => storage.setItem("gameCode", code),
