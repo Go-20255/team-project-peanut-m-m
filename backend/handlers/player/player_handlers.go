@@ -1,6 +1,7 @@
 package players_handlers
 
 import (
+	internaldbgamestate "monopoly-backend/internal/db/game_state"
     internaldbplayers "monopoly-backend/internal/db/player"
     "monopoly-backend/util"
     "net/http"
@@ -34,6 +35,11 @@ func CreatePlayerHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "session_id does not exist")
     }
 
+    pieceToken, err := util.AssignPlayerToken(log, ctx, tx, sessionId)
+    if err != nil {
+        return c.String(http.StatusInternalServerError, "failed to assign player token")
+    }
+
     id, err := internaldbplayers.CreatePlayerDB(log, ctx, tx, name, sessionId, pieceToken)
     if err != nil {
         return c.String(http.StatusInternalServerError, "failed to create player in db")
@@ -43,6 +49,7 @@ func CreatePlayerHandler(c echo.Context) error {
         "id":           id,
         "name":         name,
         "session_id":   sessionId,
+        "piece_token":  pieceToken,
     })
 }
 
