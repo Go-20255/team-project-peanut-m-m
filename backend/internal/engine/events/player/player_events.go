@@ -494,6 +494,20 @@ func EndTurn(
         }
     }
 
+    if e.PendingRent != nil && e.PendingRent.FromPlayerId == data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player has a pending rent payment",
+        }
+    }
+
+    if _, ok := e.PendingRolls[data.PlayerId]; ok {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player has a pending dice roll",
+        }
+    }
+
     if e.TurnNumber >= len(players) {
         if !e.TurnHasRolled[data.PlayerId] {
             return internal.UserActionStatus{
@@ -506,30 +520,6 @@ func EndTurn(
             return internal.UserActionStatus{
                 Status: http.StatusBadRequest,
                 Msg:    "player must roll again",
-            }
-        }
-
-        if _, ok := e.PendingRolls[data.PlayerId]; ok {
-            player, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
-            if err != nil {
-                return internal.UserActionStatus{
-                    Status: http.StatusInternalServerError,
-                    Msg:    err.Error(),
-                }
-            }
-
-            if player.Jailed == 0 {
-                return internal.UserActionStatus{
-                    Status: http.StatusBadRequest,
-                    Msg:    "player has a pending dice roll",
-                }
-            }
-
-            if player.Jailed >= 3 {
-                return internal.UserActionStatus{
-                    Status: http.StatusBadRequest,
-                    Msg:    "player must leave jail",
-                }
             }
         }
     }
