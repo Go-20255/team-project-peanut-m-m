@@ -92,7 +92,6 @@ func SetupDatabase(ctx context.Context, log zerolog.Logger) {
         }
     }()
 
-    // TODO: start adding tables here
     _, err = tx.Exec(ctx, `
 CREATE TYPE property_type AS ENUM ('BROWN', 'LIGHTBLUE', 'PINK', 'ORANGE', 'RED', 'YELLOW', 'GREEN', 'DARKBLUE', 'RAILROAD', 'UTILITY')
         `)
@@ -146,6 +145,7 @@ $$ LANGUAGE plpgsql;
         jailed INTEGER NOT NULL DEFAULT 0, -- number of turns stuck in jail
         session_id UUID REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL,
         in_game BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         CONSTRAINT unique_session_name UNIQUE(name, session_id),
         CONSTRAINT unique_session_token UNIQUE(piece_token, session_id)
         )
@@ -317,6 +317,8 @@ $$ LANGUAGE plpgsql;
             (9, 6, 'Connecticut Avenue'),
 
             (7, NULL, 'Chance'),
+            
+            (10, NULL, 'Just Visiting'),
 
             -- Pink (House cost: 100)
             (11, 7, 'St. Charles Place'),
@@ -377,7 +379,6 @@ $$ LANGUAGE plpgsql;
         log.Fatal().Err(err).Msg("failed to insert tiles into db")
     }
 
-
     _, err = tx.Exec(ctx, `
         CREATE TABLE Event_Cards ( -- Community and Chance Cards
         id SERIAL PRIMARY KEY,
@@ -390,7 +391,6 @@ $$ LANGUAGE plpgsql;
         log.Fatal().Err(err).Msg("failed to create event cards table")
     }
 
-    // TODO: update with actual cards
     _, err = tx.Exec(ctx, `
         INSERT INTO Event_Cards (name, description, type)
         VALUES 

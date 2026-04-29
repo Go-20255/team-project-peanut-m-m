@@ -10,6 +10,8 @@ import (
     "github.com/rs/zerolog"
 )
 
+// GetCurrentPlayerIndex returns the player index for the given turn number.
+// If the turn number is negative, it returns 0 as a default value.
 func GetCurrentPlayerIndex(turnNumber int, playerCount int) int {
     if turnNumber < 0 {
         return 0
@@ -18,6 +20,11 @@ func GetCurrentPlayerIndex(turnNumber int, playerCount int) int {
     return turnNumber % playerCount
 }
 
+// GetCurrentPlayer retrieves the current player for a session based on the
+// stored turn number.
+// It also returns the full player list and the current turn number so callers
+// can reuse that state without querying again. If the session has no players,
+// it returns nil for the current player.
 func GetCurrentPlayer(
     ctx context.Context,
     log zerolog.Logger,
