@@ -132,6 +132,73 @@ func PayBankHandler(c echo.Context) error {
     return c.JSON(http.StatusOK, res.Data)
 }
 
+func SetBankPayoutHandler(c echo.Context) error {
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
+
+    amountStr := c.FormValue("amount")
+    if amountStr == "" {
+        return c.String(http.StatusBadRequest, "missing amount")
+    }
+
+    amount, err := strconv.Atoi(amountStr)
+    if err != nil {
+        return c.String(http.StatusBadRequest, "invalid amount")
+    }
+
+    reason := c.FormValue("reason")
+    if reason == "" {
+        reason = "bank payout"
+    }
+
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "SetBankPayoutEvent",
+        Data: internal.BankPayoutActionData{
+            PlayerId:  claims.PlayerId,
+            SessionId: claims.SessionId,
+            Amount:    amount,
+            Reason:    reason,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.JSON(http.StatusOK, res.Data)
+}
+
+func ReceiveBankPayoutHandler(c echo.Context) error {
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
+
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "BankPayoutEvent",
+        Data: internal.BankPaymentActionData{
+            PlayerId:  claims.PlayerId,
+            SessionId: claims.SessionId,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.JSON(http.StatusOK, res.Data)
+}
+
 func UseGetOutOfJailCardHandler(c echo.Context) error {
     claims, err := util.GetPlayerJwtClaims(c)
     if err != nil {

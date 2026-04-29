@@ -71,6 +71,7 @@ func SetupNewMonopolyEngine(sessionId string) {
         PendingRolls:    map[int]internal.DiceRoll{},
         PendingRent:     nil,
         PendingBankPayment: nil,
+        PendingBankPayout: nil,
         TurnHasRolled:   map[int]bool{},
         ExtraRollAllowed: map[int]bool{},
         DoubleRollCounts: map[int]int{},
@@ -241,6 +242,10 @@ func processUserAction(
         action_status = player.ReleaseFromJail(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "BankPaymentEvent":
         action_status = player.PayBank(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "SetBankPayoutEvent":
+        action_status = player.SetBankPayout(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "BankPayoutEvent":
+        action_status = player.ReceiveBankPayout(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PayRentEvent":
         action_status = player.PayRent(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseProperty":
