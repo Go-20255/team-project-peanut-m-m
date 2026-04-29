@@ -32,6 +32,9 @@ type MonopolyEngine struct {
     PendingRolls      map[int]DiceRoll
     PendingRent       *PendingRent
     PendingBankPayment *PendingBankPayment
+    TurnHasRolled      map[int]bool
+    ExtraRollAllowed   map[int]bool
+    DoubleRollCounts   map[int]int
     JoinCode          int `json:"join_code"`
     TurnNumber        int `json:"turn_number"`
 }
@@ -87,6 +90,11 @@ type DiceRoll struct {
     DieOne    int    `json:"die_one"`
     DieTwo    int    `json:"die_two"`
     Total     int    `json:"total"`
+    IsDouble  bool   `json:"is_double"`
+    RollAgain bool   `json:"roll_again"`
+    ReleasedFromJail bool `json:"released_from_jail"`
+    SentToJail bool `json:"sent_to_jail"`
+    Jailed int `json:"jailed"`
 }
 
 type PlayerMovement struct {
@@ -101,6 +109,7 @@ type PlayerMovement struct {
     RentAmount  int    `json:"rent_amount"`
     RentToId    int    `json:"rent_to_id"`
     PropertyId  int    `json:"property_id"`
+    RollAgain   bool   `json:"roll_again"`
 }
 
 type PendingRent struct {
@@ -136,7 +145,7 @@ type BankPayment struct {
     Amount      int    `json:"amount"`
     Reason      string `json:"reason"`
     PlayerMoney int    `json:"player_money"`
-    Jailed      bool   `json:"jailed"`
+    Jailed      int    `json:"jailed"`
 }
 
 type JailRelease struct {
@@ -145,7 +154,7 @@ type JailRelease struct {
     Method              string `json:"method"`
     GetOutOfJailCards   int    `json:"get_out_of_jail_cards"`
     PlayerMoney         int    `json:"player_money"`
-    Jailed              bool   `json:"jailed"`
+    Jailed              int    `json:"jailed"`
 }
 
 type PropertyBuildingUpdate struct {
@@ -182,7 +191,7 @@ type Player struct {
     Money               int     `json:"money"`
     Position            int     `json:"position"`
     GetOutOfJailCards   int     `json:"get_out_of_jail_cards"`
-    Jailed              bool    `json:"jailed"`
+    Jailed              int     `json:"jailed"`
     SessionId           string  `json:"session_id"`
     InGame              bool    `json:"in_game"`
 }
