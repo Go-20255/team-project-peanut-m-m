@@ -5,9 +5,15 @@ meta {
 }
 
 post {
-  url: http://localhost:9876/api/player/join
-  body: formUrlEncoded
+  url: http://localhost:9876/api/player/join?player_id=4&player_name=banana_man4&session_id={{session_id}}
+  body: none
   auth: inherit
+}
+
+params:query {
+  player_id: 4
+  player_name: banana_man4
+  session_id: {{session_id}}
 }
 
 body:form-urlencoded {
