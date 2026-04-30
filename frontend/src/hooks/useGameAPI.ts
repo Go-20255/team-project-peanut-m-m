@@ -63,7 +63,6 @@ export function useJoinGameByCode() {
   })
 }
 
-
 export async function getAvailableTokens(players: Player[], sessionId: string): Promise<number[]> {
   try {
     const takenTokens = new Set(players.map((p) => p.piece_token))
@@ -111,7 +110,7 @@ export function useLiveGameUpdates(
     }
 
     const eventSource = new EventSource(`${API_URL}/api/game/join/live`, {
-      withCredentials: true
+      withCredentials: true,
     })
 
     console.log("SSE connection established for session:", sessionId, "player:", playerId)

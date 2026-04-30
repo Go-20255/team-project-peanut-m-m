@@ -24,10 +24,7 @@ export default function SelectPlayer() {
 
   const canCreatePlayer = players.length < MAX_PLAYERS
 
-  const takenTokens = useMemo(
-    () => new Set(players.map((p) => p.piece_token)),
-    [players],
-  )
+  const takenTokens = useMemo(() => new Set(players.map((p) => p.piece_token)), [players])
 
   const availableTokens = useMemo(
     () =>
@@ -38,9 +35,7 @@ export default function SelectPlayer() {
   )
 
   const hasSelectedToken = (p: Player) =>
-    p.piece_token !== null &&
-    p.piece_token !== undefined &&
-    p.piece_token in TOKEN_ICONS
+    p.piece_token !== null && p.piece_token !== undefined && p.piece_token in TOKEN_ICONS
 
   const joinAsPlayer = (p: Player) => {
     storage.setPlayer(p)
@@ -48,7 +43,7 @@ export default function SelectPlayer() {
     // get jwt token, and on success transition to game board
     loginMutation.mutate(p, {
       onSuccess: () => router.push("/game"),
-      onError: (err: Error) => setError(err.message)
+      onError: (err: Error) => setError(err.message),
     })
   }
 
@@ -90,14 +85,12 @@ export default function SelectPlayer() {
     <div className="w-full max-w-md mx-auto p-6">
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold mb-2" style={{ color: "#000000" }}>
-         Join Code: {storage.getGameCode()} 
+          Join Code: {storage.getGameCode()}
         </h2>
         <h2 className="text-2xl font-bold mb-2" style={{ color: "#F76902" }}>
           Select Your Player
         </h2>
-        <p className="text-gray-600">
-          Rejoin as an existing player or create a new one.
-        </p>
+        <p className="text-gray-600">Rejoin as an existing player or create a new one.</p>
       </div>
 
       {isLoading ? (
@@ -118,11 +111,7 @@ export default function SelectPlayer() {
               >
                 <div className="flex flex-col items-center gap-2">
                   {selected ? (
-                    <img
-                      src={getTokenIcon(p.piece_token)}
-                      alt={getTokenName(p.piece_token)}
-                      className="w-16 h-16"
-                    />
+                    <img src={getTokenIcon(p.piece_token)} alt={getTokenName(p.piece_token)} className="w-16 h-16" />
                   ) : (
                     <div className="w-16 h-16 flex items-center justify-center rounded-full bg-gray-100 border border-dashed border-gray-300">
                       <span className="text-xs text-gray-400">?</span>
@@ -133,9 +122,9 @@ export default function SelectPlayer() {
                     {selected ? getTokenName(p.piece_token) : "No icon yet"}
                   </span>
                   {p.in_game ? (
-                  <span className="text-xs text-red-600">In Game</span>
-                  ):(
-                  <span className="text-xs text-green-800">Available</span>
+                    <span className="text-xs text-red-600">In Game</span>
+                  ) : (
+                    <span className="text-xs text-green-800">Available</span>
                   )}
                 </div>
               </button>
@@ -149,15 +138,9 @@ export default function SelectPlayer() {
       )}
 
       {canCreatePlayer ? (
-        <form
-          onSubmit={handleCreatePlayer}
-          className="border-t border-gray-200 pt-6 flex flex-col gap-4"
-        >
+        <form onSubmit={handleCreatePlayer} className="border-t border-gray-200 pt-6 flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <label
-              htmlFor="player-name"
-              className="text-sm font-semibold text-gray-700"
-            >
+            <label htmlFor="player-name" className="text-sm font-semibold text-gray-700">
               Create a new player
             </label>
             <input
@@ -172,30 +155,25 @@ export default function SelectPlayer() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <span className="text-sm font-semibold text-gray-700">
-              Choose an icon
-            </span>
+            <span className="text-sm font-semibold text-gray-700">Choose an icon</span>
             {availableTokens.length === 0 ? (
-              <p className="text-sm text-gray-500">
-                No icons available. Wait for a slot to free up.
-              </p>
+              <p className="text-sm text-gray-500">No icons available. Wait for a slot to free up.</p>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {Object.entries(TOKEN_ICONS).map(([tokenId, tokenInfo]) => {
                   const token = Number(tokenId)
                   const available = !takenTokens.has(token)
                   const isSelected = selectedToken === token
-                  const disabled =
-                    !available || createPlayer.isPending
+                  const disabled = !available || createPlayer.isPending
 
                   return (
                     <button
                       key={tokenId}
                       type="button"
                       onClick={() => {
-                          console.log(`token_id=${tokenId}; token_name=${tokenInfo.name}`)
-                          setSelectedToken(token)
-                        }}
+                        console.log(`token_id=${tokenId}; token_name=${tokenInfo.name}`)
+                        setSelectedToken(token)
+                      }}
                       disabled={disabled}
                       aria-pressed={isSelected}
                       className={`p-4 rounded-lg border-2 transition-all ${
@@ -207,19 +185,9 @@ export default function SelectPlayer() {
                       }`}
                     >
                       <div className="flex flex-col items-center gap-1">
-                        <img
-                          src={`/assets/img/icons/${tokenInfo.icon}`}
-                          alt={tokenInfo.name}
-                          className="w-12 h-12"
-                        />
-                        <span className="font-semibold text-xs">
-                          {tokenInfo.name}
-                        </span>
-                        {!available && (
-                          <span className="text-[10px] text-gray-500 font-bold">
-                            Taken
-                          </span>
-                        )}
+                        <img src={`/assets/img/icons/${tokenInfo.icon}`} alt={tokenInfo.name} className="w-12 h-12" />
+                        <span className="font-semibold text-xs">{tokenInfo.name}</span>
+                        {!available && <span className="text-[10px] text-gray-500 font-bold">Taken</span>}
                       </div>
                     </button>
                   )
@@ -232,11 +200,7 @@ export default function SelectPlayer() {
 
           <button
             type="submit"
-            disabled={
-              createPlayer.isPending ||
-              !playerName.trim() ||
-              selectedToken === null
-            }
+            disabled={createPlayer.isPending || !playerName.trim() || selectedToken === null}
             className="px-4 py-2 rounded-lg bg-orange-500 text-white font-semibold hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {createPlayer.isPending ? "Creating..." : "Create Player"}
