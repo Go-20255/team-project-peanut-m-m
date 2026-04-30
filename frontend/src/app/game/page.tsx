@@ -3,11 +3,11 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { storage } from "@/utils/storage"
-import { useLiveGameUpdates } from "@/hooks/useGameAPI"
 import PlayerSidebar from "@/components/game/PlayerSidebar"
 import GameBoard from "@/components/game/GameBoard"
 import { Player, GameState } from "@/types"
 import { fetchPlayersForSession } from "@/hooks/playerHooks"
+import { useLiveGameUpdates } from "@/hooks/liveUpdatesHooks"
 
 export default function GamePage() {
   const router = useRouter()
@@ -15,46 +15,9 @@ export default function GamePage() {
   const [playerId, setPlayerId] = useState<number | null>(null)
   const [playerName, setPlayerName] = useState<string | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
-  const [gameState, setGameState] = useState<GameState | null>(null)
+  const [gameState, setGameState] = useState<GameState>()
   const [isLoadingPlayers, setIsLoadingPlayers] = useState(true)
   const [currentPlayerTurn, setCurrentPlayerTurn] = useState<number | null>(null)
-  const initialLoadRef = useRef(false)
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
-
-  const calculateCurrentPlayerTurn = (players: Player[], turnNumber: number) => {
-    const orderedPlayers = players.filter((p) => p.player_order !== -1).sort((a, b) => a.player_order - b.player_order)
-    if (orderedPlayers.length === 0) return null
-    const currentIndex = turnNumber % orderedPlayers.length
-    return orderedPlayers[currentIndex]?.id || null
-  }
-
-  const updateTurnNumber = (newTurnNumber: number) => {
-    setGameState((prev) => (prev ? { ...prev, turn_number: newTurnNumber } : null))
-    const newTurn = calculateCurrentPlayerTurn(players, newTurnNumber)
-    setCurrentPlayerTurn(newTurn)
-    console.log("Current player turn updated:", newTurn)
-  }
-
-  const refreshGameData = useCallback(
-    async (sid: string) => {
-      try {
-        const playersData = await fetchPlayersForSession(sid)
-
-        if (playersData && playersData.length > 0) {
-          setPlayers(playersData)
-
-          if (gameState && gameState.current_turn !== undefined) {
-            const currentTurn = calculateCurrentPlayerTurn(playersData, gameState.current_turn)
-            setCurrentPlayerTurn(currentTurn)
-            console.log("Current player turn (from polling):", currentTurn)
-          }
-        }
-      } catch (err) {
-        console.error("Failed to refresh game data:", err)
-      }
-    },
-    [gameState],
-  )
 
   useEffect(() => {
     const player = storage.getPlayer()
@@ -70,48 +33,84 @@ export default function GamePage() {
     setSessionId(storedSessionId)
     setPlayerId(storedPlayerId)
     setPlayerName(storedPlayerName)
+  }, [router])
 
-    if (!initialLoadRef.current) {
-      initialLoadRef.current = true
+  const calculateCurrentPlayerTurn = (
+    players: Player[],
+    turnNumber: number,
+  ) => {
+    const orderedPlayers = players
+      .filter((p) => p.player_order !== -1)
+      .sort((a, b) => a.player_order - b.player_order)
+    if (orderedPlayers.length === 0) return null
+    const currentIndex = turnNumber % orderedPlayers.length
+    return orderedPlayers[currentIndex]?.id || null
+  }
 
-      fetchPlayersForSession(storedSessionId)
-        .then(setPlayers)
-        .catch((err) => console.error("Failed to fetch initial players:", err))
-        .finally(() => setIsLoadingPlayers(false))
+  const handleUpdate = useCallback((update: any) => {
+    if (update.type === "initialGameState" && update.data) {
+      console.log("Initial game state received via SSE:", update.data)
+      const { current_turn, tiles, players: playerInfos } = update.data
 
-      //pollingIntervalRef.current = setInterval(
-      //() => refreshGameData(storedSessionId).catch((err) => console.error("Polling error:", err)),
-      //3000,
-      //)
-    }
+      // Update full game state (PlayerInfo[])
+      setGameState({
+        current_turn,
+        tiles,
+        players: playerInfos,
+      })
 
-    return () => {
-      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current)
-    }
-  }, [router, refreshGameData])
-
-  const handleUpdate = useCallback(
-    (update: any) => {
-      if (update.type === "playersUpdate" && Array.isArray(update.data)) {
-        console.log("Players updated via SSE:", update.data)
-        setPlayers(update.data)
-      } else if (update.type === "gameStateUpdate" && update.data?.turn_number !== undefined) {
-        console.log("Game state updated via SSE:", update.data)
-        updateTurnNumber(update.data.turn_number)
-      } else if (update.type === "playerMove" && update.data) {
-        console.log("Player moved:", update.data)
-        setPlayers((prev) =>
-          prev.map((p) => (p.id === update.data.player_id ? { ...p, position: update.data.new_position } : p)),
-        )
-        if (update.data.turn_number !== undefined) {
-          updateTurnNumber(update.data.turn_number)
+      // Keep flat Player[] in sync for sidebar/turn calculation
+      const flatPlayers: Player[] = playerInfos.map(
+        (pi: any) => pi.player,
+      )
+      setPlayers(flatPlayers)
+      setCurrentPlayerTurn(
+        calculateCurrentPlayerTurn(flatPlayers, current_turn),
+      )
+      setIsLoadingPlayers(false)
+    } else if (
+      update.type === "playerMove" &&
+      update.data
+    ) {
+      console.log("Player moved:", update.data)
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === update.data.player_id
+            ? { ...p, position: update.data.new_position }
+            : p,
+        ),
+      )
+      setGameState((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          players: prev.players.map((pi) =>
+            pi.player.id === update.data.player_id
+              ? {
+                  ...pi,
+                  player: {
+                    ...pi.player,
+                    position: update.data.new_position,
+                  },
+                }
+              : pi,
+          ),
+          current_turn:
+            update.data.turn_number ?? prev.current_turn,
         }
-      } else if (update.data) {
-        console.log(`Event received: ${update.type}`, update.data)
+      })
+      if (update.data.turn_number !== undefined) {
+        setCurrentPlayerTurn(
+          calculateCurrentPlayerTurn(
+            players,
+            update.data.turn_number,
+          ),
+        )
       }
-    },
-    [players, updateTurnNumber],
-  )
+    } else if (update.data) {
+      console.log(`Event received: ${update.type}`, update.data)
+    }
+  }, [players])
 
   useLiveGameUpdates(sessionId, playerId, playerName, handleUpdate)
 
@@ -122,14 +121,19 @@ export default function GamePage() {
   return (
     <div className="w-full h-screen flex" style={{ backgroundColor: "#FFFFFF" }}>
       <div className="flex-1" style={{ flex: "4" }}>
-        <GameBoard
-          sessionId={sessionId}
-          playerId={playerId.toString()}
-          playerName={playerName}
-          players={players}
-          currentPlayerTurnId={currentPlayerTurn}
-          gameState={gameState}
-        />
+        {gameState ? (
+          <GameBoard
+            sessionId={sessionId}
+            playerId={playerId.toString()}
+            playerName={playerName}
+            currentPlayerTurnId={currentPlayerTurn}
+            gameState={gameState}
+          />
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            Loading game state...
+          </div>
+        )}
       </div>
 
       <div style={{ flex: "1", borderLeft: "2px solid #D0D3D4" }}>
