@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Player } from "@/types"
 import { storage } from "@/utils/storage"
@@ -14,6 +14,12 @@ export default function SelectPlayer() {
   const [playerName, setPlayerName] = useState("")
   const [selectedToken, setSelectedToken] = useState<number | null>(null)
   const [error, setError] = useState("")
+  const [joinCode, setJoinCode] = useState<string>("")
+
+  useEffect(() => {
+    const code = storage.getGameCode()
+    if (code) setJoinCode(code)
+  }, [])
 
   const createPlayer = useCreatePlayer()
   const loginMutation = useLoginPlayer()
@@ -85,7 +91,7 @@ export default function SelectPlayer() {
     <div className="w-full max-w-md mx-auto p-6">
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold mb-2" style={{ color: "#000000" }}>
-          Join Code: {storage.getGameCode()}
+          Join Code: {joinCode}
         </h2>
         <h2 className="text-2xl font-bold mb-2" style={{ color: "#F76902" }}>
           Select Your Player
