@@ -79,10 +79,10 @@ export default function GamePage() {
         .catch((err) => console.error("Failed to fetch initial players:", err))
         .finally(() => setIsLoadingPlayers(false))
 
-      pollingIntervalRef.current = setInterval(
-        () => refreshGameData(storedSessionId).catch((err) => console.error("Polling error:", err)),
-        3000,
-      )
+      //pollingIntervalRef.current = setInterval(
+      //() => refreshGameData(storedSessionId).catch((err) => console.error("Polling error:", err)),
+      //3000,
+      //)
     }
 
     return () => {

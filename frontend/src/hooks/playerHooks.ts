@@ -44,7 +44,6 @@ export function useCreatePlayer() {
   })
 }
 
-
 export function useUpdatePlayerToken() {
   return useMutation({
     mutationFn: async ({
@@ -74,7 +73,6 @@ export function useUpdatePlayerToken() {
     },
   })
 }
-
 
 export function useFetchPlayersForSession() {
   return useQuery<Player[]>({
@@ -125,16 +123,17 @@ export async function fetchPlayersForSession(sessionId: string): Promise<any[]> 
 export function useLoginPlayer() {
   return useMutation({
     mutationFn: async (p: Player) => {
-      const response = await fetch(`${API_URL}/api/player/join?player_id=${p.id}&player_name=${p.name}&session_id=${p.session_id}`, {
-        method:"POST",
-        credentials: "include"
-      })
+      const response = await fetch(
+        `${API_URL}/api/player/join?player_id=${p.id}&player_name=${p.name}&session_id=${p.session_id}`,
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      )
       if (!response.ok) {
         throw new Error(response.statusText)
       }
       return response
-    }
+    },
   })
-
 }
-

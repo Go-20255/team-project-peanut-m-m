@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useCreateGame, useJoinGameByCode} from "@/hooks/useGameAPI"
+import { useCreateGame, useJoinGameByCode } from "@/hooks/useGameAPI"
 import { storage } from "@/utils/storage"
 import { useCreatePlayer } from "@/hooks/playerHooks"
 
@@ -17,7 +17,6 @@ export default function Home() {
 
   const handleCreate = async () => {
     setError("")
-
 
     try {
       console.log("Creating game...")
@@ -47,7 +46,6 @@ export default function Home() {
       console.log("Joining game with code:", gameCode)
       const sessionId = await joinGame.mutateAsync(gameCode)
       console.log("Joined game, session ID:", sessionId)
-
 
       console.log("Storing to localStorage and navigating...")
       storage.setSessionId(sessionId)
