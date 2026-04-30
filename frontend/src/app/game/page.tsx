@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { storage } from "@/utils/storage"
 import PlayerSidebar from "@/components/game/PlayerSidebar"
 import GameBoard from "@/components/game/GameBoard"
-import { useLiveGameUpdates } from "@/hooks/liveUpdatesHooks"
+import { useLiveGameUpdates } from "@/hooks/liveUpdates"
 
 export default function GamePage() {
   const router = useRouter()
