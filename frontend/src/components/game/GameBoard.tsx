@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { storage } from "@/utils/storage"
 import { getTokenIcon, getTokenName } from "@/utils/tokens"
 import { Player, GameState } from "@/types"
@@ -10,116 +10,68 @@ interface GameBoardProps {
   playerId: string
   playerName: string
   currentPlayerTurnId?: number | null
-  gameState: GameState // { current_turn, tiles, players: PlayerInfo[] }
+  gameState: GameState
 }
 
-const BOARD_SPACES = [
-  "Go",
-  "Med Ave",
-  "Chest",
-  "Baltic",
-  "Tax",
-  "R.R.",
-  "Oriental",
-  "Chance",
-  "Vermont",
-  "Connect",
-  "Jail",
-  "St. Ch",
-  "Elec",
-  "States",
-  "Virginia",
-  "R.R.",
-  "St. Ja",
-  "Chest",
-  "Tenn",
-  "NY Ave",
-  "Park",
-  "Ky Ave",
-  "Chance",
-  "Indiana",
-  "Illinois",
-  "R.R.",
-  "Atlantic",
-  "Ventnor",
-  "Water",
-  "Marvin",
-  "Go to J",
-  "Pacific",
-  "N.C.A",
-  "Chest",
-  "Penn",
-  "R.R.",
-  "Chance",
-  "Park Pl",
-  "Tax",
-  "Boardwalk",
-]
+const SPACE_SIZE = 50
+const BOARD_DIM = 11
 
 export default function GameBoard({
-  sessionId,
-  playerId,
-  playerName,
   currentPlayerTurnId,
   gameState,
 }: GameBoardProps) {
   const [joinCode, setJoinCode] = useState<string>("")
-  //const players = gameState.players
 
-  // Find current player's turn info
-  //const currentPlayer = players.find((p) => p.player.id === currentPlayerTurnId)
-  const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId
+  useEffect(() => {
+    const code = storage.getGameCode()
+    if (code) setJoinCode(code)
+  }, [])
 
-  const players = gameState.players // PlayerInfo[]
+  // Tiles indexed by board position (0-39)
+  const tilesByIndex = useMemo(() => {
+    const map: Record<number, (typeof gameState.tiles)[number]> = {}
+    gameState.tiles.forEach((t) => {
+      map[t.id] = t
+    })
+    return map
+  }, [gameState.tiles])
 
-  const currentPlayer = players.find(
-    (p) => p.player.id === currentPlayerTurnId,
-  )
-
-  const getPlayerPositions = () => {
-    const positions: { [key: number]: Player[] } = {}
-    players.forEach((pi) => {
+  // Position -> players on that tile
+  const playerPositions = useMemo(() => {
+    const positions: Record<number, Player[]> = {}
+    gameState.players.forEach((pi) => {
       const pos = pi.player.position
       if (!positions[pos]) positions[pos] = []
       positions[pos].push(pi.player)
     })
     return positions
+  }, [gameState.players])
+
+  const getSpaceIdx = (row: number, col: number): number => {
+    // Left column: bottom to top, 0 -> 10
+    if (col === 0) return BOARD_DIM - 1 - row
+    // Top row: left to right, 10 -> 20
+    if (row === 0) return 10 + col
+    // Right column: top to bottom, 20 -> 30
+    if (col === BOARD_DIM - 1) return 20 + row
+    // Bottom row: right to left, 30 -> 39
+    if (row === BOARD_DIM - 1) return 30 + (BOARD_DIM - 1 - col)
+    return -1
   }
 
-  useEffect(() => {
-    const code = storage.getGameCode()
-    if (code) {
-      setJoinCode(code)
-    }
-  }, [])
-
-  //const getPlayerPositions = () => {
-    //const positions: { [key: number]: Player[] } = {}
-    //players.forEach((player) => {
-      //if (!positions[player.player.position]) {
-        //positions[player.player.position] = []
-      //}
-      //positions[player.player.position].push(player.player)
-    //})
-    //return positions
-  //}
-
-  const playerPositions = getPlayerPositions()
-
-  const SPACE_SIZE = 50
-  const CORNER_SIZE = 50
-  const BOARD_DIM = 11
-
   return (
-    <div className="w-full h-full flex flex-col p-3" style={{ backgroundColor: "#FFFFFF" }}>
-      {/* Top Bar with Game Code and Turn Info */}
+    <div
+      className="w-full h-full flex flex-col p-3"
+      style={{ backgroundColor: "#FFFFFF" }}
+    >
       <div className="flex justify-between items-center mb-3">
         <h2 className="text-2xl font-bold" style={{ color: "#F76902" }}>
           Board
         </h2>
-
-        {/* Game Code */}
-        <div className="text-center border-2 px-3 py-1" style={{ borderColor: "#D0D3D4" }}>
+        <div
+          className="text-center border-2 px-3 py-1"
+          style={{ borderColor: "#D0D3D4" }}
+        >
           <div className="text-xs" style={{ color: "#7C878E" }}>
             Code
           </div>
@@ -129,7 +81,6 @@ export default function GameBoard({
         </div>
       </div>
 
-      {/* Game Board */}
       <div className="flex-1 flex items-center justify-center overflow-auto">
         <div style={{ border: "3px solid #000000" }}>
           <table cellSpacing="0" cellPadding="0">
@@ -137,47 +88,30 @@ export default function GameBoard({
               {Array.from({ length: BOARD_DIM }).map((_, row) => (
                 <tr key={row}>
                   {Array.from({ length: BOARD_DIM }).map((_, col) => {
-                    let spaceIdx = -1
+                    const spaceIdx = getSpaceIdx(row, col)
 
-                    // Bottom row (left to right): 0-10
-                    if (row === BOARD_DIM - 1) {
-                      spaceIdx = col
-                    }
-                    // Top row (right to left): 30-20
-                    else if (row === 0) {
-                      spaceIdx = 30 - (BOARD_DIM - 1 - col)
-                    }
-                    // Left column (bottom to top): 39-31
-                    else if (col === 0) {
-                      spaceIdx = 40 - row
-                    }
-                    // Right column (top to bottom): 11-19
-                    else if (col === BOARD_DIM - 1) {
-                      spaceIdx = 10 + row
-                    }
-                    // Center (empty space)
-                    else {
+                    if (spaceIdx === -1) {
                       return (
                         <td
                           key={`${row}-${col}`}
                           style={{
-                            width: `${SPACE_SIZE}px`,
-                            height: `${SPACE_SIZE}px`,
+                            width: SPACE_SIZE,
+                            height: SPACE_SIZE,
                             backgroundColor: "#F0F0F0",
                           }}
                         />
                       )
                     }
 
+                    const tile = tilesByIndex[spaceIdx]
                     const playersOnSpace = playerPositions[spaceIdx] || []
-                    const isCorner = spaceIdx === 0 || spaceIdx === 10 || spaceIdx === 20 || spaceIdx === 30
 
                     return (
                       <td
                         key={`${row}-${col}`}
                         style={{
-                          width: `${SPACE_SIZE}px`,
-                          height: `${SPACE_SIZE}px`,
+                          width: SPACE_SIZE,
+                          height: SPACE_SIZE,
                           border: "1px solid #000",
                           backgroundColor: "#FFFFFF",
                           color: "#000000",
@@ -190,40 +124,48 @@ export default function GameBoard({
                           overflow: "hidden",
                           position: "relative",
                         }}
-                        title={BOARD_SPACES[spaceIdx]}
+                        title={tile?.name}
                       >
                         <div style={{ lineHeight: 1.2 }}>
-                          <span>{BOARD_SPACES[spaceIdx]}</span>
+                          <span>{tile?.name}</span>
                         </div>
-                        {/* Player tokens */}
                         <div
                           style={{
                             position: "absolute",
-                            bottom: "1px",
+                            bottom: 1,
                             left: "50%",
                             transform: "translateX(-50%)",
                             display: "flex",
-                            gap: "1px",
+                            gap: 1,
                             flexWrap: "wrap",
                             justifyContent: "center",
                             width: "100%",
                           }}
                         >
-                          {playersOnSpace.map((player, idx) => (
-                            <img
-                              key={`${player.id}-token`}
-                              src={getTokenIcon(player.piece_token)}
-                              alt={getTokenName(player.piece_token)}
-                              style={{
-                                width: "12px",
-                                height: "12px",
-                                border: player.id === currentPlayerTurnId ? "2px solid #FFD700" : "1px solid #000",
-                                cursor: "pointer",
-                                boxShadow: player.id === currentPlayerTurnId ? "0 0 4px #FFD700" : "none",
-                              }}
-                              title={`${player.name} (${getTokenName(player.piece_token)})${player.id === currentPlayerTurnId ? " - TURN" : ""}`}
-                            />
-                          ))}
+                          {playersOnSpace.map((player) => {
+                            const isTurn = player.id === currentPlayerTurnId
+                            return (
+                              <img
+                                key={`${player.id}-token`}
+                                src={getTokenIcon(player.piece_token)}
+                                alt={getTokenName(player.piece_token)}
+                                style={{
+                                  width: 12,
+                                  height: 12,
+                                  border: isTurn
+                                    ? "2px solid #FFD700"
+                                    : "1px solid #000",
+                                  cursor: "pointer",
+                                  boxShadow: isTurn
+                                    ? "0 0 4px #FFD700"
+                                    : "none",
+                                }}
+                                title={`${player.name} (${getTokenName(
+                                  player.piece_token,
+                                )})${isTurn ? " - TURN" : ""}`}
+                              />
+                            )
+                          })}
                         </div>
                       </td>
                     )
