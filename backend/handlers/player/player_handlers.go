@@ -28,6 +28,15 @@ func CreatePlayerHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "missing session_id")
     }
 
+    pieceToken_str := c.FormValue("piece_token")
+    if pieceToken_str == "" {
+        return c.String(http.StatusBadRequest, "missing piece_token")
+    }
+    pieceToken, err := strconv.Atoi(pieceToken_str)
+    if err != nil {
+        return c.String(http.StatusBadRequest, "piece token is not a valid int")
+    }
+
     tx := c.Get("tx").(*pgxpool.Tx)
     exists, err := internaldbgamestate.GameStateExists(log, ctx, tx, sessionId)
     if err != nil {
@@ -38,22 +47,22 @@ func CreatePlayerHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "session_id does not exist")
     }
 
-    pieceToken, err := util.AssignPlayerToken(log, ctx, tx, sessionId)
-    if err != nil {
-        return c.String(http.StatusInternalServerError, "failed to assign player token")
-    }
+    //pieceToken, err := util.AssignPlayerToken(log, ctx, tx, sessionId)
+    //if err != nil {
+        //return c.String(http.StatusInternalServerError, "failed to assign player token")
+    //}
 
     id, err := internaldbplayers.CreatePlayerDB(log, ctx, tx, name, sessionId, pieceToken)
     if err != nil {
         return c.String(http.StatusInternalServerError, "failed to create player in db")
     }
 
-    return c.JSON(http.StatusOK, map[string]interface{}{
-        "id":           id,
-        "name":         name,
-        "session_id":   sessionId,
-        "piece_token":  pieceToken,
-    })
+    new_player, err := internaldbplayers.GetPlayer(log, ctx, tx, id, sessionId)
+    if err != nil {
+        return c.String(http.StatusInternalServerError, "uh oh. something bad happened")
+    }
+
+    return c.JSON(http.StatusOK, new_player)
 }
 
 func GetPlayersHandler(c echo.Context) error {
