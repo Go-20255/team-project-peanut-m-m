@@ -73,15 +73,16 @@ export function useCreatePlayer() {
     mutationFn: async ({
       playerName,
       sessionId,
+      pieceToken,
     }: {
       playerName: string
       sessionId: string
-    }): Promise<{ id: number; name: string; session_id: string }> => {
-      console.log("Creating player:", playerName, "in session:", sessionId)
-
+      pieceToken: number
+    }): Promise<Player> => {
       const formData = new FormData()
       formData.append("player_name", playerName)
       formData.append("session_id", sessionId)
+      formData.append("piece_token", pieceToken.toString())
 
       const res = await fetch(`${API_URL}/api/player`, {
         method: "POST",
@@ -89,17 +90,12 @@ export function useCreatePlayer() {
         body: formData,
       })
 
-      console.log("Create player response status:", res.status)
-
       if (!res.ok) {
         const errorText = await res.text()
-        console.error("Create player error:", res.status, errorText)
         throw new Error(`Failed to create player: ${res.status} ${errorText}`)
       }
 
-      const data = await res.json()
-      console.log("Player created successfully:", data)
-      return data
+      return res.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fetchPlayersForSession"] })
@@ -155,7 +151,6 @@ export function useUpdatePlayerToken() {
 export function useFetchPlayersForSession() {
   return useQuery<Player[]>({
     queryKey: ["fetchPlayersForSession"],
-    staleTime: 10000,
     retry: 3,
     queryFn: async (): Promise<Player[]> => {
       const sessionId = storage.getSessionId()
