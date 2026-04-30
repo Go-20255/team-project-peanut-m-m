@@ -1,6 +1,7 @@
 package properties_handlers
 
 import (
+    "fmt"
     "net/http"
     "strconv"
 
@@ -45,7 +46,7 @@ func CheckPropertyOwnerHandler(c echo.Context) error {
         return c.String(http.StatusInternalServerError, "failed to get property ownership status")
     }
 
-    return c.JSON(http.StatusOK, map[string]interface{}{
+    return c.JSON(http.StatusOK, map[string]any{
         "ownerId":    ownerId,
         "owned":      owned,
         "session_id": sessionId,
@@ -53,34 +54,16 @@ func CheckPropertyOwnerHandler(c echo.Context) error {
 }
 
 func PurchasePropertyHandler(c echo.Context) error {
-    sessionId := c.FormValue("session_id")
-    playerIdStr := c.FormValue("player_id")
-    propertyIdStr := c.FormValue("property_id")
-
-    if sessionId == "" || playerIdStr == "" || propertyIdStr == "" {
-        return c.String(http.StatusBadRequest, "missing session_id, player_id, or property_id")
-    }
-
-    playerId, err := strconv.Atoi(playerIdStr)
+    claims, err := util.GetPlayerJwtClaims(c)
     if err != nil {
-        return c.String(http.StatusBadRequest, "player_id must be a valid integer")
+        return c.String(http.StatusUnauthorized, err.Error())
     }
 
-    propertyId, err := strconv.Atoi(propertyIdStr)
-    if err != nil {
-        return c.String(http.StatusBadRequest, "property_id must be a valid integer")
-    }
-
-    res, err := monopoly_engine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+    res, err := monopoly_engine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
         Event: "PurchaseProperty",
-        Data: struct {
-            SessionId  string
-            PlayerId   int
-            PropertyId int
-        }{
-            SessionId:  sessionId,
-            PlayerId:   playerId,
-            PropertyId: propertyId,
+        Data: internal.SimpleActionData{
+            SessionId:  claims.SessionId,
+            PlayerId:   claims.PlayerId,
         },
         ReturnChan: make(chan internal.UserActionStatus),
     })
@@ -97,29 +80,21 @@ func PurchasePropertyHandler(c echo.Context) error {
 }
 
 func PurchaseHouseHandler(c echo.Context) error {
-    sessionId := c.FormValue("session_id")
-    playerIdStr := c.FormValue("player_id")
-    propertyIdStr := c.FormValue("property_id")
-
-    if sessionId == "" || playerIdStr == "" || propertyIdStr == "" {
-        return c.String(http.StatusBadRequest, "missing session_id, player_id, or property_id")
-    }
-
-    playerId, err := strconv.Atoi(playerIdStr)
+    claims, err := util.GetPlayerJwtClaims(c)
     if err != nil {
-        return c.String(http.StatusBadRequest, "player_id must be a valid integer")
+        return c.String(http.StatusUnauthorized, err.Error())
     }
 
-    propertyId, err := strconv.Atoi(propertyIdStr)
+    propertyId, err := getPropertyIdFromForm(c)
     if err != nil {
-        return c.String(http.StatusBadRequest, "property_id must be a valid integer")
+        return c.String(http.StatusBadRequest, err.Error())
     }
 
-    res, err := monopoly_engine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+    res, err := monopoly_engine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
         Event: "PurchaseHouse",
         Data: internal.PropertyActionData{
-            SessionId:  sessionId,
-            PlayerId:   playerId,
+            SessionId:  claims.SessionId,
+            PlayerId:   claims.PlayerId,
             PropertyId: propertyId,
         },
         ReturnChan: make(chan internal.UserActionStatus),
@@ -136,29 +111,21 @@ func PurchaseHouseHandler(c echo.Context) error {
 }
 
 func PurchaseHotelHandler(c echo.Context) error {
-    sessionId := c.FormValue("session_id")
-    playerIdStr := c.FormValue("player_id")
-    propertyIdStr := c.FormValue("property_id")
-
-    if sessionId == "" || playerIdStr == "" || propertyIdStr == "" {
-        return c.String(http.StatusBadRequest, "missing session_id, player_id, or property_id")
-    }
-
-    playerId, err := strconv.Atoi(playerIdStr)
+    claims, err := util.GetPlayerJwtClaims(c)
     if err != nil {
-        return c.String(http.StatusBadRequest, "player_id must be a valid integer")
+        return c.String(http.StatusUnauthorized, err.Error())
     }
 
-    propertyId, err := strconv.Atoi(propertyIdStr)
+    propertyId, err := getPropertyIdFromForm(c)
     if err != nil {
-        return c.String(http.StatusBadRequest, "property_id must be a valid integer")
+        return c.String(http.StatusBadRequest, err.Error())
     }
 
-    res, err := monopoly_engine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+    res, err := monopoly_engine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
         Event: "PurchaseHotel",
         Data: internal.PropertyActionData{
-            SessionId:  sessionId,
-            PlayerId:   playerId,
+            SessionId:  claims.SessionId,
+            PlayerId:   claims.PlayerId,
             PropertyId: propertyId,
         },
         ReturnChan: make(chan internal.UserActionStatus),
@@ -175,29 +142,21 @@ func PurchaseHotelHandler(c echo.Context) error {
 }
 
 func SellHouseHandler(c echo.Context) error {
-    sessionId := c.FormValue("session_id")
-    playerIdStr := c.FormValue("player_id")
-    propertyIdStr := c.FormValue("property_id")
-
-    if sessionId == "" || playerIdStr == "" || propertyIdStr == "" {
-        return c.String(http.StatusBadRequest, "missing session_id, player_id, or property_id")
-    }
-
-    playerId, err := strconv.Atoi(playerIdStr)
+    claims, err := util.GetPlayerJwtClaims(c)
     if err != nil {
-        return c.String(http.StatusBadRequest, "player_id must be a valid integer")
+        return c.String(http.StatusUnauthorized, err.Error())
     }
 
-    propertyId, err := strconv.Atoi(propertyIdStr)
+    propertyId, err := getPropertyIdFromForm(c)
     if err != nil {
-        return c.String(http.StatusBadRequest, "property_id must be a valid integer")
+        return c.String(http.StatusBadRequest, err.Error())
     }
 
-    res, err := monopoly_engine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+    res, err := monopoly_engine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
         Event: "SellHouse",
         Data: internal.PropertyActionData{
-            SessionId:  sessionId,
-            PlayerId:   playerId,
+            SessionId:  claims.SessionId,
+            PlayerId:   claims.PlayerId,
             PropertyId: propertyId,
         },
         ReturnChan: make(chan internal.UserActionStatus),
@@ -214,29 +173,21 @@ func SellHouseHandler(c echo.Context) error {
 }
 
 func SellHotelHandler(c echo.Context) error {
-    sessionId := c.FormValue("session_id")
-    playerIdStr := c.FormValue("player_id")
-    propertyIdStr := c.FormValue("property_id")
-
-    if sessionId == "" || playerIdStr == "" || propertyIdStr == "" {
-        return c.String(http.StatusBadRequest, "missing session_id, player_id, or property_id")
-    }
-
-    playerId, err := strconv.Atoi(playerIdStr)
+    claims, err := util.GetPlayerJwtClaims(c)
     if err != nil {
-        return c.String(http.StatusBadRequest, "player_id must be a valid integer")
+        return c.String(http.StatusUnauthorized, err.Error())
     }
 
-    propertyId, err := strconv.Atoi(propertyIdStr)
+    propertyId, err := getPropertyIdFromForm(c)
     if err != nil {
-        return c.String(http.StatusBadRequest, "property_id must be a valid integer")
+        return c.String(http.StatusBadRequest, err.Error())
     }
 
-    res, err := monopoly_engine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+    res, err := monopoly_engine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
         Event: "SellHotel",
         Data: internal.PropertyActionData{
-            SessionId:  sessionId,
-            PlayerId:   playerId,
+            SessionId:  claims.SessionId,
+            PlayerId:   claims.PlayerId,
             PropertyId: propertyId,
         },
         ReturnChan: make(chan internal.UserActionStatus),
@@ -253,29 +204,21 @@ func SellHotelHandler(c echo.Context) error {
 }
 
 func MortgagePropertyHandler(c echo.Context) error {
-    sessionId := c.FormValue("session_id")
-    playerIdStr := c.FormValue("player_id")
-    propertyIdStr := c.FormValue("property_id")
-
-    if sessionId == "" || playerIdStr == "" || propertyIdStr == "" {
-        return c.String(http.StatusBadRequest, "missing session_id, player_id, or property_id")
-    }
-
-    playerId, err := strconv.Atoi(playerIdStr)
+    claims, err := util.GetPlayerJwtClaims(c)
     if err != nil {
-        return c.String(http.StatusBadRequest, "player_id must be a valid integer")
+        return c.String(http.StatusUnauthorized, err.Error())
     }
 
-    propertyId, err := strconv.Atoi(propertyIdStr)
+    propertyId, err := getPropertyIdFromForm(c)
     if err != nil {
-        return c.String(http.StatusBadRequest, "property_id must be a valid integer")
+        return c.String(http.StatusBadRequest, err.Error())
     }
 
-    res, err := monopoly_engine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+    res, err := monopoly_engine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
         Event: "MortgageProperty",
         Data: internal.PropertyActionData{
-            SessionId:  sessionId,
-            PlayerId:   playerId,
+            SessionId:  claims.SessionId,
+            PlayerId:   claims.PlayerId,
             PropertyId: propertyId,
         },
         ReturnChan: make(chan internal.UserActionStatus),
@@ -292,29 +235,21 @@ func MortgagePropertyHandler(c echo.Context) error {
 }
 
 func UnmortgagePropertyHandler(c echo.Context) error {
-    sessionId := c.FormValue("session_id")
-    playerIdStr := c.FormValue("player_id")
-    propertyIdStr := c.FormValue("property_id")
-
-    if sessionId == "" || playerIdStr == "" || propertyIdStr == "" {
-        return c.String(http.StatusBadRequest, "missing session_id, player_id, or property_id")
-    }
-
-    playerId, err := strconv.Atoi(playerIdStr)
+    claims, err := util.GetPlayerJwtClaims(c)
     if err != nil {
-        return c.String(http.StatusBadRequest, "player_id must be a valid integer")
+        return c.String(http.StatusUnauthorized, err.Error())
     }
 
-    propertyId, err := strconv.Atoi(propertyIdStr)
+    propertyId, err := getPropertyIdFromForm(c)
     if err != nil {
-        return c.String(http.StatusBadRequest, "property_id must be a valid integer")
+        return c.String(http.StatusBadRequest, err.Error())
     }
 
-    res, err := monopoly_engine.NotifyEngineOfAction(sessionId, internal.UserActionEvent{
+    res, err := monopoly_engine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
         Event: "UnmortgageProperty",
         Data: internal.PropertyActionData{
-            SessionId:  sessionId,
-            PlayerId:   playerId,
+            SessionId:  claims.SessionId,
+            PlayerId:   claims.PlayerId,
             PropertyId: propertyId,
         },
         ReturnChan: make(chan internal.UserActionStatus),
@@ -328,4 +263,18 @@ func UnmortgagePropertyHandler(c echo.Context) error {
     }
 
     return c.JSON(http.StatusOK, res.Data)
+}
+
+func getPropertyIdFromForm(c echo.Context) (int, error) {
+    propertyIdStr := c.FormValue("property_id")
+    if propertyIdStr == "" {
+        return 0, fmt.Errorf("missing property_id")
+    }
+
+    propertyId, err := strconv.Atoi(propertyIdStr)
+    if err != nil {
+        return 0, fmt.Errorf("property_id must be a valid integer")
+    }
+
+    return propertyId, nil
 }

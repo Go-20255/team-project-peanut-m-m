@@ -1,56 +1,40 @@
-/**
- * Local storage utilities for persisting game state
- */
-
-const prefix = 'monopoly_';
+import { GameState, Player } from "@/types"
 
 export const storage = {
-  setSessionId(sessionId: string): void {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(`${prefix}session_id`, sessionId);
+  getItem<T>(key: string): T | null {
+    const value = localStorage.getItem(key)
+    if (!value) return null
+
+    try {
+      return JSON.parse(value) as T
+    } catch {
+      return value as T
     }
   },
 
-  getSessionId(): string | null {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(`${prefix}session_id`);
-    }
-    return null;
+  setItem<T>(key: string, value: T): void {
+    localStorage.setItem(key, JSON.stringify(value))
   },
 
-  setPlayerId(playerId: string): void {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(`${prefix}player_id`, playerId);
-    }
+  removeItem(key: string): void {
+    localStorage.removeItem(key)
   },
 
-  getPlayerId(): string | null {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(`${prefix}player_id`);
-    }
-    return null;
-  },
+  getSessionId: () => storage.getItem<string>("sessionId"),
+  setSessionId: (id: string) => storage.setItem("sessionId", id),
 
-  setPlayerName(playerName: string): void {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(`${prefix}player_name`, playerName);
-    }
-  },
+  getPlayer: () => storage.getItem<Player>("player"),
+  setPlayer: (p: Player) => storage.setItem("player", p),
 
-  getPlayerName(): string | null {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(`${prefix}player_name`);
-    }
-    return null;
-  },
+  getGameState: () => storage.getItem<GameState>("game_state"),
+  setGameState: (gs: GameState) => storage.setItem("game_state", gs),
 
-  clear(): void {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(`${prefix}session_id`);
-      localStorage.removeItem(`${prefix}player_id`);
-      localStorage.removeItem(`${prefix}player_name`);
-    }
-  },
-};
+  getGameCode: () => storage.getItem<string>("gameCode"),
+  setGameCode: (code: string) => storage.setItem("gameCode", code),
 
-export default storage;
+  clear: () => {
+    localStorage.removeItem("sessionId")
+    localStorage.removeItem("gameCode")
+    localStorage.removeItem("player")
+  },
+}
