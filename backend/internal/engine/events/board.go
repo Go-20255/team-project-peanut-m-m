@@ -10,8 +10,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 )
+
+// EmitInitialGameBoardData gathers the full game board state and broadcasts it
+// to connected clients.
+// This includes the current turn, all players with their owned properties,
+// and all tiles on the board. Use this when a client first joins and needs
+// the complete game state.
 func EmitInitialGameBoardData(log zerolog.Logger, ctx context.Context, e *internal.MonopolyEngine, tx *pgxpool.Tx, data struct {
-    Id         string
+    Id         int
     PlayerName string
     SessionId  string
 }) error {
@@ -78,7 +84,10 @@ func EmitInitialGameBoardData(log zerolog.Logger, ctx context.Context, e *intern
     return nil
 }
 
-
+// EmitGameBoardUpdate gathers the latest game state and broadcasts an update
+// to connected clients.
+// This includes the current turn and player state, but not the full tile list.
+// Use this after game actions that change the active board state.
 func EmitGameBoardUpdate(log zerolog.Logger, ctx context.Context, e *internal.MonopolyEngine, tx *pgxpool.Tx) error {
     // get current turn
     current_turn, err := internaldb_game_state.GetGameStateTurnNumber(

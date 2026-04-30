@@ -38,10 +38,17 @@ func NewGameHandler(c echo.Context) error {
         return c.String(http.StatusInternalServerError, "failed to create new monopoly game")
     }
 
-    // start up new monopoly engine to service game
+    code, err := internaldbgamestate.GetGameStateCode(log, ctx, tx, sessionId)
+    if err != nil {
+        return c.String(http.StatusInternalServerError, "failed to retrieve game code")
+    }
+
     go monopolyengine.SetupNewMonopolyEngine(sessionId)
 
-    return c.String(http.StatusOK, sessionId)
+    return c.JSON(http.StatusOK, map[string]interface{}{
+        "session_id": sessionId,
+        "code":       code,
+    })
 }
 
 func GetAllGameSessions(c echo.Context) error {

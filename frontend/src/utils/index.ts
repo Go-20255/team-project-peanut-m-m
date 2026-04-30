@@ -1,6 +1,2 @@
-/**
- * Utils barrel exports
- */
-
-export { api } from './api';
-export { storage } from './storage';
+export { storage } from "./storage"
+export { getTokenIcon, getTokenName, TOKEN_ICONS } from "./tokens"

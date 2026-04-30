@@ -52,6 +52,18 @@ func CreateGameState(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx) (s
     return id, nil
 }
 
+func GetGameStateCode(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) (int, error) {
+    var code int
+    err := tx.QueryRow(ctx, `
+        SELECT code FROM game_state WHERE session_id = $1
+        `, sessionId).Scan(&code)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to get game state code")
+        return 0, err
+    }
+    return code, nil
+}
+
 func GetGameStateTurnNumber(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) (int, error) {
     var turnNumber int
     err := tx.QueryRow(ctx, `

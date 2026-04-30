@@ -14,6 +14,11 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// PurchaseProperty lets the current player buy the property on their current
+// tile.
+// It validates that it is the player's turn, confirms the tile has an
+// available property, checks that the property is unowned and affordable,
+// updates the player's money and ownership records, and broadcasts the result.
 func PurchaseProperty(
     ctx context.Context,
     log zerolog.Logger,
@@ -23,11 +28,7 @@ func PurchaseProperty(
 ) internal.UserActionStatus {
     log.Trace().Msg("player attempting to purchase property")
 
-    data, ok := action.Data.(struct {
-        SessionId  string
-        PlayerId   int
-        PropertyId int
-    })
+    data, ok := action.Data.(internal.SimpleActionData)
     if !ok {
         log.Error().Msg("invalid data format received for PurchaseProperty")
         return internal.UserActionStatus{
@@ -58,17 +59,41 @@ func PurchaseProperty(
         }
     }
 
-    property, err := internaldb_tiles.GetPropertyData(
+    tile, err := internaldb_tiles.GetTileByPosition(
         log,
         ctx,
         tx,
         data.SessionId,
-        data.PropertyId,
-    )
+        currentPlayer.Position,
+        )
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
-            Msg:    "failed to get property data from db",
+            Msg:    "failed to get tile data from db",
+        }
+    }
+
+    property := tile.PropertyData
+
+    // check ownership of property
+    _, is_owned, err := internaldb_tiles.VerifyPropertyOwnerDB(
+        log,
+        ctx,
+        tx,
+        data.SessionId,
+        property.Id,
+        )
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    "failed to determine owner of this property",
+        }
+    }
+
+    if is_owned {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg: "property is already owned",
         }
     }
 
@@ -94,7 +119,7 @@ func PurchaseProperty(
         tx,
         data.SessionId,
         data.PlayerId,
-        data.PropertyId,
+        property.Id,
     )
 
     if err != nil {
@@ -110,19 +135,25 @@ func PurchaseProperty(
         OwnershipId         int     `json:"ownership_id"`
     }
     event.PlayerId = data.PlayerId
-    event.PropertyId = data.PropertyId
+    event.PropertyId = property.Id
     event.OwnershipId = ownershipId
 
     e.Broker.Broadcast(log, "PropertyPurchased", event)
     events.EmitGameBoardUpdate(log, ctx, e, tx)
 
-    log.Trace().Msgf("player %d successfully purchased property %d", data.PlayerId, data.PropertyId)
+    log.Trace().Msgf("player %d successfully purchased property %d", data.PlayerId, property.Id)
     return internal.UserActionStatus{
         Status: http.StatusOK,
         Msg:    fmt.Sprintf("property purchased successfully (Ownership ID: %d)", ownershipId),
     }
 }
 
+// MortgageProperty mortgages a property owned by the current player.
+// It validates turn ownership, confirms the player owns the property, checks
+// that the property is not already mortgaged, and for standard property groups
+// ensures all houses and hotels in the set have been sold first. On success,
+// it updates the mortgage state, adds the mortgage value to the player's money,
+// and broadcasts the update.
 func MortgageProperty(
     ctx context.Context,
     log zerolog.Logger,
@@ -229,6 +260,11 @@ func MortgageProperty(
     }
 }
 
+// UnmortgageProperty removes the mortgage from a property owned by the current
+// player.
+// It validates turn ownership, confirms the property is currently mortgaged,
+// checks that the player can afford the unmortgage cost, updates the mortgage
+// state, subtracts the cost from the player's money, and broadcasts the update.
 func UnmortgageProperty(
     ctx context.Context,
     log zerolog.Logger,
@@ -331,6 +367,10 @@ func UnmortgageProperty(
     }
 }
 
+// getMortgagePropertyData loads property-group data for a property action and
+// validates that the requested property exists and is owned by the player.
+// It returns the full property group along with the specific property's data so
+// callers can apply mortgage rules that depend on the whole set.
 func getMortgagePropertyData(
     ctx context.Context,
     log zerolog.Logger,

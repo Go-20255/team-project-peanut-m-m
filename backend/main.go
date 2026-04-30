@@ -88,6 +88,11 @@ func main() {
     routes.GET("/health", commonhandler.HealthCheckHandler)
 
     routes.POST("/player", playershandlers.CreatePlayerHandler)
+    routes.PATCH("/player", playershandlers.UpdatePlayerTokenHandler)
+    routes.GET("/game/players", playershandlers.GetPlayersHandler)
+    routes.POST("/player/join", playershandlers.JoinPlayerHandler)
+    routes.POST("/player/readyup", playershandlers.ReadyUpPlayerHandler)
+    routes.POST("/player/endturn", playershandlers.EndTurnHandler)
 
     routes.POST("/game", gamestatehandlers.NewGameHandler)
     routes.GET("/game", gamestatehandlers.GetAllGameSessions)
@@ -95,6 +100,10 @@ func main() {
     routes.GET("/game/join/live", gamestatehandlers.JoinLiveGameHandler)
     routes.POST("/game/roll", gamestatehandlers.RollDiceHandler)
     routes.POST("/game/move", gamestatehandlers.MovePlayerHandler)
+    routes.POST("/game/jail/release", gamestatehandlers.UseGetOutOfJailCardHandler)
+    routes.POST("/game/bank/pay", gamestatehandlers.PayBankHandler)
+    routes.POST("/game/bank/get", gamestatehandlers.SetBankPayoutHandler)
+    routes.POST("/game/bank/receive", gamestatehandlers.ReceiveBankPayoutHandler)
     routes.POST("/game/rent", gamestatehandlers.PayRentHandler)
 
     routes.GET("/game/property", properties_handlers.CheckPropertyOwnerHandler)
