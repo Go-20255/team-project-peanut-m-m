@@ -6,7 +6,7 @@ import (
     "github.com/rs/zerolog"
 )
 
-func EmptyEventCardPileDB(log zerolog.Logger, ctx context.Context, db *pgxpool.Pool, sessionId string, cardType string) (bool, error) {
+func EmptyEventCardPileDB(log zerolog.Logger, ctx context.Context, db *pgxpool.Tx, sessionId string, cardType string) (bool, error) {
 	var count int
 	err := db.QueryRow(ctx, `
 		SELECT COUNT(*) 
@@ -26,7 +26,7 @@ func EmptyEventCardPileDB(log zerolog.Logger, ctx context.Context, db *pgxpool.P
 	return count == 0, nil
 }
 
-func ReshuffleEventCardPileDB(log zerolog.Logger, ctx context.Context, db *pgxpool.Pool, sessionId string, cardType string) error {
+func ReshuffleEventCardPileDB(log zerolog.Logger, ctx context.Context, db *pgxpool.Tx, sessionId string, cardType string) error {
 	_, err := db.Exec(ctx, `
 		DELETE FROM drawn_event_cards
 		USING event_cards 
@@ -44,7 +44,7 @@ func ReshuffleEventCardPileDB(log zerolog.Logger, ctx context.Context, db *pgxpo
 	return nil
 }
 
-func AssignEventCardDB(log zerolog.Logger, ctx context.Context, db *pgxpool.Pool, sessionId string, cardType string, playerId int) (int, error) {
+func AssignEventCardDB(log zerolog.Logger, ctx context.Context, db *pgxpool.Tx, sessionId string, cardType string, playerId int) (int, error) {
 	isEmpty, err := EmptyEventCardPileDB(log, ctx, db, sessionId, cardType)
 	if err != nil {
 		return -1, err

@@ -8,6 +8,7 @@ import (
     internaldb_game_state "monopoly-backend/internal/db/game_state"
     internaldb_players "monopoly-backend/internal/db/player"
     internaldb_tiles "monopoly-backend/internal/db/tile"
+	internaldb_event_cards "monopoly-backend/internal/db/event_cards"
     "monopoly-backend/internal/engine/events"
     turn_events "monopoly-backend/internal/engine/events/turn"
     "net/http"
@@ -358,7 +359,8 @@ func RollDice(
         DieOne:    rand.IntN(6) + 1,
         DieTwo:    rand.IntN(6) + 1,
     }
-    diceRoll.Total = diceRoll.DieOne + diceRoll.DieTwo
+    // diceRoll.Total = diceRoll.DieOne + diceRoll.DieTwo
+	diceRoll.Total = 7
     diceRoll.IsDouble = diceRoll.DieOne == diceRoll.DieTwo
 
     if e.TurnNumber >= 0 && e.TurnNumber < len(players) {
@@ -724,6 +726,56 @@ func MovePlayer(
 
     playerMovement.PropertyId = tileData.PropertyId
 
+	if tileData.Name == "Community Chest" || tileData.Name == "Chance" {
+		var dbCardType string
+		if tileData.Name == "Chance" {
+			dbCardType = "CHANCE"
+		} else {
+			dbCardType = "COMMUNITY"
+		}
+
+		cardId, err := internaldb_event_cards.AssignEventCardDB(log, ctx, tx, data.SessionId, dbCardType, data.PlayerId)
+		if err != nil {
+			return internal.UserActionStatus{
+				Status: http.StatusInternalServerError,
+				Msg:    err.Error(),
+			}
+		}
+
+		log.Info().Int("card_id", cardId).Msgf("Player %d drew an Event Card!", data.PlayerId)
+
+		e.Broker.Broadcast(log, "DrawCardEvent", map[string]interface{}{
+			"player_id":  data.PlayerId,
+			"session_id": data.SessionId,
+			"card_id":    cardId,
+		})
+
+		effectFunc, exists := CardEffects[cardId]
+		if exists {
+			status := effectFunc(ctx, log, e, tx, data.SessionId, data.PlayerId)
+			if status.Status != http.StatusOK {
+				return status
+			}
+		}
+
+		updatedPlayer, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
+		if err != nil {
+			return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
+		}
+
+		// this is so that the tile data is updated if we move
+		if updatedPlayer.Position != newPosition {
+			newPosition = updatedPlayer.Position
+			playerMovement.NewPosition = newPosition
+
+			tileData, err = internaldb_tiles.GetRentTileData(log, ctx, tx, data.SessionId, newPosition)
+			if err != nil {
+				return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
+			}
+			playerMovement.PropertyId = tileData.PropertyId
+		}
+	}
+
     if tileData.HasProperty && tileData.Owned && tileData.OwnerId != data.PlayerId && !tileData.IsMortgaged {
         rentAmount, err := getRentAmount(ctx, log, tx, data.SessionId, tileData, diceRoll.Total)
         if err != nil {
@@ -878,9 +930,22 @@ func PayBank(
             PlayerMoney:       bankPayment.PlayerMoney,
             Jailed:            0,
         })
-    }
+    } else if e.PendingBankPayment.Reason == "Chairman of the Board" {
+		players, _ := internaldb_players.GetPlayersInSession(log, ctx, tx, data.SessionId)
+		for _, p := range players {
+			if p.Id != data.PlayerId {
+				err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, p.Id, data.SessionId, p.Money+50)
+				if err != nil {
+					return internal.UserActionStatus{
+						Status: http.StatusInternalServerError,
+						Msg:    err.Error(),
+					}
+				}
+			}
+		}
+	}
 
-    e.PendingBankPayment = nil
+	e.PendingBankPayment = nil
 
     e.Broker.Broadcast(log, "BankPaymentEvent", bankPayment)
     events.EmitGameBoardUpdate(log, ctx, e, tx)
