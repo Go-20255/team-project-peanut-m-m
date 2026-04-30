@@ -109,19 +109,19 @@ func JoinPlayerHandler(c echo.Context) error {
     log := util.GetRequestLogger(c)
     ctx := c.Request().Context()
 
-    playerId_str := c.FormValue("player_id")
+    playerId_str := c.QueryParam("player_id")
     playerId, err := strconv.Atoi(playerId_str)
     if err != nil {
         return c.String(http.StatusBadRequest, "player id is not an integer")
     }
 
 
-    name := c.FormValue("player_name")
+    name := c.QueryParam("player_name")
     if name == "" {
         return c.String(http.StatusBadRequest, "missing player_name")
     }
 
-    sessionId := c.FormValue("session_id")
+    sessionId := c.QueryParam("session_id")
     if sessionId == "" {
         return c.String(http.StatusBadRequest, "missing session_id")
     }

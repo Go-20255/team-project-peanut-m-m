@@ -2,8 +2,9 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useCreateGame, useJoinGameByCode, useCreatePlayer } from "@/hooks/useGameAPI"
+import { useCreateGame, useJoinGameByCode} from "@/hooks/useGameAPI"
 import { storage } from "@/utils/storage"
+import { useCreatePlayer } from "@/hooks/playerHooks"
 
 export default function Home() {
   const router = useRouter()
