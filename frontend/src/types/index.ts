@@ -55,8 +55,6 @@ export interface GameState {
   current_turn: number
   tiles: Tile[]
   players: PlayerInfo[]
-  session_id: string
-  join_code: number
 }
 
 export interface Tile {

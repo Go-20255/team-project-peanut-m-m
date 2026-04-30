@@ -9,9 +9,8 @@ interface GameBoardProps {
   sessionId: string
   playerId: string
   playerName: string
-  players: Player[]
   currentPlayerTurnId?: number | null
-  gameState?: GameState | null
+  gameState: GameState // { current_turn, tiles, players: PlayerInfo[] }
 }
 
 const BOARD_SPACES = [
@@ -61,15 +60,31 @@ export default function GameBoard({
   sessionId,
   playerId,
   playerName,
-  players,
   currentPlayerTurnId,
   gameState,
 }: GameBoardProps) {
   const [joinCode, setJoinCode] = useState<string>("")
+  //const players = gameState.players
 
   // Find current player's turn info
-  const currentPlayer = players.find((p) => p.id === currentPlayerTurnId)
+  //const currentPlayer = players.find((p) => p.player.id === currentPlayerTurnId)
   const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId
+
+  const players = gameState.players // PlayerInfo[]
+
+  const currentPlayer = players.find(
+    (p) => p.player.id === currentPlayerTurnId,
+  )
+
+  const getPlayerPositions = () => {
+    const positions: { [key: number]: Player[] } = {}
+    players.forEach((pi) => {
+      const pos = pi.player.position
+      if (!positions[pos]) positions[pos] = []
+      positions[pos].push(pi.player)
+    })
+    return positions
+  }
 
   useEffect(() => {
     const code = storage.getGameCode()
@@ -78,16 +93,16 @@ export default function GameBoard({
     }
   }, [])
 
-  const getPlayerPositions = () => {
-    const positions: { [key: number]: Player[] } = {}
-    players.forEach((player) => {
-      if (!positions[player.position]) {
-        positions[player.position] = []
-      }
-      positions[player.position].push(player)
-    })
-    return positions
-  }
+  //const getPlayerPositions = () => {
+    //const positions: { [key: number]: Player[] } = {}
+    //players.forEach((player) => {
+      //if (!positions[player.player.position]) {
+        //positions[player.player.position] = []
+      //}
+      //positions[player.player.position].push(player.player)
+    //})
+    //return positions
+  //}
 
   const playerPositions = getPlayerPositions()
 
