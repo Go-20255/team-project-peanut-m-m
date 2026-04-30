@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useCreatePlayer, useFetchPlayersForSession } from "@/hooks/useGameAPI"
 import { Player } from "@/types"
 import { storage } from "@/utils/storage"
 import { TOKEN_ICONS, getTokenIcon, getTokenName } from "@/utils/tokens"
+import { useCreatePlayer, useFetchPlayersForSession, useLoginPlayer } from "@/hooks/playerHooks"
 
 const MAX_PLAYERS = 4
 
@@ -16,6 +16,7 @@ export default function SelectPlayer() {
   const [error, setError] = useState("")
 
   const createPlayer = useCreatePlayer()
+  const loginMutation = useLoginPlayer()
   const { data, isLoading } = useFetchPlayersForSession()
 
   // Normalize: API may return null when there are no players yet.
@@ -43,7 +44,12 @@ export default function SelectPlayer() {
 
   const joinAsPlayer = (p: Player) => {
     storage.setPlayer(p)
-    router.push("/game")
+
+    // get jwt token, and on success transition to game board
+    loginMutation.mutate(p, {
+      onSuccess: () => router.push("/game"),
+      onError: (err: Error) => setError(err.message)
+    })
   }
 
   const handleCreatePlayer = async (e: React.FormEvent) => {
@@ -73,16 +79,19 @@ export default function SelectPlayer() {
         pieceToken: selectedToken,
       })
       storage.setPlayer(newPlayer)
-      router.push("/select-token")
     } catch (err) {
       console.error(err)
       setError(err instanceof Error ? err.message : "Failed to create player.")
     }
+    setSelectedToken(null)
   }
 
   return (
     <div className="w-full max-w-md mx-auto p-6">
       <div className="text-center mb-8">
+        <h2 className="text-2xl font-bold mb-2" style={{ color: "#000000" }}>
+         Join Code: {storage.getGameCode()} 
+        </h2>
         <h2 className="text-2xl font-bold mb-2" style={{ color: "#F76902" }}>
           Select Your Player
         </h2>
@@ -123,6 +132,11 @@ export default function SelectPlayer() {
                   <span className="text-xs text-gray-500">
                     {selected ? getTokenName(p.piece_token) : "No icon yet"}
                   </span>
+                  {p.in_game ? (
+                  <span className="text-xs text-red-600">In Game</span>
+                  ):(
+                  <span className="text-xs text-green-800">Available</span>
+                  )}
                 </div>
               </button>
             )
@@ -178,7 +192,10 @@ export default function SelectPlayer() {
                     <button
                       key={tokenId}
                       type="button"
-                      onClick={() => setSelectedToken(token)}
+                      onClick={() => {
+                          console.log(`token_id=${tokenId}; token_name=${tokenInfo.name}`)
+                          setSelectedToken(token)
+                        }}
                       disabled={disabled}
                       aria-pressed={isSelected}
                       className={`p-4 rounded-lg border-2 transition-all ${

@@ -3,10 +3,11 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { storage } from "@/utils/storage"
-import { useLiveGameUpdates, fetchPlayersForSession } from "@/hooks/useGameAPI"
+import { useLiveGameUpdates } from "@/hooks/useGameAPI"
 import PlayerSidebar from "@/components/game/PlayerSidebar"
 import GameBoard from "@/components/game/GameBoard"
 import { Player, GameState } from "@/types"
+import { fetchPlayersForSession } from "@/hooks/playerHooks"
 
 export default function GamePage() {
   const router = useRouter()
@@ -42,8 +43,8 @@ export default function GamePage() {
         if (playersData && playersData.length > 0) {
           setPlayers(playersData)
 
-          if (gameState && gameState.turn_number !== undefined) {
-            const currentTurn = calculateCurrentPlayerTurn(playersData, gameState.turn_number)
+          if (gameState && gameState.current_turn !== undefined) {
+            const currentTurn = calculateCurrentPlayerTurn(playersData, gameState.current_turn)
             setCurrentPlayerTurn(currentTurn)
             console.log("Current player turn (from polling):", currentTurn)
           }
