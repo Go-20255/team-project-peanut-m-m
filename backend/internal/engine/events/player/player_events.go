@@ -359,8 +359,8 @@ func RollDice(
         DieOne:    rand.IntN(6) + 1,
         DieTwo:    rand.IntN(6) + 1,
     }
-    // diceRoll.Total = diceRoll.DieOne + diceRoll.DieTwo
-	diceRoll.Total = 7
+	
+    diceRoll.Total = diceRoll.DieOne + diceRoll.DieTwo
     diceRoll.IsDouble = diceRoll.DieOne == diceRoll.DieTwo
 
     if e.TurnNumber >= 0 && e.TurnNumber < len(players) {
@@ -741,8 +741,6 @@ func MovePlayer(
 				Msg:    err.Error(),
 			}
 		}
-
-		log.Info().Int("card_id", cardId).Msgf("Player %d drew an Event Card!", data.PlayerId)
 
 		e.Broker.Broadcast(log, "DrawCardEvent", map[string]interface{}{
 			"player_id":  data.PlayerId,
