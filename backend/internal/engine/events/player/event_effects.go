@@ -27,30 +27,29 @@ var CardEffects = map[int]CardEffectFunc{
 	7:  advanceToBoardwalkEffect,
 	8:  dividendEffect,
 	9:  getOutOfJailFreeEffect,
-	10: goBackThreeSpacesEffect,
-	11: goToJailEffect,
-	12: generalRepairsEffect,
-	13: speedingFineEffect,
-	14: readingRailroadEffect,
-	15: chairmanOfTheBoardEffect,
-	16: buildingLoanMaturesEffect,
+	10: goToJailEffect,
+	11: generalRepairsEffect,
+	12: speedingFineEffect,
+	13: readingRailroadEffect,
+	14: chairmanOfTheBoardEffect,
+	15: buildingLoanMaturesEffect,
 
-	17: advanceToGoEffect,
-	18: bankErrorEffect,
-	19: doctorFeeEffect,
-	20: stockSaleEffect,
-	21: getOutOfJailFreeEffect,
-	22: goToJailEffect,
-	23: holidayFundEffect,
-	24: taxRefundEffect,
-	25: birthdayEffect,
-	26: lifeInsuranceEffect,
-	27: hospitalFeesEffect,
-	28: schoolFeesEffect,
-	29: consultancyFeeEffect,
-	30: streetRepairsEffect,
-	31: beautyContestEffect,
-	32: inheritanceEffect,
+	16: advanceToGoEffect,
+	17: bankErrorEffect,
+	18: doctorFeeEffect,
+	19: stockSaleEffect,
+	20: getOutOfJailFreeEffect,
+	21: goToJailEffect,
+	22: holidayFundEffect,
+	23: taxRefundEffect,
+	24: birthdayEffect,
+	25: lifeInsuranceEffect,
+	26: hospitalFeesEffect,
+	27: schoolFeesEffect,
+	28: consultancyFeeEffect,
+	29: streetRepairsEffect,
+	30: beautyContestEffect,
+	31: inheritanceEffect,
 }
 
 func advanceToGoEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
@@ -291,40 +290,6 @@ func dividendEffect(ctx context.Context, log zerolog.Logger, e *internal.Monopol
 
 func getOutOfJailFreeEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
 	// already handled in event_cards_db.go
-	return internal.UserActionStatus{Status: http.StatusOK}
-}
-
-func goBackThreeSpacesEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	player, err := internaldb_players.GetPlayer(log, ctx, tx, playerId, sessionId)
-	if err != nil {
-		return internal.UserActionStatus{
-			Status: http.StatusInternalServerError,
-			Msg:    err.Error(),
-		}
-	}
-
-	newPos := player.Position - 3
-	if newPos < 0 {
-		newPos += 40
-	}
-
-	err = internaldb_players.UpdatePlayerPosition(log, ctx, tx, playerId, sessionId, newPos)
-	if err != nil {
-		return internal.UserActionStatus{
-			Status: http.StatusInternalServerError,
-			Msg:    err.Error(),
-		}
-	}
-
-	playerMovement := internal.PlayerMovement{
-		PlayerId:    playerId,
-		SessionId:   sessionId,
-		OldPosition: player.Position,
-		NewPosition: newPos,
-		PassedGo:    false,
-	}
-	e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
-
 	return internal.UserActionStatus{Status: http.StatusOK}
 }
 
