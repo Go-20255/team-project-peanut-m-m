@@ -7,7 +7,6 @@ import (
 	internaldb_players "monopoly-backend/internal/db/player"
 	internaldb_tiles "monopoly-backend/internal/db/tile"
 	"monopoly-backend/internal/engine/events"
-	turn_events "monopoly-backend/internal/engine/events/turn"
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -36,19 +35,9 @@ func PurchaseHouse(
         }
     }
 
-    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
-    if currentPlayer.Id != data.PlayerId {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "it is not this player's turn",
-        }
+    _, _, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
     }
 
     propertyGroup, propertyData, err := getValidatedPropertyGroup(ctx, log, tx, data)
@@ -186,19 +175,9 @@ func PurchaseHotel(
         }
     }
 
-    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
-    if currentPlayer.Id != data.PlayerId {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "it is not this player's turn",
-        }
+    _, _, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
     }
 
     propertyGroup, propertyData, err := getValidatedPropertyGroup(ctx, log, tx, data)
@@ -335,19 +314,9 @@ func SellHouse(
         }
     }
 
-    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
-    if currentPlayer.Id != data.PlayerId {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "it is not this player's turn",
-        }
+    _, _, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
     }
 
     propertyGroup, propertyData, err := getValidatedPropertyGroup(ctx, log, tx, data)
@@ -463,19 +432,9 @@ func SellHotel(
         }
     }
 
-    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
-    if currentPlayer.Id != data.PlayerId {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "it is not this player's turn",
-        }
+    _, _, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
     }
 
     propertyGroup, propertyData, err := getValidatedPropertyGroup(ctx, log, tx, data)

@@ -14,6 +14,45 @@ import (
 	"github.com/rs/zerolog"
 )
 
+func getActionPlayers(
+    ctx context.Context,
+    log zerolog.Logger,
+    tx *pgxpool.Tx,
+    sessionId string,
+    playerId int,
+) (*internal.Player, *internal.Player, []internal.Player, int, *internal.UserActionStatus) {
+    currentPlayer, actingPlayer, players, turnNumber, err := turn_events.GetActionPlayers(ctx, log, tx, sessionId, playerId)
+    if err != nil {
+        return nil, nil, nil, 0, &internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    if actingPlayer.Bankrupt {
+        return nil, nil, nil, 0, &internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player is bankrupt",
+        }
+    }
+
+    if currentPlayer == nil {
+        return nil, nil, nil, 0, &internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there are no players in this game session",
+        }
+    }
+
+    if currentPlayer.Id != playerId {
+        return nil, nil, nil, 0, &internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "it is not this player's turn",
+        }
+    }
+
+    return currentPlayer, actingPlayer, players, turnNumber, nil
+}
+
 // PurchaseProperty lets the current player buy the property on their current
 // tile.
 // It validates that it is the player's turn, confirms the tile has an
@@ -37,26 +76,9 @@ func PurchaseProperty(
         }
     }
 
-    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
-    if currentPlayer == nil {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "there are no players in this game session",
-        }
-    }
-
-    if currentPlayer.Id != data.PlayerId {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "it is not this player's turn",
-        }
+    currentPlayer, _, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
     }
 
     tile, err := internaldb_tiles.GetTileByPosition(
@@ -172,26 +194,9 @@ func MortgageProperty(
         }
     }
 
-    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
-    if currentPlayer == nil {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "there are no players in this game session",
-        }
-    }
-
-    if currentPlayer.Id != data.PlayerId {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "it is not this player's turn",
-        }
+    currentPlayer, _, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
     }
 
     propertyGroup, propertyData, err := getMortgagePropertyData(ctx, log, tx, data)
@@ -283,26 +288,9 @@ func UnmortgageProperty(
         }
     }
 
-    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
-    if currentPlayer == nil {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "there are no players in this game session",
-        }
-    }
-
-    if currentPlayer.Id != data.PlayerId {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "it is not this player's turn",
-        }
+    currentPlayer, _, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
     }
 
     _, propertyData, err := getMortgagePropertyData(ctx, log, tx, data)

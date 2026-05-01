@@ -246,6 +246,8 @@ func processUserAction(
         action_status = player.SetBankPayout(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "BankPayoutEvent":
         action_status = player.ReceiveBankPayout(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "BankruptEvent":
+        action_status = player.Bankrupt(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PayRentEvent":
         action_status = player.PayRent(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseProperty":

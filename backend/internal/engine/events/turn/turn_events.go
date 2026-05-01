@@ -45,6 +45,33 @@ func GetCurrentPlayer(
         return nil, nil, 0, err
     }
 
-    currentPlayer := players[GetCurrentPlayerIndex(turnNumber, len(players))]
-    return &currentPlayer, players, turnNumber, nil
+    currentPlayerIndex := GetCurrentPlayerIndex(turnNumber, len(players))
+    for i := 0; i < len(players); i++ {
+        player := players[(currentPlayerIndex+i)%len(players)]
+        if !player.Bankrupt {
+            return &player, players, turnNumber, nil
+        }
+    }
+
+    return nil, players, turnNumber, nil
+}
+
+func GetActionPlayers(
+    ctx context.Context,
+    log zerolog.Logger,
+    tx *pgxpool.Tx,
+    sessionId string,
+    playerId int,
+) (*internal.Player, *internal.Player, []internal.Player, int, error) {
+    currentPlayer, players, turnNumber, err := GetCurrentPlayer(ctx, log, tx, sessionId)
+    if err != nil {
+        return nil, nil, nil, 0, err
+    }
+
+    actingPlayer, err := internaldb_players.GetPlayer(log, ctx, tx, playerId, sessionId)
+    if err != nil {
+        return nil, nil, nil, 0, err
+    }
+
+    return currentPlayer, &actingPlayer, players, turnNumber, nil
 }

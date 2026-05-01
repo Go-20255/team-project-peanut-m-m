@@ -215,8 +215,19 @@ type Player struct {
     Position            int     `json:"position"`
     GetOutOfJailCards   int     `json:"get_out_of_jail_cards"`
     Jailed              int     `json:"jailed"`
+    Bankrupt            bool    `json:"bankrupt"`
+    Rank                int     `json:"rank"`
     SessionId           string  `json:"session_id"`
     InGame              bool    `json:"in_game"`
+}
+
+type Bankruptcy struct {
+    PlayerId     int    `json:"player_id"`
+    SessionId    string `json:"session_id"`
+    Rank         int    `json:"rank"`
+    OwesRent     bool   `json:"owes_rent"`
+    RentToId     int    `json:"rent_to_id"`
+    WinnerId     int    `json:"winner_id"`
 }
 
 type OwnedProperty struct {
