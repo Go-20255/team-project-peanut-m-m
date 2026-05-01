@@ -64,6 +64,8 @@ func GetPlayer(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, 
             position,
             get_out_of_jail_cards,
             jailed,
+            bankrupt,
+            rank,
             session_id,
             in_game
         FROM player
@@ -78,6 +80,8 @@ func GetPlayer(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, 
         &player.Position,
         &player.GetOutOfJailCards,
         &player.Jailed,
+        &player.Bankrupt,
+        &player.Rank,
         &player.SessionId,
         &player.InGame,
     )
@@ -101,6 +105,8 @@ func GetPlayersInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx
             position,
             get_out_of_jail_cards,
             jailed,
+            bankrupt,
+            rank,
             session_id,
             in_game
         FROM player
@@ -129,6 +135,8 @@ func GetPlayersInSession(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx
             &player.Position,
             &player.GetOutOfJailCards,
             &player.Jailed,
+            &player.Bankrupt,
+            &player.Rank,
             &player.SessionId,
             &player.InGame,
         ); err != nil {
@@ -268,6 +276,114 @@ func UpdatePlayerInGameStatus(log zerolog.Logger, ctx context.Context, tx *pgxpo
     }
 
     return nil
+}
+
+func UpdatePlayerBankruptcy(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, sessionId string, bankrupt bool, rank int, money int) error {
+    commandTag, err := tx.Exec(ctx, `
+        UPDATE player
+        SET bankrupt = $1,
+            rank = $2,
+            money = $3
+        WHERE id = $4 AND session_id = $5
+        `, bankrupt, rank, money, id, sessionId)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to update player bankruptcy")
+        return err
+    }
+
+    if commandTag.RowsAffected() == 0 {
+        return pgx.ErrNoRows
+    }
+
+    return nil
+}
+
+func UpdatePlayerRank(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, id int, sessionId string, rank int) error {
+    commandTag, err := tx.Exec(ctx, `
+        UPDATE player
+        SET rank = $1
+        WHERE id = $2 AND session_id = $3
+        `, rank, id, sessionId)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to update player rank")
+        return err
+    }
+
+    if commandTag.RowsAffected() == 0 {
+        return pgx.ErrNoRows
+    }
+
+    return nil
+}
+
+func GetNonBankruptPlayerCount(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) (int, error) {
+    var count int
+    err := tx.QueryRow(ctx, `
+        SELECT COUNT(*)
+        FROM player
+        WHERE session_id = $1
+            AND bankrupt = false
+        `, sessionId).Scan(&count)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to get non bankrupt player count in session")
+        return 0, err
+    }
+
+    return count, nil
+}
+
+func GetNextBankruptcyRank(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) (int, error) {
+    nonBankruptPlayers, err := GetNonBankruptPlayerCount(log, ctx, tx, sessionId)
+    if err != nil {
+        return 0, err
+    }
+
+    return nonBankruptPlayers, nil
+}
+
+func GetRemainingNonBankruptPlayer(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string) (internal.Player, error) {
+    var player internal.Player
+    err := tx.QueryRow(ctx, `
+        SELECT
+            id,
+            name,
+            ready_up_status,
+            COALESCE(piece_token, 0),
+            COALESCE(player_order, -1),
+            money,
+            position,
+            get_out_of_jail_cards,
+            jailed,
+            bankrupt,
+            rank,
+            session_id,
+            in_game
+        FROM player
+        WHERE session_id = $1
+            AND bankrupt = false
+        ORDER BY player_order ASC, id ASC
+        LIMIT 1
+        `, sessionId).Scan(
+        &player.Id,
+        &player.Name,
+        &player.ReadyUpStatus,
+        &player.PieceToken,
+        &player.PlayerOrder,
+        &player.Money,
+        &player.Position,
+        &player.GetOutOfJailCards,
+        &player.Jailed,
+        &player.Bankrupt,
+        &player.Rank,
+        &player.SessionId,
+        &player.InGame,
+    )
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to query remaining non bankrupt player")
+        return internal.Player{}, err
+    }
+
+    return player, nil
 }
 
 func GetPlayerReadyUpStatus(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, playerId int, sessionId string) (bool, error){
