@@ -1073,6 +1073,21 @@ func ReceiveBankPayout(
         PlayerMoney: player.Money + e.PendingBankPayout.Amount,
     }
 
+	if e.PendingBankPayout.Reason == "Birthday" {
+		players, _ := internaldb_players.GetPlayersInSession(log, ctx, tx, data.SessionId)
+		for _, p := range players {
+			if p.Id != data.PlayerId {
+				err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, p.Id, data.SessionId, p.Money-10)
+				if err != nil {
+					return internal.UserActionStatus{
+						Status: http.StatusInternalServerError,
+						Msg:    err.Error(),
+					}
+				}
+			}
+		}
+	}
+
     e.PendingBankPayout = nil
 
     e.Broker.Broadcast(log, "BankPayoutEvent", bankPayout)
