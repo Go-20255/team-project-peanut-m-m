@@ -42,7 +42,7 @@ export interface OwnedProperty {
 
 export interface GameStateUpdate {
   current_turn: number
-  players: Player[]
+  players: PlayerInfo[]
 }
 
 export interface GameBoardData {
