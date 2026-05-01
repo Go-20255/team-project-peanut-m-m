@@ -2,15 +2,14 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useCreateGame, useJoinGameByCode, useCreatePlayer } from "@/hooks/useGameAPI"
+import { useCreateGame, useJoinGameByCode } from "@/hooks/useGameAPI"
 import { storage } from "@/utils/storage"
+import { useCreatePlayer } from "@/hooks/playerHooks"
 
 export default function Home() {
   const router = useRouter()
-  const [playerName, setPlayerName] = useState("")
   const [gameCode, setGameCode] = useState("")
   const [error, setError] = useState("")
-  const [createdCode, setCreatedCode] = useState<number | null>(null)
 
   const createGame = useCreateGame()
   const joinGame = useJoinGameByCode()
@@ -19,27 +18,13 @@ export default function Home() {
   const handleCreate = async () => {
     setError("")
 
-    //if (!playerName.trim()) {
-    //setError("Please enter a name");
-    //return;
-    //}
-
     try {
       console.log("Creating game...")
       const gameData = await createGame.mutateAsync()
       console.log("Game created:", gameData)
 
-      //console.log("Creating player:", playerName);
-      //const playerData = await createPlayer.mutateAsync({
-      //playerName,
-      //sessionId: gameData.session_id,
-      //});
-      //console.log("Player created:", playerData);
-
       console.log("Storing to localStorage and navigating...")
       storage.setSessionId(gameData.session_id)
-      //storage.setPlayerId(playerData.id.toString());
-      //storage.setPlayerName(playerName);
       storage.setGameCode(gameData.code.toString())
 
       router.push("/select-player")
@@ -52,11 +37,6 @@ export default function Home() {
   const handleJoin = async () => {
     setError("")
 
-    //if (!playerName.trim()) {
-    //setError("Please enter a name");
-    //return;
-    //}
-
     if (!gameCode.trim()) {
       setError("Please enter a game code")
       return
@@ -67,17 +47,8 @@ export default function Home() {
       const sessionId = await joinGame.mutateAsync(gameCode)
       console.log("Joined game, session ID:", sessionId)
 
-      //console.log("Creating player:", playerName);
-      //const playerData = await createPlayer.mutateAsync({
-      //playerName,
-      //sessionId,
-      //});
-      //console.log("Player created:", playerData);
-
       console.log("Storing to localStorage and navigating...")
       storage.setSessionId(sessionId)
-      //storage.setPlayerId(playerData.id.toString());
-      //storage.setPlayerName(playerName);
       storage.setGameCode(gameCode)
 
       router.push("/select-player")
@@ -92,7 +63,7 @@ export default function Home() {
   return (
     <div className="w-full h-screen flex items-center justify-center" style={{ backgroundColor: "#FFFFFF" }}>
       <div className="w-full max-w-md px-4">
-        <div className="text-center mb-8">
+        <div className="text-center mb-15">
           <h1 className="text-4xl font-bold" style={{ color: "#F76902" }}>
             Monopoly
           </h1>

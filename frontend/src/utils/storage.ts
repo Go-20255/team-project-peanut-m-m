@@ -1,3 +1,4 @@
+"use client"
 import { GameState, Player } from "@/types"
 
 export const storage = {

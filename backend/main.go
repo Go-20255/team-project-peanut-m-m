@@ -70,10 +70,9 @@ func main() {
     // setup cors
     e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
         AllowOrigins: []string{
-            "http://localhost:3001",
             "http://localhost:3000",
-            "http://127.0.0.1:3001",
             "http://127.0.0.1:3000",
+            "http://monopoly.michaelbrenner.dev",
         },
         AllowMethods:     []string{"GET", "POST", "DELETE", "PUT", "PATCH"},
         AllowHeaders:     []string{"Authorization", "Content-Type"},
