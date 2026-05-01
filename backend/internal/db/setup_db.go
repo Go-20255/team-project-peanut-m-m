@@ -72,6 +72,22 @@ func SetupDatabase(ctx context.Context, log zerolog.Logger) {
         log.Panic().Err(err).Msg("failed to check if tables exist")
     }
     if tableExists {
+        _, err = db.Exec(ctx, `
+            ALTER TABLE player
+            ADD COLUMN IF NOT EXISTS bankrupt BOOLEAN NOT NULL DEFAULT FALSE
+        `)
+        if err != nil {
+            log.Panic().Err(err).Msg("failed to add bankrupt column to player table")
+        }
+
+        _, err = db.Exec(ctx, `
+            ALTER TABLE player
+            ADD COLUMN IF NOT EXISTS rank INTEGER NOT NULL DEFAULT 0
+        `)
+        if err != nil {
+            log.Panic().Err(err).Msg("failed to add rank column to player table")
+        }
+
         log.Info().Msg("Tables already exist. Skipping setup.")
         return
     }
@@ -143,6 +159,8 @@ $$ LANGUAGE plpgsql;
         position INTEGER NOT NULL DEFAULT 0, -- index of position into 1D board array
         get_out_of_jail_cards INTEGER NOT NULL DEFAULT 0, -- number of get out of jail cards held
         jailed INTEGER NOT NULL DEFAULT 0, -- number of turns stuck in jail
+        bankrupt BOOLEAN NOT NULL DEFAULT FALSE,
+        rank INTEGER NOT NULL DEFAULT 0,
         session_id UUID REFERENCES Game_State(session_id) ON DELETE CASCADE NOT NULL,
         in_game BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

@@ -99,6 +99,45 @@ func clearPlayerTurnState(e *internal.MonopolyEngine, playerId int) {
     delete(e.DoubleRollCounts, playerId)
 }
 
+func getActionPlayers(
+    ctx context.Context,
+    log zerolog.Logger,
+    tx *pgxpool.Tx,
+    sessionId string,
+    playerId int,
+) (*internal.Player, *internal.Player, []internal.Player, int, *internal.UserActionStatus) {
+    currentPlayer, actingPlayer, players, turnNumber, err := turn_events.GetActionPlayers(ctx, log, tx, sessionId, playerId)
+    if err != nil {
+        return nil, nil, nil, 0, &internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    if actingPlayer.Bankrupt {
+        return nil, nil, nil, 0, &internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player is bankrupt",
+        }
+    }
+
+    if currentPlayer == nil {
+        return nil, nil, nil, 0, &internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there are no players in this game session",
+        }
+    }
+
+    if currentPlayer.Id != playerId {
+        return nil, nil, nil, 0, &internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "it is not this player's turn",
+        }
+    }
+
+    return currentPlayer, actingPlayer, players, turnNumber, nil
+}
+
 // getNewPosition returns the player's new board position after moving by the
 // given total and reports whether the move passed Go.
 // The board is treated as a 40-tile loop.
@@ -324,26 +363,9 @@ func RollDice(
 ) internal.UserActionStatus {
     data := action.Data.(internal.SimpleActionData)
 
-    currentPlayer, players, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
-    if currentPlayer == nil {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "there are no players in this game session",
-        }
-    }
-
-    if currentPlayer.Id != data.PlayerId {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "it is not this player's turn",
-        }
+    _, player, players, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
     }
 
     if e.TurnNumber >= len(players) && e.TurnHasRolled[data.PlayerId] && !e.ExtraRollAllowed[data.PlayerId] {
@@ -404,20 +426,12 @@ func RollDice(
             }
         }
 
-        player, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
-        if err != nil {
-            return internal.UserActionStatus{
-                Status: http.StatusInternalServerError,
-                Msg:    err.Error(),
-            }
-        }
-
         e.TurnHasRolled[data.PlayerId] = true
         e.ExtraRollAllowed[data.PlayerId] = false
 
         if player.Jailed > 0 {
             if diceRoll.IsDouble {
-                err = internaldb_players.UpdatePlayerJailState(
+                err := internaldb_players.UpdatePlayerJailState(
                     log,
                     ctx,
                     tx,
@@ -441,7 +455,7 @@ func RollDice(
                 jailedTurns := player.Jailed
                 if jailedTurns < 3 {
                     jailedTurns += 1
-                    err = internaldb_players.UpdatePlayerJailState(
+                    err := internaldb_players.UpdatePlayerJailState(
                         log,
                         ctx,
                         tx,
@@ -466,7 +480,7 @@ func RollDice(
             if diceRoll.IsDouble {
                 e.DoubleRollCounts[data.PlayerId] += 1
                 if e.DoubleRollCounts[data.PlayerId] >= 3 {
-                    err = internaldb_players.UpdatePlayerPositionAndJailed(log, ctx, tx, data.PlayerId, data.SessionId, 10, 1)
+                    err := internaldb_players.UpdatePlayerPositionAndJailed(log, ctx, tx, data.PlayerId, data.SessionId, 10, 1)
                     if err != nil {
                         return internal.UserActionStatus{
                             Status: http.StatusInternalServerError,
@@ -511,26 +525,9 @@ func EndTurn(
 
     data := action.Data.(internal.SimpleActionData)
 
-    currentPlayer, players, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
-    if currentPlayer == nil {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "there are no players in this game session",
-        }
-    }
-
-    if currentPlayer.Id != data.PlayerId {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "it is not this player's turn",
-        }
+    _, _, players, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
     }
 
     if e.PendingBankPayment != nil && e.PendingBankPayment.PlayerId == data.PlayerId {
@@ -577,7 +574,7 @@ func EndTurn(
         }
     }
 
-    err = internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx, data.SessionId, e.TurnNumber+1)
+    err := internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx, data.SessionId, e.TurnNumber+1)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -635,26 +632,9 @@ func MovePlayer(
 ) internal.UserActionStatus {
     data := action.Data.(internal.SimpleActionData)
 
-    currentPlayer, _, turnNumber, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
-    if currentPlayer == nil {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "there are no players in this game session",
-        }
-    }
-
-    if currentPlayer.Id != data.PlayerId {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "it is not this player's turn",
-        }
+    _, _, _, turnNumber, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
     }
 
     if e.PendingBankPayment != nil && e.PendingBankPayment.PlayerId == data.PlayerId {
@@ -834,26 +814,9 @@ func PayBank(
         }
     }
 
-    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
-    if currentPlayer == nil {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "there are no players in this game session",
-        }
-    }
-
-    if currentPlayer.Id != data.PlayerId {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "it is not this player's turn",
-        }
+    _, _, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
     }
 
     if e.PendingBankPayment.PlayerId != data.PlayerId || e.PendingBankPayment.SessionId != data.SessionId {
@@ -963,26 +926,9 @@ func SetBankPayout(
 ) internal.UserActionStatus {
     data := action.Data.(internal.BankPayoutActionData)
 
-    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
-    if currentPlayer == nil {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "there are no players in this game session",
-        }
-    }
-
-    if currentPlayer.Id != data.PlayerId {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "it is not this player's turn",
-        }
+    _, _, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
     }
 
     if data.Amount < 1 {
@@ -1011,26 +957,9 @@ func ReceiveBankPayout(
         }
     }
 
-    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
-    if currentPlayer == nil {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "there are no players in this game session",
-        }
-    }
-
-    if currentPlayer.Id != data.PlayerId {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "it is not this player's turn",
-        }
+    _, _, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
     }
 
     if e.PendingBankPayout.PlayerId != data.PlayerId || e.PendingBankPayout.SessionId != data.SessionId {
@@ -1097,6 +1026,163 @@ func ReceiveBankPayout(
     }
 }
 
+func Bankrupt(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    data := action.Data.(internal.SimpleActionData)
+
+    _, player, players, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
+    }
+
+    if e.PendingRent == nil && e.PendingBankPayment == nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player does not have a pending payment obligation",
+        }
+    }
+
+    bankruptcyRank, err := internaldb_players.GetNextBankruptcyRank(log, ctx, tx, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    bankruptcy := internal.Bankruptcy{
+        PlayerId:  data.PlayerId,
+        SessionId: data.SessionId,
+        Rank:      bankruptcyRank,
+    }
+
+    if e.PendingRent != nil && e.PendingRent.FromPlayerId == data.PlayerId {
+        recipient, err := internaldb_players.GetPlayer(log, ctx, tx, e.PendingRent.ToPlayerId, data.SessionId)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+
+        err = internaldb_tiles.TransferOwnedProperties(log, ctx, tx, data.SessionId, data.PlayerId, recipient.Id)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+
+        err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, recipient.Id, data.SessionId, recipient.Money+player.Money)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+
+        bankruptcy.OwesRent = true
+        bankruptcy.RentToId = recipient.Id
+        e.PendingRent = nil
+    } else if e.PendingBankPayment != nil && e.PendingBankPayment.PlayerId == data.PlayerId {
+        err = internaldb_tiles.ReleaseOwnedPropertiesToBank(log, ctx, tx, data.SessionId, data.PlayerId)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+
+        e.PendingBankPayment = nil
+    } else {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player does not have a pending payment obligation",
+        }
+    }
+
+    err = internaldb_players.UpdatePlayerBankruptcy(log, ctx, tx, data.PlayerId, data.SessionId, true, bankruptcyRank, 0)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    clearPlayerTurnState(e, data.PlayerId)
+
+    err = internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx, data.SessionId, e.TurnNumber+1)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+    e.TurnNumber += 1
+
+    nonBankruptPlayerCount, err := internaldb_players.GetNonBankruptPlayerCount(log, ctx, tx, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    if nonBankruptPlayerCount == 1 {
+        winner, err := internaldb_players.GetRemainingNonBankruptPlayer(log, ctx, tx, data.SessionId)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+
+        if winner.Rank == 0 {
+            err = internaldb_players.UpdatePlayerRank(log, ctx, tx, winner.Id, data.SessionId, 1)
+            if err != nil {
+                return internal.UserActionStatus{
+                    Status: http.StatusInternalServerError,
+                    Msg:    err.Error(),
+                }
+            }
+        }
+
+        bankruptcy.WinnerId = winner.Id
+    }
+
+    if e.TurnNumber == len(players) {
+        for i, roll := range e.TempStore["turn_decision_rolls"].([]internal.DiceRoll) {
+            err := internaldb_players.UpdatePlayerTurnOrder(
+                log,
+                ctx,
+                tx,
+                roll.PlayerId,
+                roll.SessionId,
+                i,
+            )
+            if err != nil {
+                return internal.UserActionStatus{
+                    Status: http.StatusInternalServerError,
+                    Msg:    err.Error(),
+                }
+            }
+        }
+    }
+
+    e.Broker.Broadcast(log, "BankruptcyEvent", bankruptcy)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   bankruptcy,
+    }
+}
+
 func ReleaseFromJail(
     ctx context.Context,
     log zerolog.Logger,
@@ -1106,34 +1192,9 @@ func ReleaseFromJail(
 ) internal.UserActionStatus {
     data := action.Data.(internal.JailReleaseActionData)
 
-    currentPlayer, _, _, err := turn_events.GetCurrentPlayer(ctx, log, tx, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
-    }
-
-    if currentPlayer == nil {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "there are no players in this game session",
-        }
-    }
-
-    if currentPlayer.Id != data.PlayerId {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "it is not this player's turn",
-        }
-    }
-
-    player, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
-    if err != nil {
-        return internal.UserActionStatus{
-            Status: http.StatusInternalServerError,
-            Msg:    err.Error(),
-        }
+    _, player, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
     }
 
     if player.Jailed == 0 {
@@ -1219,7 +1280,7 @@ func ReleaseFromJail(
         }
     }
 
-    err = internaldb_players.UpdatePlayerJailState(
+    err := internaldb_players.UpdatePlayerJailState(
         log,
         ctx,
         tx,
