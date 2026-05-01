@@ -240,3 +240,32 @@ func GetAvailableHotels(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx,
 
     return availableHotels, nil
 }
+
+func TransferOwnedProperties(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string, fromOwnerId int, toOwnerId int) error {
+    _, err := tx.Exec(ctx, `
+        UPDATE owned_properties
+        SET owner_id = $1
+        WHERE session_id = $2
+            AND owner_id = $3
+        `, toOwnerId, sessionId, fromOwnerId)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to transfer owned properties")
+        return err
+    }
+
+    return nil
+}
+
+func ReleaseOwnedPropertiesToBank(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string, ownerId int) error {
+    _, err := tx.Exec(ctx, `
+        DELETE FROM owned_properties
+        WHERE session_id = $1
+            AND owner_id = $2
+        `, sessionId, ownerId)
+    if err != nil {
+        log.Trace().Err(err).Msg("failed to release owned properties to bank")
+        return err
+    }
+
+    return nil
+}
