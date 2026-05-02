@@ -92,6 +92,38 @@ func SetPendingBankPayout(
     }
 }
 
+func SetPendingPlayerExchange(
+	log zerolog.Logger,
+	e *internal.MonopolyEngine,
+	actingPlayerId int,
+	sessionId string,
+	amount int,
+	reason string,
+	isPayingAll bool,
+) internal.UserActionStatus {
+	if e.PendingExchange != nil {
+		return internal.UserActionStatus{
+			Status: http.StatusBadRequest,
+			Msg:    "there is already a pending player exchange",
+		}
+	}
+
+	e.PendingExchange = &internal.PendingPlayerExchange{
+		ActingPlayerId: actingPlayerId,
+		SessionId:      sessionId,
+		Amount:         amount,
+		Reason:         reason,
+		IsPayingAll:    isPayingAll,
+	}
+
+	e.Broker.Broadcast(log, "PlayerExchangeDueEvent", e.PendingExchange)
+
+	return internal.UserActionStatus{
+		Status: http.StatusOK,
+		Data:   *e.PendingExchange,
+	}
+}
+
 func clearPlayerTurnState(e *internal.MonopolyEngine, playerId int) {
     delete(e.PendingRolls, playerId)
     delete(e.TurnHasRolled, playerId)
@@ -380,6 +412,13 @@ func RollDice(
         SessionId: data.SessionId,
         DieOne:    rand.IntN(6) + 1,
         DieTwo:    rand.IntN(6) + 1,
+    }
+
+	diceRoll = internal.DiceRoll{
+        PlayerId:  data.PlayerId,
+        SessionId: data.SessionId,
+        DieOne:    1,
+        DieTwo:    1,
     }
 	
     diceRoll.Total = diceRoll.DieOne + diceRoll.DieTwo
@@ -722,6 +761,8 @@ func MovePlayer(
 			}
 		}
 
+		cardId = 24
+
 		e.Broker.Broadcast(log, "DrawCardEvent", map[string]interface{}{
 			"player_id":  data.PlayerId,
 			"session_id": data.SessionId,
@@ -755,13 +796,19 @@ func MovePlayer(
 	}
 
     if tileData.HasProperty && tileData.Owned && tileData.OwnerId != data.PlayerId && !tileData.IsMortgaged {
-        rentAmount, err := getRentAmount(ctx, log, tx, data.SessionId, tileData, diceRoll.Total)
+        isUtilityCard, _ := e.TempStore["special_utility_rent"].(bool)
+        isRailroadCard, _ := e.TempStore["special_railroad_rent"].(bool)
+
+        rentAmount, err := getRentAmount(ctx, log, tx, data.SessionId, tileData, diceRoll.Total, isUtilityCard, isRailroadCard)
         if err != nil {
             return internal.UserActionStatus{
                 Status: http.StatusInternalServerError,
                 Msg:    err.Error(),
             }
         }
+
+        delete(e.TempStore, "special_utility_rent")
+        delete(e.TempStore, "special_railroad_rent")
 
         if rentAmount > 0 {
             e.PendingRent = &internal.PendingRent{
@@ -772,6 +819,8 @@ func MovePlayer(
                 Position:     newPosition,
                 Amount:       rentAmount,
                 DiceTotal:    diceRoll.Total,
+                IsUtilityCard: isUtilityCard,
+                IsRailroadCard: isRailroadCard,
             }
 
             playerMovement.RentDue = true
@@ -891,20 +940,7 @@ func PayBank(
             PlayerMoney:       bankPayment.PlayerMoney,
             Jailed:            0,
         })
-    } else if e.PendingBankPayment.Reason == "Chairman of the Board" {
-		players, _ := internaldb_players.GetPlayersInSession(log, ctx, tx, data.SessionId)
-		for _, p := range players {
-			if p.Id != data.PlayerId {
-				err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, p.Id, data.SessionId, p.Money+50)
-				if err != nil {
-					return internal.UserActionStatus{
-						Status: http.StatusInternalServerError,
-						Msg:    err.Error(),
-					}
-				}
-			}
-		}
-	}
+    }
 
 	e.PendingBankPayment = nil
 
@@ -1000,21 +1036,6 @@ func ReceiveBankPayout(
         PlayerMoney: player.Money + e.PendingBankPayout.Amount,
     }
 
-	if e.PendingBankPayout.Reason == "Birthday" {
-		players, _ := internaldb_players.GetPlayersInSession(log, ctx, tx, data.SessionId)
-		for _, p := range players {
-			if p.Id != data.PlayerId {
-				err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, p.Id, data.SessionId, p.Money-10)
-				if err != nil {
-					return internal.UserActionStatus{
-						Status: http.StatusInternalServerError,
-						Msg:    err.Error(),
-					}
-				}
-			}
-		}
-	}
-
     e.PendingBankPayout = nil
 
     e.Broker.Broadcast(log, "BankPayoutEvent", bankPayout)
@@ -1024,6 +1045,91 @@ func ReceiveBankPayout(
         Status: http.StatusOK,
         Data:   bankPayout,
     }
+}
+
+func ExecutePlayerExchange(
+	ctx context.Context,
+	log zerolog.Logger,
+	e *internal.MonopolyEngine,
+	action *internal.UserActionEvent,
+	tx *pgxpool.Tx,
+) internal.UserActionStatus {
+	data := action.Data.(internal.PlayerExchangeActionData)
+
+	if e.PendingExchange == nil {
+		return internal.UserActionStatus{
+			Status: http.StatusBadRequest,
+			Msg:    "there is no pending player exchange",
+		}
+	}
+
+	_, _, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+	if status != nil {
+		return *status
+	}
+
+	if e.PendingExchange.ActingPlayerId != data.PlayerId || e.PendingExchange.SessionId != data.SessionId {
+		return internal.UserActionStatus{
+			Status: http.StatusBadRequest,
+			Msg:    "acting player for exchange is incorrect",
+		}
+	}
+
+	players, err := internaldb_players.GetPlayersInSession(log, ctx, tx, data.SessionId)
+	if err != nil {
+		return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
+	}
+
+	balances := make(map[int]int)
+	actingPlayer, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
+	if err != nil {
+		return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
+	}
+
+	totalActingAdjustment := 0
+	for _, p := range players {
+		if p.Id == data.PlayerId {
+			continue
+		}
+
+		if e.PendingExchange.IsPayingAll {
+			totalActingAdjustment -= e.PendingExchange.Amount
+			err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, p.Id, data.SessionId, p.Money+e.PendingExchange.Amount)
+			balances[p.Id] = p.Money + e.PendingExchange.Amount
+		} else {
+			totalActingAdjustment += e.PendingExchange.Amount
+			err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, p.Id, data.SessionId, p.Money-e.PendingExchange.Amount)
+			balances[p.Id] = p.Money - e.PendingExchange.Amount
+		}
+
+		if err != nil {
+			return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
+		}
+	}
+
+	err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, data.PlayerId, data.SessionId, actingPlayer.Money+totalActingAdjustment)
+	if err != nil {
+		return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
+	}
+	balances[data.PlayerId] = actingPlayer.Money + totalActingAdjustment
+
+	exchange := internal.PlayerExchange{
+		ActingPlayerId: data.PlayerId,
+		SessionId:      data.SessionId,
+		Amount:         e.PendingExchange.Amount,
+		Reason:         e.PendingExchange.Reason,
+		IsPayingAll:    e.PendingExchange.IsPayingAll,
+		Balances:       balances,
+	}
+
+	e.PendingExchange = nil
+	e.Broker.Broadcast(log, "PlayerExchangeEvent", exchange)
+	events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+	return internal.UserActionStatus{
+		Status: http.StatusOK,
+		Data:   exchange,
+	}
 }
 
 func Bankrupt(

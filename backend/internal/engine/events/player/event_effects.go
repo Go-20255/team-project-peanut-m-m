@@ -173,13 +173,7 @@ func advanceToNearestUtilityEffect(ctx context.Context, log zerolog.Logger, e *i
 		}
 	}
 
-	err = internaldb_players.UpdatePlayerPosition(log, ctx, tx, playerId, sessionId, nearest)
-	if err != nil {
-		return internal.UserActionStatus{
-			Status: http.StatusInternalServerError,
-			Msg:    err.Error(),
-		}
-	}
+	e.TempStore["special_utility_rent"] = true
 
 	playerMovement := internal.PlayerMovement{
 		PlayerId:    playerId,
@@ -227,13 +221,7 @@ func advanceToNearestRailroadEffect(ctx context.Context, log zerolog.Logger, e *
 		}
 	}
 
-	err = internaldb_players.UpdatePlayerPosition(log, ctx, tx, playerId, sessionId, nearest)
-	if err != nil {
-		return internal.UserActionStatus{
-			Status: http.StatusInternalServerError,
-			Msg:    err.Error(),
-		}
-	}
+	e.TempStore["special_railroad_rent"] = true
 
 	playerMovement := internal.PlayerMovement{
 		PlayerId:    playerId,
@@ -359,17 +347,7 @@ func readingRailroadEffect(ctx context.Context, log zerolog.Logger, e *internal.
 }
 
 func chairmanOfTheBoardEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	players, err := internaldb_players.GetPlayersInSession(log, ctx, tx, sessionId)
-	if err != nil {
-		return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
-	}
-
-	totalPayment := (len(players) - 1) * 50
-	if totalPayment <= 0 {
-		return internal.UserActionStatus{Status: http.StatusOK}
-	}
-
-	return SetPendingBankPayment(log, e, playerId, sessionId, totalPayment, "Chairman of the Board")
+	return SetPendingPlayerExchange(log, e, playerId, sessionId, 50, "Chairman of the Board", true)
 }
 
 func buildingLoanMaturesEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
@@ -397,17 +375,7 @@ func taxRefundEffect(ctx context.Context, log zerolog.Logger, e *internal.Monopo
 }
 
 func birthdayEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	players, err := internaldb_players.GetPlayersInSession(log, ctx, tx, sessionId)
-	if err != nil {
-		return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
-	}
-
-	totalPayout := (len(players) - 1) * 10
-	if totalPayout <= 0 {
-		return internal.UserActionStatus{Status: http.StatusOK}
-	}
-
-	return SetPendingBankPayout(log, e, playerId, sessionId, totalPayout, "Birthday")
+	return SetPendingPlayerExchange(log, e, playerId, sessionId, 10, "Birthday", false)
 }
 
 func lifeInsuranceEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
