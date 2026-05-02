@@ -413,13 +413,6 @@ func RollDice(
         DieOne:    rand.IntN(6) + 1,
         DieTwo:    rand.IntN(6) + 1,
     }
-
-	diceRoll = internal.DiceRoll{
-        PlayerId:  data.PlayerId,
-        SessionId: data.SessionId,
-        DieOne:    1,
-        DieTwo:    1,
-    }
 	
     diceRoll.Total = diceRoll.DieOne + diceRoll.DieTwo
     diceRoll.IsDouble = diceRoll.DieOne == diceRoll.DieTwo
@@ -760,8 +753,6 @@ func MovePlayer(
 				Msg:    err.Error(),
 			}
 		}
-
-		cardId = 24
 
 		e.Broker.Broadcast(log, "DrawCardEvent", map[string]interface{}{
 			"player_id":  data.PlayerId,
