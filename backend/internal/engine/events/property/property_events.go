@@ -160,7 +160,7 @@ func PurchaseProperty(
     event.PropertyId = property.Id
     event.OwnershipId = ownershipId
 
-    e.Broker.Broadcast(log, "PropertyPurchased", event)
+    e.Broker.Broadcast(log, "PropertyPurchasedEvent", event)
     events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     log.Trace().Msgf("player %d successfully purchased property %d", data.PlayerId, property.Id)
@@ -257,7 +257,7 @@ func MortgageProperty(
         PlayerMoney: currentPlayer.Money + property.MortgageCost,
     }
 
-    e.Broker.Broadcast(log, "PropertyMortgaged", propertyMortgageUpdate)
+    e.Broker.Broadcast(log, "PropertyMortgagedEvent", propertyMortgageUpdate)
 
     return internal.UserActionStatus{
         Status: http.StatusOK,
@@ -347,7 +347,7 @@ func UnmortgageProperty(
         PlayerMoney: currentPlayer.Money - property.UnmortgageCost,
     }
 
-    e.Broker.Broadcast(log, "PropertyUnmortgaged", propertyMortgageUpdate)
+    e.Broker.Broadcast(log, "PropertyUnmortgagedEvent", propertyMortgageUpdate)
 
     return internal.UserActionStatus{
         Status: http.StatusOK,

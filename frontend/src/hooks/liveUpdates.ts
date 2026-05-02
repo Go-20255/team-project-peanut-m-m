@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { GameState } from "@/types"
-import { HandleInitialGameBoardUpdateEvent, HandleMovePlayerEvent } from "./gameEvents"
+import { HandleBankPaymentDueEvent, HandleBankPaymentEvent, HandleBankPayoutDueEvent, HandleBankPayoutEvent, HandleBankruptcyEvent, HandleGameReadyEvent, HandleGameStateUpdateEvent, HandleHotelPurchasedEvent, HandleHotelSoldEvent, HandleHousePurchaseEvent as HandleHousePurchasedEvent, HandleHouseSoldEvent, HandleInitialGameBoardUpdateEvent, HandleMovePlayerEvent, HandlePayToLeaveJailEvent, HandlePropertyMortgagedEvent, HandlePropertyPurchasedEvent, HandlePropertyUnmortgagedEvent, HandleRentDueEvent, HandleRentPaidEvent, HandleRollDiceEvent, HandleUseGetOutOfJailCardEvent } from "./gameEvents"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -23,7 +23,26 @@ export function useLiveGameUpdates(
     // map event name with its event handler here
     const eventManager = {
       "InitialGameBoardDataEvent" : HandleInitialGameBoardUpdateEvent,
+      "GameStateUpdateEvent": HandleGameStateUpdateEvent,
+      "BankPaymentDueEvent" : HandleBankPaymentDueEvent,
+      "BankPayoutDueEvent": HandleBankPayoutDueEvent,
+      "BankPaymentEvent": HandleBankPaymentEvent,
+      "BankPayoutEvent": HandleBankPayoutEvent,
+      "GameReadyEvent": HandleGameReadyEvent,
+      "RollDiceEvent": HandleRollDiceEvent, 
       "MovePlayerEvent": HandleMovePlayerEvent,
+      "RentDueEvent": HandleRentDueEvent,
+      "PayToLeaveJailEvent": HandlePayToLeaveJailEvent,
+      "UseGetOutOfJailCardEvent": HandleUseGetOutOfJailCardEvent,
+      "BankruptcyEvent": HandleBankruptcyEvent,
+      "RendPaidEvent": HandleRentPaidEvent,
+      "HousePurchasedEvent": HandleHousePurchasedEvent,
+      "HotelPurchasedEvnet": HandleHotelPurchasedEvent,
+      "HouseSoldEvent": HandleHouseSoldEvent,
+      "HotelSoldEvent": HandleHotelSoldEvent,
+      "PropertyPurchasedEvent": HandlePropertyPurchasedEvent,
+      "PropertyMortgagedEvent": HandlePropertyMortgagedEvent,
+      "PropertyUnmortgagedEvent": HandlePropertyUnmortgagedEvent,
     }
 
     Object.entries(eventManager).map(([eventName, eventHandler]) => {
