@@ -49,3 +49,158 @@ export function HandleMovePlayerEvent(
     }
   })
 }
+
+export function HandleGameStateUpdateEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandleBankPaymentEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandleBankPayoutEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandleBankPaymentDueEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandleBankPayoutDueEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandleGameReadyEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandleRollDiceEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandleRentDueEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandlePayToLeaveJailEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandleUseGetOutOfJailCardEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandleBankruptcyEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandleRentPaidEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandleHousePurchaseEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandleHotelPurchasedEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandleHouseSoldEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandleHotelSoldEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandlePropertyPurchasedEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandlePropertyMortgagedEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+export function HandlePropertyUnmortgagedEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any
+) {
+
+}
+
+
+

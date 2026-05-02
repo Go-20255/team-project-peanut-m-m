@@ -143,7 +143,7 @@ func PurchaseHouse(
         AvailableHotels: availableHotels,
     }
 
-    e.Broker.Broadcast(log, "HousePurchased", propertyBuildingUpdate)
+    e.Broker.Broadcast(log, "HousePurchasedEvent", propertyBuildingUpdate)
     events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     return internal.UserActionStatus{
@@ -283,7 +283,7 @@ func PurchaseHotel(
         AvailableHotels: availableHotels,
     }
 
-    e.Broker.Broadcast(log, "HotelPurchased", propertyBuildingUpdate)
+    e.Broker.Broadcast(log, "HotelPurchasedEvent", propertyBuildingUpdate)
     events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     return internal.UserActionStatus{
@@ -400,7 +400,7 @@ func SellHouse(
         AvailableHotels: availableHotels,
     }
 
-    e.Broker.Broadcast(log, "HouseSold", propertyBuildingUpdate)
+    e.Broker.Broadcast(log, "HouseSoldEvent", propertyBuildingUpdate)
     events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     return internal.UserActionStatus{
@@ -526,7 +526,7 @@ func SellHotel(
         AvailableHotels: availableHotels,
     }
 
-    e.Broker.Broadcast(log, "HotelSold", propertyBuildingUpdate)
+    e.Broker.Broadcast(log, "HotelSoldEvent", propertyBuildingUpdate)
     events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     return internal.UserActionStatus{
