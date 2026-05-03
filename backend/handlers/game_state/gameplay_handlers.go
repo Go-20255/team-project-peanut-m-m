@@ -66,12 +66,12 @@ func PayRentHandler(c echo.Context) error {
         return c.String(http.StatusUnauthorized, err.Error())
     }
 
-    toPlayerIdStr := c.FormValue("to_player_id")
+    toPlayerIdStr := c.QueryParam("to_player_id")
     if toPlayerIdStr == "" {
         return c.String(http.StatusBadRequest, "missing to_player_id")
     }
 
-    amountStr := c.FormValue("amount")
+    amountStr := c.QueryParam("amount")
     if amountStr == "" {
         return c.String(http.StatusBadRequest, "missing amount")
     }
@@ -138,7 +138,7 @@ func SetBankPayoutHandler(c echo.Context) error {
         return c.String(http.StatusUnauthorized, err.Error())
     }
 
-    amountStr := c.FormValue("amount")
+    amountStr := c.QueryParam("amount")
     if amountStr == "" {
         return c.String(http.StatusBadRequest, "missing amount")
     }
@@ -148,7 +148,7 @@ func SetBankPayoutHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "invalid amount")
     }
 
-    reason := c.FormValue("reason")
+    reason := c.QueryParam("reason")
     if reason == "" {
         reason = "bank payout"
     }
@@ -200,28 +200,28 @@ func ReceiveBankPayoutHandler(c echo.Context) error {
 }
 
 func ExecutePlayerExchangeHandler(c echo.Context) error {
-	claims, err := util.GetPlayerJwtClaims(c)
-	if err != nil {
-		return c.String(http.StatusUnauthorized, err.Error())
-	}
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
 
-	res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
-		Event: "PlayerExchangeEvent",
-		Data: internal.PlayerExchangeActionData{
-			PlayerId:  claims.PlayerId,
-			SessionId: claims.SessionId,
-		},
-		ReturnChan: make(chan internal.UserActionStatus),
-	})
-	if err != nil {
-		return c.String(http.StatusInternalServerError, err.Error())
-	}
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "PlayerExchangeEvent",
+        Data: internal.PlayerExchangeActionData{
+            PlayerId:  claims.PlayerId,
+            SessionId: claims.SessionId,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
 
-	if res.Status != http.StatusOK {
-		return c.String(res.Status, res.Msg)
-	}
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
 
-	return c.JSON(http.StatusOK, res.Data)
+    return c.JSON(http.StatusOK, res.Data)
 }
 
 func BankruptHandler(c echo.Context) error {
@@ -255,7 +255,7 @@ func UseGetOutOfJailCardHandler(c echo.Context) error {
         return c.String(http.StatusUnauthorized, err.Error())
     }
 
-    method := c.FormValue("method")
+    method := c.QueryParam("method")
     if method == "" {
         method = "card"
     }
