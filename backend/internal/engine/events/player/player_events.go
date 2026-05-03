@@ -1078,6 +1078,25 @@ func ExecutePlayerExchange(
 	}
 
 	totalActingAdjustment := 0
+
+	if e.PendingExchange.IsPayingAll {
+		if actingPlayer.Money < e.PendingExchange.Amount * (len(players) - 1) {
+			return internal.UserActionStatus{
+				Status: http.StatusBadRequest,
+				Msg:    "player does not have enough money to pay everyone",
+			}
+		}
+	} else {
+		for _, p := range players {
+			if p.Id != data.PlayerId && p.Money < e.PendingExchange.Amount {
+				return internal.UserActionStatus{
+					Status: http.StatusBadRequest,
+					Msg:    fmt.Sprintf("player %s does not have enough money", p.Name),
+				}
+			}
+		}
+	}
+
 	for _, p := range players {
 		if p.Id == data.PlayerId {
 			continue
