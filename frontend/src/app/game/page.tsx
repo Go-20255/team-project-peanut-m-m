@@ -50,7 +50,7 @@ export default function GamePage() {
       className="w-full h-screen flex"
       style={{ backgroundColor: "#FFFFFF" }}
     >
-      <div className="flex-1" style={{ flex: "4" }}>
+      <div style={{ flex: "6" }}>
         {gameState ? (
           <GameBoard
             sessionId={sessionId}
