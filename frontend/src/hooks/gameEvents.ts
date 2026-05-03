@@ -1,6 +1,6 @@
 "use client"
 
-import { GameState } from "@/types";
+import { GameState, GameStateUpdate } from "@/types";
 import { Dispatch, SetStateAction } from "react";
 
 const parse = <T,>(raw: string): T | null => {
@@ -56,6 +56,16 @@ export function HandleGameStateUpdateEvent(
   e: any
 ) {
 
+  const data = parse<GameStateUpdate>(e.data)
+  if (!data) return
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      current_turn: data.current_turn,
+      players: data.players,
+    }
+  })
 }
 
 export function HandleBankPaymentEvent(
