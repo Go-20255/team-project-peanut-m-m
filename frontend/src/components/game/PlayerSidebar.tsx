@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { getTokenIcon, getTokenName } from "@/utils/tokens"
 import { Player, GameState } from "@/types"
 import { useEndTurn, useMovePlayer, useRollDice } from "@/hooks/useGameAPI"
+import { storage } from "@/utils"
 
 interface PlayerSidebarProps {
   sessionId: string
@@ -23,9 +24,8 @@ export default function PlayerSidebar({
   gameState,
 }: PlayerSidebarProps) {
   const [diceRoll, setDiceRoll] = useState<any>(null)
-  const [isRolling, setIsRolling] = useState(false)
-  const [isMoving, setIsMoving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [joinCode, setJoinCode] = useState<string>("")
 
   const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId
 
@@ -33,6 +33,11 @@ export default function PlayerSidebar({
   const rollMutation = useRollDice()
   const endTurnMutation = useEndTurn()
   const movePlayerMutation = useMovePlayer()
+
+  useEffect(() => {
+    const code = storage.getGameCode()
+    if (code) setJoinCode(code)
+  }, [])
 
   const handleEndTurn = () => {
     if (!isCurrentPlayerTurn) {
@@ -50,7 +55,6 @@ export default function PlayerSidebar({
     }
 
     setError(null)
-    setIsRolling(true)
     rollMutation.mutate({playerId: playerId, sessionId: sessionId}, {
       onSuccess: (res) => {
         setDiceRoll(res)
@@ -62,12 +66,10 @@ export default function PlayerSidebar({
         console.error("Roll dice error:", errorText)
       }
     })
-    setIsRolling(false)
   }
 
   const handleMove = async () => {
     setError(null)
-    setIsMoving(true)
     movePlayerMutation.mutate({playerId: playerId, sessionId: sessionId}, {
       onSuccess: (res) => {
       setDiceRoll(null)
@@ -79,11 +81,21 @@ export default function PlayerSidebar({
         console.error("Move error:", errorText)
       }
     })
-    setIsMoving(false)
   }
 
   return (
     <div className="w-full h-full flex flex-col p-4 overflow-y-auto" style={{ backgroundColor: "#FFFFFF" }}>
+      <div
+        className="flex flex-col text-center border-2 px-3 py-1 mb-3"
+        style={{ borderColor: "#D0D3D4" }}
+      >
+        <div className="text-xs" style={{ color: "#7C878E" }}>
+          Game Join Code
+        </div>
+        <div className="text-lg font-bold" style={{ color: "#F76902" }}>
+          {joinCode || "..."}
+        </div>
+      </div>
       <h3 className="text-xl font-bold mb-4" style={{ color: "#F76902" }}>
         Players
       </h3>
@@ -125,29 +137,29 @@ export default function PlayerSidebar({
             </div>
             <button
               onClick={handleMove}
-              disabled={isMoving || !isCurrentPlayerTurn}
+              disabled={movePlayerMutation.isPending || !isCurrentPlayerTurn}
               className="w-full py-2 px-3 rounded font-bold text-white"
               style={{
-                backgroundColor: isMoving || !isCurrentPlayerTurn ? "#ccc" : "#F76902",
-                cursor: isMoving || !isCurrentPlayerTurn ? "not-allowed" : "pointer",
+                backgroundColor: movePlayerMutation.isPending || !isCurrentPlayerTurn ? "#ccc" : "#F76902",
+                cursor: movePlayerMutation.isPending || !isCurrentPlayerTurn ? "not-allowed" : "pointer",
               }}
               title={!isCurrentPlayerTurn ? "Not your turn" : "Move your piece"}
             >
-              {isMoving ? "Moving..." : "Move"}
+              {movePlayerMutation.isPending ? "Moving..." : "Move"}
             </button>
           </>
         ) : (
           <button
             onClick={handleRollDice}
-            disabled={isRolling || !isCurrentPlayerTurn}
+            disabled={rollMutation.isPending || !isCurrentPlayerTurn}
             className="w-full py-2 px-3 rounded font-bold text-white"
             style={{
-              backgroundColor: isRolling || !isCurrentPlayerTurn ? "#ccc" : "#F76902",
-              cursor: isRolling || !isCurrentPlayerTurn ? "not-allowed" : "pointer",
+              backgroundColor: rollMutation.isPending || !isCurrentPlayerTurn ? "#ccc" : "#F76902",
+              cursor: rollMutation.isPending || !isCurrentPlayerTurn ? "not-allowed" : "pointer",
             }}
             title={!isCurrentPlayerTurn ? "Not your turn - wait for your turn to roll" : "Roll the dice"}
           >
-            {isRolling ? "Rolling..." : "Roll Dice"}
+            {rollMutation.isPending ? "Rolling..." : "Roll Dice"}
           </button>
         )}
         <>
