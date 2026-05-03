@@ -147,7 +147,7 @@ export default function PlayerSidebar({
             }}
             title={!isCurrentPlayerTurn ? "Not your turn - wait for your turn to roll" : "Roll the dice"}
           >
-            {isRolling ? "Rolling..." : !isCurrentPlayerTurn ? "Waiting..." : "Roll Dice"}
+            {isRolling ? "Rolling..." : "Roll Dice"}
           </button>
         )}
         <>
@@ -223,6 +223,11 @@ export default function PlayerSidebar({
                   )}
                   {isPlayerTurn && (
                     <span style={{ fontSize: "0.75em", color: "#F57F17", fontWeight: "bold" }}>PLAYING</span>
+                  )}
+                  {player.in_game ? (
+                    <span className="bg-green-600 text-white px-2 py-0.5 rounded-full " style={{ fontSize: "0.75em", fontWeight: "bold" }}>In Game</span>
+                  ) : (
+                    <span className="bg-red-600 text-white px-2 py-0.5 rounded-full " style={{ fontSize: "0.75em", fontWeight: "bold" }}>Offline</span>
                   )}
                 </div>
 
