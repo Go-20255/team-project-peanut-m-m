@@ -353,10 +353,23 @@ export default function GameBoard({
 
   const onWheel = (event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault()
-    setViewport((value) => ({
-      ...value,
-      zoom: clamp(Number((value.zoom - event.deltaY * 0.001).toFixed(3)), 0.5, 4),
-    }))
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+
+    const cursorX = event.clientX - rect.left - rect.width / 2
+    const cursorY = event.clientY - rect.top - rect.height / 2
+
+    setViewport((value) => {
+      const newZoom = clamp(Number((value.zoom - event.deltaY * 0.001).toFixed(3)), 0.5, 4)
+      const zoomRatio = newZoom / value.zoom
+
+      return {
+        ...value,
+        zoom: newZoom,
+        x: cursorX - zoomRatio * (cursorX - value.x),
+        y: cursorY - zoomRatio * (cursorY - value.y),
+      }
+    })
   }
 
   const onMouseDown = (event: MouseEvent<HTMLDivElement>) => {
