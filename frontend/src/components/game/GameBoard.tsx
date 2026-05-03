@@ -166,6 +166,7 @@ export default function GameBoard({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const tileImagesRef = useRef<Record<number, HTMLImageElement>>({})
   const tokenImagesRef = useRef<Record<number, HTMLImageElement>>({})
+  const rotationRef = useRef(0)
   const dragRef = useRef<{ active: boolean; x: number; y: number }>({
     active: false,
     x: 0,
@@ -178,6 +179,7 @@ export default function GameBoard({
     y: 0,
     rotation: 0,
   })
+  const [rotationTarget, setRotationTarget] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [imageVersion, setImageVersion] = useState(0)
@@ -215,6 +217,42 @@ export default function GameBoard({
 
     return () => observer.disconnect()
   }, [])
+
+  useEffect(() => {
+    rotationRef.current = viewport.rotation
+  }, [viewport.rotation])
+
+  useEffect(() => {
+    if (rotationRef.current === rotationTarget) return
+
+    const startRotation = rotationRef.current
+    const delta = rotationTarget - startRotation
+    const duration = 220
+    let animationFrame = 0
+    let startTime = 0
+
+    const tick = (time: number) => {
+      if (!startTime) startTime = time
+
+      const progress = Math.min((time - startTime) / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      const nextRotation = startRotation + delta * eased
+
+      rotationRef.current = nextRotation
+      setViewport((value) => ({
+        ...value,
+        rotation: nextRotation,
+      }))
+
+      if (progress < 1) {
+        animationFrame = window.requestAnimationFrame(tick)
+      }
+    }
+
+    animationFrame = window.requestAnimationFrame(tick)
+
+    return () => window.cancelAnimationFrame(animationFrame)
+  }, [rotationTarget])
 
   useEffect(() => {
     let cancelled = false
@@ -436,12 +474,7 @@ export default function GameBoard({
         <button
           type="button"
           onMouseDown={(event) => event.stopPropagation()}
-          onClick={() =>
-            setViewport((value) => ({
-              ...value,
-              rotation: value.rotation + 90,
-            }))
-          }
+          onClick={() => setRotationTarget((value) => value + 90)}
           style={{
             width: 40,
             height: 40,
