@@ -189,6 +189,7 @@ export default function GameBoard({
     [],
   )
 
+
   const playerPositions = useMemo(() => {
     const positions: Record<number, Player[]> = {}
     gameState.players.forEach((playerInfo) => {
