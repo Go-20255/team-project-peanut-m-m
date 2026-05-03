@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { getTokenIcon, getTokenName } from "@/utils/tokens"
 import { Player, GameState } from "@/types"
+import { useEndTurn, useMovePlayer, useRollDice } from "@/hooks/useGameAPI"
 
 interface PlayerSidebarProps {
   sessionId: string
@@ -29,6 +30,18 @@ export default function PlayerSidebar({
   const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId
 
   const currentPlayer = players.find((p) => p.id === currentPlayerTurnId)
+  const rollMutation = useRollDice()
+  const endTurnMutation = useEndTurn()
+  const movePlayerMutation = useMovePlayer()
+
+  const handleEndTurn = () => {
+    if (!isCurrentPlayerTurn) {
+      setError("It's not your turn!")
+      return
+    }
+    setError(null)
+    endTurnMutation.mutate()
+  }
 
   const handleRollDice = async () => {
     if (!isCurrentPlayerTurn) {
@@ -38,64 +51,35 @@ export default function PlayerSidebar({
 
     setError(null)
     setIsRolling(true)
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/game/roll`, {
-        method: "POST",
-        credentials: "include",
-        body: new URLSearchParams({
-          session_id: sessionId,
-          player_id: playerId,
-        }),
-      })
-
-      if (!res.ok) {
-        const errorText = await res.text()
+    rollMutation.mutate({playerId: playerId, sessionId: sessionId}, {
+      onSuccess: (res) => {
+        setDiceRoll(res)
+        console.log("Dice roll successful:", res)
+      },
+      onError: (err) => {
+        var errorText = err.message
         setError(`Failed to roll: ${errorText}`)
-        console.error("Roll dice error:", res.status, errorText)
-        return
+        console.error("Roll dice error:", errorText)
       }
-
-      const data = await res.json()
-      setDiceRoll(data)
-      console.log("Dice roll successful:", data)
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to roll dice"
-      setError(errorMsg)
-      console.error("Roll dice error:", err)
-    } finally {
-      setIsRolling(false)
-    }
+    })
+    setIsRolling(false)
   }
 
   const handleMove = async () => {
     setError(null)
     setIsMoving(true)
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/game/move`, {
-        method: "POST",
-        credentials: "include",
-        body: new URLSearchParams({
-          session_id: sessionId,
-          player_id: playerId,
-        }),
-      })
-
-      if (!res.ok) {
-        const errorText = await res.text()
-        setError(`Failed to move: ${errorText}`)
-        console.error("Move error:", res.status, errorText)
-        return
-      }
-
+    movePlayerMutation.mutate({playerId: playerId, sessionId: sessionId}, {
+      onSuccess: (res) => {
       setDiceRoll(null)
       console.log("Move successful")
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to move"
-      setError(errorMsg)
-      console.error("Move error:", err)
-    } finally {
-      setIsMoving(false)
-    }
+      },
+      onError: (err) => {
+        var errorText = err.message
+        setError(`Failed to move: ${errorText}`)
+        console.error("Move error:", errorText)
+      }
+    })
+    setIsMoving(false)
   }
 
   return (
@@ -133,7 +117,7 @@ export default function PlayerSidebar({
       </div>
 
       {/* Actions Section */}
-      <div className="mb-4 p-3 border-2" style={{ borderColor: "#D0D3D4" }}>
+      <div className="mb-4 p-3 border-2 flex flex-col gap-4" style={{ borderColor: "#D0D3D4" }}>
         {diceRoll ? (
           <>
             <div className="text-sm font-bold mb-3" style={{ color: "#F76902" }}>
@@ -166,6 +150,20 @@ export default function PlayerSidebar({
             {isRolling ? "Rolling..." : !isCurrentPlayerTurn ? "Waiting..." : "Roll Dice"}
           </button>
         )}
+        <>
+          <button
+            onClick={handleEndTurn}
+            disabled={!isCurrentPlayerTurn}
+            className="w-full py-2 px-3 rounded font-bold text-white"
+            style={{
+              backgroundColor: !isCurrentPlayerTurn ? "#ccc" : "#F76902",
+              cursor: !isCurrentPlayerTurn ? "not-allowed" : "pointer",
+            }}
+            title={!isCurrentPlayerTurn ? "Not your turn" : "End Turn"}
+          >
+            End Turn
+          </button>
+        </>
 
         {/* Error message */}
         {error && (
