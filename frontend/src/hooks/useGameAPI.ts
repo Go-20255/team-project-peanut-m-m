@@ -1,7 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import { Player } from "@/types"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
@@ -45,6 +44,22 @@ export function useCreateGame() {
   })
 }
 
+export function useFetchAllGameSessions() {
+  return useQuery<string[]>({
+    queryKey: ["fetchAllGameSessions"],
+    queryFn: async (): Promise<string[]> => {
+      const res = await fetch(`${API_URL}/api/game`, {
+        method: "GET",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        throw new Error(res.statusText)
+      }
+      return res.json()
+    },
+  })
+}
+
 /**
  * Join game with a code and get session ID
  */
@@ -76,7 +91,6 @@ export async function getAvailableTokens(players: Player[], sessionId: string): 
     return [0, 1]
   }
 }
-
 
 /**
  * Roll dice
@@ -126,49 +140,108 @@ export function useMovePlayer() {
   })
 }
 
-export function useEndTurn() {
+export function useJailRelease() {
   return useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`${API_URL}/api/player/endturn`, {
-        method: "POST",
-        credentials: "include"
-      })
-      if (!res.ok) {
-        throw new Error("failed to end turn")
-      }
-      return res.json()
-    }
-  })
-}
-
-/**
- * Purchase property
- */
-export function usePurchaseProperty() {
-  return useMutation({
-    mutationFn: async ({
-      playerId,
-      sessionId,
-      propertyId,
-    }: {
-      playerId: number
-      sessionId: string
-      propertyId: number
-    }) => {
-      const formData = new FormData()
-      formData.append("player_id", playerId.toString())
-      formData.append("session_id", sessionId)
-      formData.append("property_id", propertyId.toString())
-
-      const res = await fetch(`${API_URL}/api/game/property`, {
+    mutationFn: async (method: string) => {
+      const res = await fetch(`${API_URL}/api/game/jail/release?method=${method}`, {
         method: "POST",
         credentials: "include",
-        body: formData,
       })
       if (!res.ok) {
-        throw new Error("Failed to purchase property")
+        throw new Error(res.statusText)
       }
       return res.json()
     },
   })
 }
+
+export function usePayBank() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/game/bank/pay`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        throw new Error(res.statusText)
+      }
+      return res.json()
+    },
+  })
+}
+
+export function useSetBankPayout() {
+  return useMutation({
+    mutationFn: async ({ amount, reason }: { amount: string; reason: string }) => {
+      const res = await fetch(`${API_URL}/api/game/bank/set?amount=${amount}&reason=${reason}`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        throw new Error(res.statusText)
+      }
+      return res.json()
+    },
+  })
+}
+
+export function useReceiveBankPayout() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/game/bank/receive`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        throw new Error(res.statusText)
+      }
+      return res.json()
+    },
+  })
+}
+
+export function usePlayerExchange() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/game/exchange`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        throw new Error(res.statusText)
+      }
+      return res.json()
+    },
+  })
+}
+
+export function usePlayerBankrupt() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/game/bankrupt`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        throw new Error(res.statusText)
+      }
+      return res.json()
+    },
+  })
+}
+
+export function usePayRent() {
+  return useMutation({
+    mutationFn: async ({dst_player, amount} : {dst_player: string, amount: string}) => {
+      const res = await fetch(`${API_URL}/api/game/rent?to_player_id=${dst_player}&amount=${amount}`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        throw new Error(res.statusText)
+      }
+      return res.json()
+    },
+  })
+}
+

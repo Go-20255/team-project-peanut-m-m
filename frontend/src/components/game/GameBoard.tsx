@@ -136,12 +136,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
-function getContainSize(
-  sourceWidth: number,
-  sourceHeight: number,
-  maxWidth: number,
-  maxHeight: number,
-) {
+function getContainSize(sourceWidth: number, sourceHeight: number, maxWidth: number, maxHeight: number) {
   const sourceRatio = sourceWidth / sourceHeight
   const boxRatio = maxWidth / maxHeight
 
@@ -158,10 +153,7 @@ function getContainSize(
   }
 }
 
-export default function GameBoard({
-  currentPlayerTurnId,
-  gameState,
-}: GameBoardProps) {
+export default function GameBoard({ currentPlayerTurnId, gameState }: GameBoardProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const tileImagesRef = useRef<Record<number, HTMLImageElement>>({})
@@ -184,11 +176,7 @@ export default function GameBoard({
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [imageVersion, setImageVersion] = useState(0)
 
-  const boardTiles = useMemo(
-    () => Array.from({ length: 40 }, (_, index) => getTilePlacement(index)),
-    [],
-  )
-
+  const boardTiles = useMemo(() => Array.from({ length: 40 }, (_, index) => getTilePlacement(index)), [])
 
   const playerPositions = useMemo(() => {
     const positions: Record<number, Player[]> = {}
@@ -275,7 +263,6 @@ export default function GameBoard({
       image.src = `/assets/img/tiles/${index}.png`
       tileImagesRef.current[index] = image
     })
-
     ;[0, 1, 2, 3].forEach((token) => {
       const image = new Image()
       image.onload = finishLoad
@@ -323,8 +310,7 @@ export default function GameBoard({
       const y = (placement.rowStart / BOARD_UNITS) * BOARD_SIZE
       const width = (placement.colSpan / BOARD_UNITS) * BOARD_SIZE
       const height = (placement.rowSpan / BOARD_UNITS) * BOARD_SIZE
-      const isCornerTile =
-        placement.rowSpan === CORNER_UNITS && placement.colSpan === CORNER_UNITS
+      const isCornerTile = placement.rowSpan === CORNER_UNITS && placement.colSpan === CORNER_UNITS
       const isSideTile = !isCornerTile && (placement.side === "left" || placement.side === "right")
 
       ctx.save()
@@ -336,13 +322,7 @@ export default function GameBoard({
 
       if (isSideTile) {
         const drawSize = getContainSize(image.width, image.height, height, width)
-        ctx.drawImage(
-          image,
-          -drawSize.width / 2,
-          -drawSize.height / 2,
-          drawSize.width,
-          drawSize.height,
-        )
+        ctx.drawImage(image, -drawSize.width / 2, -drawSize.height / 2, drawSize.width, drawSize.height)
       } else {
         ctx.drawImage(image, -width / 2, -height / 2, width, height)
       }
@@ -382,7 +362,13 @@ export default function GameBoard({
           ctx.stroke()
         }
 
-        ctx.drawImage(tokenImage, tokenX + tokenSize * 0.14, tokenY + tokenSize * 0.14, tokenSize * 0.72, tokenSize * 0.72)
+        ctx.drawImage(
+          tokenImage,
+          tokenX + tokenSize * 0.14,
+          tokenY + tokenSize * 0.14,
+          tokenSize * 0.72,
+          tokenSize * 0.72,
+        )
         ctx.restore()
       })
     })
