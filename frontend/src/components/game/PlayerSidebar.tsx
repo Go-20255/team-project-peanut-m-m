@@ -132,7 +132,7 @@ export default function PlayerSidebar({
         )}
       </div>
 
-      {/* Dice Roll Section */}
+      {/* Actions Section */}
       <div className="mb-4 p-3 border-2" style={{ borderColor: "#D0D3D4" }}>
         {diceRoll ? (
           <>

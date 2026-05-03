@@ -124,6 +124,21 @@ export function useMovePlayer() {
   })
 }
 
+export function useEndTurn() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/player/endturn`, {
+        method: "POST",
+        credentials: "include"
+      })
+      if (!res.ok) {
+        throw new Error("failed to end turn")
+      }
+      return res.json()
+    }
+  })
+}
+
 /**
  * Purchase property
  */
