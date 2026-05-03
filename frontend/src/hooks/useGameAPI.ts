@@ -83,9 +83,9 @@ export async function getAvailableTokens(players: Player[], sessionId: string): 
  */
 export function useRollDice() {
   return useMutation({
-    mutationFn: async ({ playerId, sessionId }: { playerId: number; sessionId: string }) => {
+    mutationFn: async ({ playerId, sessionId }: { playerId: string; sessionId: string }) => {
       const formData = new FormData()
-      formData.append("player_id", playerId.toString())
+      formData.append("player_id", playerId)
       formData.append("session_id", sessionId)
 
       const res = await fetch(`${API_URL}/api/game/roll`, {
@@ -94,7 +94,8 @@ export function useRollDice() {
         body: formData,
       })
       if (!res.ok) {
-        throw new Error("Failed to roll dice")
+        const errMsg = await res.text()
+        throw new Error(errMsg)
       }
       return res.json()
     },
@@ -106,7 +107,7 @@ export function useRollDice() {
  */
 export function useMovePlayer() {
   return useMutation({
-    mutationFn: async ({ playerId, sessionId }: { playerId: number; sessionId: string }) => {
+    mutationFn: async ({ playerId, sessionId }: { playerId: string; sessionId: string }) => {
       const formData = new FormData()
       formData.append("player_id", playerId.toString())
       formData.append("session_id", sessionId)
@@ -117,7 +118,8 @@ export function useMovePlayer() {
         body: formData,
       })
       if (!res.ok) {
-        throw new Error("Failed to move player")
+        const errMsg = await res.text()
+        throw new Error(errMsg)
       }
       return res.json()
     },
