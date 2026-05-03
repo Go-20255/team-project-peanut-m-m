@@ -219,7 +219,7 @@ export default function GameBoard({
 
   return (
     <div
-      className="w-full h-full overflow-auto"
+      className="w-full h-full overflow-y-auto overflow-x-hidden"
       style={{
         backgroundColor: "#FFFFFF",
       }}
@@ -228,8 +228,8 @@ export default function GameBoard({
         <div
           className="relative"
           style={{
-            width: "18.5in",
-            height: "18.5in",
+            width: "100%",
+            aspectRatio: "1 / 1",
           }}
         >
           <div
