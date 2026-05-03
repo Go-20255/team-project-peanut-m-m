@@ -9,6 +9,7 @@ import (
 
 type RentTileData struct {
     Position       int
+	Name           string
     PropertyId     int
     HasProperty    bool
     PropertyType   string
@@ -31,6 +32,7 @@ func GetRentTileData(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, se
     err := tx.QueryRow(ctx, `
         SELECT
             t.id,
+			t.name,
             COALESCE(t.property_id, 0),
             t.property_id IS NOT NULL,
             COALESCE(p.ptype::text, ''),
@@ -57,6 +59,7 @@ func GetRentTileData(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, se
         WHERE t.id = $2
         `, sessionId, position).Scan(
         &rentTileData.Position,
+		&rentTileData.Name,
         &rentTileData.PropertyId,
         &rentTileData.HasProperty,
         &rentTileData.PropertyType,

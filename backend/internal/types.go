@@ -33,6 +33,7 @@ type MonopolyEngine struct {
     PendingRent       *PendingRent
     PendingBankPayment *PendingBankPayment
     PendingBankPayout  *PendingBankPayout
+    PendingExchange    *PendingPlayerExchange
     TurnHasRolled      map[int]bool
     ExtraRollAllowed   map[int]bool
     DoubleRollCounts   map[int]int
@@ -86,6 +87,11 @@ type RentPaymentActionData struct {
     Amount       int
 }
 
+type PlayerExchangeActionData struct {
+	PlayerId  int    `json:"player_id"`
+	SessionId string `json:"session_id"`
+}
+
 type PropertyActionData struct {
     PlayerId    int     `json:"player_id"`
     SessionId   string  `json:"session_id"`
@@ -128,6 +134,8 @@ type PendingRent struct {
     Position     int
     Amount       int
     DiceTotal    int
+    IsUtilityCard bool
+    IsRailroadCard bool
 }
 
 type PendingBankPayment struct {
@@ -142,6 +150,14 @@ type PendingBankPayout struct {
     SessionId   string `json:"session_id"`
     Amount      int    `json:"amount"`
     Reason      string `json:"reason"`
+}
+
+type PendingPlayerExchange struct {
+	ActingPlayerId int    `json:"acting_player_id"`
+	SessionId      string `json:"session_id"`
+	Amount         int    `json:"amount"`
+	Reason         string `json:"reason"`
+	IsPayingAll    bool   `json:"is_paying_all"`
 }
 
 type RentPayment struct {
@@ -169,6 +185,15 @@ type BankPayout struct {
     Amount      int    `json:"amount"`
     Reason      string `json:"reason"`
     PlayerMoney int    `json:"player_money"`
+}
+
+type PlayerExchange struct {
+	ActingPlayerId int                `json:"acting_player_id"`
+	SessionId      string             `json:"session_id"`
+	Amount         int                `json:"amount"`
+	Reason         string             `json:"reason"`
+	IsPayingAll    bool               `json:"is_paying_all"`
+	Balances       map[int]int `json:"balances"`
 }
 
 type JailRelease struct {

@@ -1,0 +1,20 @@
+meta {
+  name: receive bank payout
+  type: http
+  seq: 16
+}
+
+post {
+  url: http://localhost:9876/api/game/bank/receive
+  body: none
+  auth: inherit
+}
+
+vars:pre-request {
+  session_id: eb5d8186-b2ab-4b3c-b940-62e6f1845f04
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

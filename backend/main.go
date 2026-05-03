@@ -103,6 +103,7 @@ func main() {
     routes.POST("/game/bank/pay", gamestatehandlers.PayBankHandler)
     routes.POST("/game/bank/get", gamestatehandlers.SetBankPayoutHandler)
     routes.POST("/game/bank/receive", gamestatehandlers.ReceiveBankPayoutHandler)
+    routes.POST("/game/exchange", gamestatehandlers.ExecutePlayerExchangeHandler)
     routes.POST("/game/bankrupt", gamestatehandlers.BankruptHandler)
     routes.POST("/game/rent", gamestatehandlers.PayRentHandler)
 
