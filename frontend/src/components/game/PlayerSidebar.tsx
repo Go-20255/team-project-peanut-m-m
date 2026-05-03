@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react"
 import { getTokenIcon, getTokenName } from "@/utils/tokens"
 import { Player, GameState } from "@/types"
-import { useEndTurn, useMovePlayer, useRollDice } from "@/hooks/useGameAPI"
+import { useMovePlayer, useRollDice } from "@/hooks/useGameAPI"
 import { storage } from "@/utils"
+import { useEndTurn } from "@/hooks/playerHooks"
 
 interface PlayerSidebarProps {
   sessionId: string
@@ -55,40 +56,43 @@ export default function PlayerSidebar({
     }
 
     setError(null)
-    rollMutation.mutate({playerId: playerId, sessionId: sessionId}, {
-      onSuccess: (res) => {
-        setDiceRoll(res)
-        console.log("Dice roll successful:", res)
+    rollMutation.mutate(
+      { playerId: playerId, sessionId: sessionId },
+      {
+        onSuccess: (res) => {
+          setDiceRoll(res)
+          console.log("Dice roll successful:", res)
+        },
+        onError: (err) => {
+          var errorText = err.message
+          setError(`Failed to roll: ${errorText}`)
+          console.error("Roll dice error:", errorText)
+        },
       },
-      onError: (err) => {
-        var errorText = err.message
-        setError(`Failed to roll: ${errorText}`)
-        console.error("Roll dice error:", errorText)
-      }
-    })
+    )
   }
 
   const handleMove = async () => {
     setError(null)
-    movePlayerMutation.mutate({playerId: playerId, sessionId: sessionId}, {
-      onSuccess: (res) => {
-      setDiceRoll(null)
-      console.log("Move successful")
+    movePlayerMutation.mutate(
+      { playerId: playerId, sessionId: sessionId },
+      {
+        onSuccess: (res) => {
+          setDiceRoll(null)
+          console.log("Move successful")
+        },
+        onError: (err) => {
+          var errorText = err.message
+          setError(`Failed to move: ${errorText}`)
+          console.error("Move error:", errorText)
+        },
       },
-      onError: (err) => {
-        var errorText = err.message
-        setError(`Failed to move: ${errorText}`)
-        console.error("Move error:", errorText)
-      }
-    })
+    )
   }
 
   return (
     <div className="w-full h-full flex flex-col p-4 overflow-y-auto" style={{ backgroundColor: "#FFFFFF" }}>
-      <div
-        className="flex flex-col text-center border-2 px-3 py-1 mb-3"
-        style={{ borderColor: "#D0D3D4" }}
-      >
+      <div className="flex flex-col text-center border-2 px-3 py-1 mb-3" style={{ borderColor: "#D0D3D4" }}>
         <div className="text-xs" style={{ color: "#7C878E" }}>
           Game Join Code
         </div>
@@ -237,9 +241,19 @@ export default function PlayerSidebar({
                     <span style={{ fontSize: "0.75em", color: "#F57F17", fontWeight: "bold" }}>PLAYING</span>
                   )}
                   {player.in_game ? (
-                    <span className="bg-green-600 text-white px-2 py-0.5 rounded-full " style={{ fontSize: "0.75em", fontWeight: "bold" }}>In Game</span>
+                    <span
+                      className="bg-green-600 text-white px-2 py-0.5 rounded-full "
+                      style={{ fontSize: "0.75em", fontWeight: "bold" }}
+                    >
+                      In Game
+                    </span>
                   ) : (
-                    <span className="bg-red-600 text-white px-2 py-0.5 rounded-full " style={{ fontSize: "0.75em", fontWeight: "bold" }}>Offline</span>
+                    <span
+                      className="bg-red-600 text-white px-2 py-0.5 rounded-full "
+                      style={{ fontSize: "0.75em", fontWeight: "bold" }}
+                    >
+                      Offline
+                    </span>
                   )}
                 </div>
 
