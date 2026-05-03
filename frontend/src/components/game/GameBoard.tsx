@@ -1,7 +1,7 @@
 "use client"
 
-import { type CSSProperties, useMemo } from "react"
-import { getTokenIcon, getTokenName } from "@/utils/tokens"
+import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react"
+import { getTokenIcon } from "@/utils/tokens"
 import { GameState, Player } from "@/types"
 
 interface GameBoardProps {
@@ -15,6 +15,7 @@ interface GameBoardProps {
 const BOARD_UNITS = 37
 const CORNER_UNITS = 5
 const EDGE_UNITS = 3
+const BOARD_SIZE = 1850
 
 type BoardSide = "bottom" | "left" | "top" | "right"
 
@@ -25,6 +26,13 @@ type TilePlacement = {
   colStart: number
   rowSpan: number
   colSpan: number
+  rotation: number
+}
+
+type ViewportState = {
+  zoom: number
+  x: number
+  y: number
   rotation: number
 }
 
@@ -124,69 +132,29 @@ function getTilePlacement(index: number): TilePlacement {
   }
 }
 
-function getTokenTrayStyle(side: BoardSide): CSSProperties {
-  if (side === "bottom") {
-    return {
-      top: 8,
-      left: 8,
-      right: 8,
-      justifyContent: "flex-start",
-    }
-  }
-
-  if (side === "top") {
-    return {
-      bottom: 8,
-      left: 8,
-      right: 8,
-      justifyContent: "flex-end",
-    }
-  }
-
-  if (side === "left") {
-    return {
-      top: 8,
-      bottom: 8,
-      right: 8,
-      justifyContent: "center",
-      flexDirection: "column",
-      alignItems: "flex-end",
-    }
-  }
-
-  return {
-    top: 8,
-    bottom: 8,
-    left: 8,
-    justifyContent: "center",
-    flexDirection: "column",
-    alignItems: "flex-start",
-  }
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
-function getTileImageStyle(placement: TilePlacement): CSSProperties {
-  const isCornerTile =
-    placement.rowSpan === CORNER_UNITS && placement.colSpan === CORNER_UNITS
+function getContainSize(
+  sourceWidth: number,
+  sourceHeight: number,
+  maxWidth: number,
+  maxHeight: number,
+) {
+  const sourceRatio = sourceWidth / sourceHeight
+  const boxRatio = maxWidth / maxHeight
 
-  if (!isCornerTile && (placement.side === "left" || placement.side === "right")) {
+  if (sourceRatio > boxRatio) {
     return {
-      position: "absolute",
-      top: "50%",
-      left: "50%",
-      width: "60%",
-      height: "166.6667%",
-      transform: `translate(-50%, -50%) rotate(${placement.rotation}deg)`,
-      transformOrigin: "center",
+      width: maxWidth,
+      height: maxWidth / sourceRatio,
     }
   }
 
   return {
-    position: "absolute",
-    inset: 0,
-    width: "100%",
-    height: "100%",
-    transform: `rotate(${placement.rotation}deg)`,
-    transformOrigin: "center",
+    width: maxHeight * sourceRatio,
+    height: maxHeight,
   }
 }
 
@@ -194,13 +162,30 @@ export default function GameBoard({
   currentPlayerTurnId,
   gameState,
 }: GameBoardProps) {
-  const tilesByIndex = useMemo(() => {
-    const map: Record<number, (typeof gameState.tiles)[number]> = {}
-    gameState.tiles.forEach((tile) => {
-      map[tile.id] = tile
-    })
-    return map
-  }, [gameState.tiles])
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const tileImagesRef = useRef<Record<number, HTMLImageElement>>({})
+  const tokenImagesRef = useRef<Record<number, HTMLImageElement>>({})
+  const dragRef = useRef<{ active: boolean; x: number; y: number }>({
+    active: false,
+    x: 0,
+    y: 0,
+  })
+
+  const [viewport, setViewport] = useState<ViewportState>({
+    zoom: 1,
+    x: 0,
+    y: 0,
+    rotation: 0,
+  })
+  const [isDragging, setIsDragging] = useState(false)
+  const [size, setSize] = useState({ width: 0, height: 0 })
+  const [imageVersion, setImageVersion] = useState(0)
+
+  const boardTiles = useMemo(
+    () => Array.from({ length: 40 }, (_, index) => getTilePlacement(index)),
+    [],
+  )
 
   const playerPositions = useMemo(() => {
     const positions: Record<number, Player[]> = {}
@@ -212,110 +197,251 @@ export default function GameBoard({
     return positions
   }, [gameState.players])
 
-  const boardTiles = useMemo(
-    () => Array.from({ length: 40 }, (_, index) => getTilePlacement(index)),
-    [],
-  )
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const updateSize = () => {
+      setSize({
+        width: container.clientWidth,
+        height: container.clientHeight,
+      })
+    }
+
+    updateSize()
+
+    const observer = new ResizeObserver(() => updateSize())
+    observer.observe(container)
+
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const tileEntries = Array.from({ length: 40 }, (_, index) => index)
+    let loadedCount = 0
+    const targetCount = tileEntries.length + 4
+
+    const finishLoad = () => {
+      loadedCount += 1
+      if (!cancelled && loadedCount === targetCount) {
+        setImageVersion((value) => value + 1)
+      }
+    }
+
+    tileEntries.forEach((index) => {
+      const image = new Image()
+      image.onload = finishLoad
+      image.src = `/assets/img/tiles/${index}.png`
+      tileImagesRef.current[index] = image
+    })
+
+    ;[0, 1, 2, 3].forEach((token) => {
+      const image = new Image()
+      image.onload = finishLoad
+      image.src = getTokenIcon(token)
+      tokenImagesRef.current[token] = image
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || size.width === 0 || size.height === 0) return
+
+    const ratio = window.devicePixelRatio || 1
+    canvas.width = Math.floor(size.width * ratio)
+    canvas.height = Math.floor(size.height * ratio)
+    canvas.style.width = `${size.width}px`
+    canvas.style.height = `${size.height}px`
+
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.scale(ratio, ratio)
+    ctx.clearRect(0, 0, size.width, size.height)
+    ctx.fillStyle = "#FFFFFF"
+    ctx.fillRect(0, 0, size.width, size.height)
+
+    const baseZoom = size.width / BOARD_SIZE
+
+    ctx.save()
+    ctx.translate(size.width / 2 + viewport.x, size.height / 2 + viewport.y)
+    ctx.rotate((viewport.rotation * Math.PI) / 180)
+    ctx.scale(baseZoom * viewport.zoom, baseZoom * viewport.zoom)
+    ctx.translate(-BOARD_SIZE / 2, -BOARD_SIZE / 2)
+
+    boardTiles.forEach((placement) => {
+      const image = tileImagesRef.current[placement.index]
+      if (!image) return
+
+      const x = (placement.colStart / BOARD_UNITS) * BOARD_SIZE
+      const y = (placement.rowStart / BOARD_UNITS) * BOARD_SIZE
+      const width = (placement.colSpan / BOARD_UNITS) * BOARD_SIZE
+      const height = (placement.rowSpan / BOARD_UNITS) * BOARD_SIZE
+      const isCornerTile =
+        placement.rowSpan === CORNER_UNITS && placement.colSpan === CORNER_UNITS
+      const isSideTile = !isCornerTile && (placement.side === "left" || placement.side === "right")
+
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(x, y, width, height)
+      ctx.clip()
+      ctx.translate(x + width / 2, y + height / 2)
+      ctx.rotate((placement.rotation * Math.PI) / 180)
+
+      if (isSideTile) {
+        const drawSize = getContainSize(image.width, image.height, height, width)
+        ctx.drawImage(
+          image,
+          -drawSize.width / 2,
+          -drawSize.height / 2,
+          drawSize.width,
+          drawSize.height,
+        )
+      } else {
+        ctx.drawImage(image, -width / 2, -height / 2, width, height)
+      }
+      ctx.restore()
+
+      const playersOnTile = playerPositions[placement.index] || []
+      if (playersOnTile.length === 0) return
+
+      const columns = playersOnTile.length > 2 ? 2 : playersOnTile.length
+      const rows = Math.ceil(playersOnTile.length / columns)
+      const tokenSize = isCornerTile ? 58 : 42
+      const gap = 8
+      const totalWidth = columns * tokenSize + (columns - 1) * gap
+      const totalHeight = rows * tokenSize + (rows - 1) * gap
+      const startX = x + width / 2 - totalWidth / 2
+      const startY = y + height / 2 - totalHeight / 2
+
+      playersOnTile.forEach((player, index) => {
+        const tokenImage = tokenImagesRef.current[player.piece_token]
+        if (!tokenImage) return
+
+        const column = index % columns
+        const row = Math.floor(index / columns)
+        const tokenX = startX + column * (tokenSize + gap)
+        const tokenY = startY + row * (tokenSize + gap)
+        const isTurn = player.id === currentPlayerTurnId
+
+        ctx.save()
+        ctx.fillStyle = "#FFFFFF"
+        ctx.beginPath()
+        ctx.arc(tokenX + tokenSize / 2, tokenY + tokenSize / 2, tokenSize / 2, 0, Math.PI * 2)
+        ctx.fill()
+
+        if (isTurn) {
+          ctx.strokeStyle = "#F76902"
+          ctx.lineWidth = 4
+          ctx.stroke()
+        }
+
+        ctx.drawImage(tokenImage, tokenX + tokenSize * 0.14, tokenY + tokenSize * 0.14, tokenSize * 0.72, tokenSize * 0.72)
+        ctx.restore()
+      })
+    })
+
+    ctx.restore()
+  }, [boardTiles, currentPlayerTurnId, imageVersion, playerPositions, size, viewport])
+
+  const onWheel = (event: WheelEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setViewport((value) => ({
+      ...value,
+      zoom: clamp(Number((value.zoom - event.deltaY * 0.001).toFixed(3)), 0.5, 4),
+    }))
+  }
+
+  const onMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+    dragRef.current = {
+      active: true,
+      x: event.clientX,
+      y: event.clientY,
+    }
+    setIsDragging(true)
+  }
+
+  const onMouseMove = (event: MouseEvent<HTMLDivElement>) => {
+    if (!dragRef.current.active) return
+
+    const dx = event.clientX - dragRef.current.x
+    const dy = event.clientY - dragRef.current.y
+
+    dragRef.current = {
+      active: true,
+      x: event.clientX,
+      y: event.clientY,
+    }
+
+    setViewport((value) => ({
+      ...value,
+      x: value.x + dx,
+      y: value.y + dy,
+    }))
+  }
+
+  const stopDrag = () => {
+    dragRef.current.active = false
+    setIsDragging(false)
+  }
 
   return (
     <div
-      className="w-full h-full overflow-y-auto overflow-x-hidden"
+      ref={containerRef}
+      className="w-full h-full"
+      onWheel={onWheel}
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={stopDrag}
+      onMouseLeave={stopDrag}
       style={{
+        position: "relative",
+        overflow: "hidden",
         backgroundColor: "#FFFFFF",
+        minHeight: "100vh",
+        cursor: isDragging ? "grabbing" : "grab",
       }}
     >
-      <div className="p-6">
-        <div
-          className="relative"
+      <div
+        style={{
+          position: "absolute",
+          left: 16,
+          top: 16,
+          zIndex: 20,
+          padding: 8,
+          backgroundColor: "#FFFFFF",
+          border: "1px solid #000000",
+        }}
+      >
+        <button
+          type="button"
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={() =>
+            setViewport((value) => ({
+              ...value,
+              rotation: value.rotation + 90,
+            }))
+          }
           style={{
-            width: "100%",
-            aspectRatio: "1 / 1",
+            width: 40,
+            height: 40,
+            backgroundColor: "#FFFFFF",
+            border: "1px solid #000000",
+            fontSize: 20,
           }}
         >
-          <div
-            className="grid w-full h-full"
-            style={{
-              gridTemplateColumns: `repeat(${BOARD_UNITS}, minmax(0, 1fr))`,
-              gridTemplateRows: `repeat(${BOARD_UNITS}, minmax(0, 1fr))`,
-              backgroundColor: "#FFFFFF",
-            }}
-          >
-            {boardTiles.map((placement) => {
-              const tile = tilesByIndex[placement.index]
-              const playersOnTile = playerPositions[placement.index] || []
-
-              return (
-                <div
-                  key={placement.index}
-                  title={tile?.name || `Tile ${placement.index}`}
-                  style={{
-                    gridColumn: `${placement.colStart + 1} / span ${placement.colSpan}`,
-                    gridRow: `${placement.rowStart + 1} / span ${placement.rowSpan}`,
-                    position: "relative",
-                    overflow: "hidden",
-                    backgroundColor: "#FFFFFF",
-                  }}
-                >
-                  <img
-                    src={`/assets/img/tiles/${placement.index}.png`}
-                    alt={tile?.name || `Tile ${placement.index}`}
-                    style={getTileImageStyle(placement)}
-                  />
-
-                  {playersOnTile.length > 0 ? (
-                    <div
-                      style={{
-                        position: "absolute",
-                        display: "flex",
-                        gap: 6,
-                        flexWrap: "wrap",
-                        ...getTokenTrayStyle(placement.side),
-                      }}
-                    >
-                      {playersOnTile.map((player) => {
-                        const isTurn = player.id === currentPlayerTurnId
-                        return (
-                          <div
-                            key={`${placement.index}-${player.id}`}
-                            title={`${player.name} (${getTokenName(player.piece_token)})${isTurn ? " - TURN" : ""}`}
-                            style={{
-                              width: placement.rowSpan === CORNER_UNITS && placement.colSpan === CORNER_UNITS ? 28 : 22,
-                              height: placement.rowSpan === CORNER_UNITS && placement.colSpan === CORNER_UNITS ? 28 : 22,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              opacity: isTurn ? 1 : 0.9,
-                            }}
-                          >
-                            <img
-                              src={getTokenIcon(player.piece_token)}
-                              alt={getTokenName(player.piece_token)}
-                              style={{
-                                width: "72%",
-                                height: "72%",
-                                objectFit: "contain",
-                              }}
-                            />
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : null}
-                </div>
-              )
-            })}
-
-            <div
-              className="flex flex-col items-center justify-center text-center px-6"
-              style={{
-                gridColumn: `${CORNER_UNITS + 1} / span ${BOARD_UNITS - CORNER_UNITS * 2}`,
-                gridRow: `${CORNER_UNITS + 1} / span ${BOARD_UNITS - CORNER_UNITS * 2}`,
-                backgroundColor: "#FFFFFF",
-              }}
-            />
-          </div>
-        </div>
+          ↻
+        </button>
       </div>
+
+      <canvas ref={canvasRef} />
     </div>
   )
 }
