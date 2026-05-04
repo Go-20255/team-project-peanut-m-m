@@ -95,7 +95,15 @@ export function HandleGameReadyEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      current_turn: 0,
+    }
+  })
+}
 
 export function HandleRollDiceEvent(
   gameState: GameState | null,
