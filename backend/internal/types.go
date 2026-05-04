@@ -126,6 +126,15 @@ type PlayerMovement struct {
     RollAgain   bool   `json:"roll_again"`
 }
 
+type PropertyPurchaseAvailable struct {
+    PlayerId     int    `json:"player_id"`
+    SessionId    string `json:"session_id"`
+    PropertyId   int    `json:"property_id"`
+    PurchaseCost int    `json:"purchase_cost"`
+    PlayerMoney  int    `json:"player_money"`
+    CanAfford    bool   `json:"can_afford"`
+}
+
 type PendingRent struct {
     FromPlayerId int
     ToPlayerId   int

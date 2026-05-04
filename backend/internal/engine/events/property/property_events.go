@@ -96,6 +96,12 @@ func PurchaseProperty(
     }
 
     property := tile.PropertyData
+    if property == nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "current tile is not a purchasable property",
+        }
+    }
 
     // check ownership of property
     _, is_owned, err := internaldb_tiles.VerifyPropertyOwnerDB(
