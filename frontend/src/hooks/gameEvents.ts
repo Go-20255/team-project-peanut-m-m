@@ -1,6 +1,6 @@
 "use client"
 
-import { GameState, GameStateUpdate, PropertyPurchaseAvailable } from "@/types"
+import { GameState, GameStateUpdate, PendingBankPayment, PropertyPurchaseAvailable } from "@/types"
 import { Dispatch, SetStateAction } from "react"
 
 const parse = <T>(raw: string): T | null => {
@@ -24,6 +24,7 @@ export function HandleInitialGameBoardUpdateEvent(
       current_roll: null,
       last_move: null,
       pending_property_purchase: null,
+      pending_bank_payment: null,
     })
   }
 }
@@ -55,6 +56,7 @@ export function HandleMovePlayerEvent(
       current_turn: data.turn_number ?? prev.current_turn,
       current_roll: null,
       pending_property_purchase: null,
+      pending_bank_payment: null,
       last_move: {
         player_id: data.player_id,
         session_id: prev.players.find((pi) => pi.player.id === data.player_id)?.player.session_id ?? "",
@@ -97,6 +99,7 @@ export function HandleGameStateUpdateEvent(
       current_roll: turnChanged ? null : prev.current_roll,
       last_move: turnChanged ? null : prev.last_move,
       pending_property_purchase: turnChanged ? null : prev.pending_property_purchase,
+      pending_bank_payment: turnChanged ? null : prev.pending_bank_payment,
       players: data.players,
     }
   })
@@ -106,7 +109,15 @@ export function HandleBankPaymentEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_bank_payment: null,
+    }
+  })
+}
 
 export function HandleBankPayoutEvent(
   gameState: GameState | null,
@@ -118,7 +129,18 @@ export function HandleBankPaymentDueEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  const data = parse<PendingBankPayment>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_bank_payment: data,
+    }
+  })
+}
 
 export function HandleBankPayoutDueEvent(
   gameState: GameState | null,
@@ -139,6 +161,7 @@ export function HandleGameReadyEvent(
       current_roll: null,
       last_move: null,
       pending_property_purchase: null,
+      pending_bank_payment: null,
     }
   })
 }
@@ -204,13 +227,31 @@ export function HandlePayToLeaveJailEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_bank_payment: null,
+      current_roll: null,
+    }
+  })
+}
 
 export function HandleUseGetOutOfJailCardEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_bank_payment: null,
+      current_roll: null,
+    }
+  })
+}
 
 export function HandleBankruptcyEvent(
   gameState: GameState | null,

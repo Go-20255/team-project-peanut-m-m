@@ -58,6 +58,7 @@ export interface GameState {
   current_roll?: DiceRoll | null
   last_move?: PlayerMovement | null
   pending_property_purchase?: PropertyPurchaseAvailable | null
+  pending_bank_payment?: PendingBankPayment | null
 }
 
 export interface Tile {
@@ -101,4 +102,11 @@ export interface PropertyPurchaseAvailable {
   purchase_cost: number
   player_money: number
   can_afford: boolean
+}
+
+export interface PendingBankPayment {
+  player_id: number
+  session_id: string
+  amount: number
+  reason: string
 }

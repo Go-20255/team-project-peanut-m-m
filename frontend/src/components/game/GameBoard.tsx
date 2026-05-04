@@ -5,7 +5,7 @@ import { getTokenIcon } from "@/utils/tokens"
 import { DiceRoll, GameState, Player } from "@/types"
 import { useReadyUp } from "@/hooks/playerHooks"
 import { useEndTurn } from "@/hooks/playerHooks"
-import { useJailRelease, useMovePlayer, useRollDice } from "@/hooks/useGameAPI"
+import { useJailRelease, useMovePlayer, usePayBank, useRollDice } from "@/hooks/useGameAPI"
 import { useIgnorePropertyPurchase, usePurchaseProperty } from "@/hooks/propertyHooks"
 
 interface GameBoardProps {
@@ -291,6 +291,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const moveMutation = useMovePlayer()
   const endTurnMutation = useEndTurn()
   const jailReleaseMutation = useJailRelease()
+  const payBankMutation = usePayBank()
   const purchasePropertyMutation = usePurchaseProperty()
   const ignorePropertyMutation = useIgnorePropertyPurchase()
 
@@ -327,6 +328,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId
   const currentRoll = gameState.current_roll ?? null
   const lastMove = gameState.last_move ?? null
+  const pendingBankPayment = gameState.pending_bank_payment ?? null
   const pendingPropertyPurchase = gameState.pending_property_purchase ?? null
   const pendingPropertyData = useMemo(
     () =>
@@ -823,6 +825,17 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     })
   }
 
+  const handlePayBank = () => {
+    if (!isCurrentPlayerTurn) return
+
+    setActionError(null)
+    payBankMutation.mutate(undefined, {
+      onError: (error: Error) => {
+        setActionError(error.message)
+      },
+    })
+  }
+
   const rollLabel = isTurnOrderPhase
     ? "Roll for Order"
     : lastMove?.player_id === currentPlayerTurnId && lastMove?.roll_again
@@ -840,24 +853,29 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     !isTurnOrderPhase &&
     currentRoll.jailed > 0 &&
     !currentRoll.released_from_jail &&
-    currentRoll.jailed < 3
+    currentRoll.jailed < 4
 
   const showJailReleaseButtons =
     !!currentRoll &&
     !isTurnOrderPhase &&
-    currentRoll.jailed >= 3 &&
-    !currentRoll.released_from_jail
+    currentRoll.jailed > 0 &&
+    !currentRoll.released_from_jail &&
+    !currentRoll.is_double
 
   const showTurnOrderEndTurn = !!currentRoll && isTurnOrderPhase
   const showSentToJailEndTurn = !!currentRoll && !isTurnOrderPhase && currentRoll.sent_to_jail
+  const showBankPaymentPanel = !!pendingBankPayment && !moveAnimation
   const showPropertyPurchasePanel = !!pendingPropertyPurchase && !moveAnimation
+  const activePlayerNeedsJailRoll = !!activePlayer && activePlayer.jailed > 0 && !currentRoll
   const showTurnPanel =
     !isGameStarted ||
     !!readyError ||
     !!actionError ||
+    showBankPaymentPanel ||
     showPropertyPurchasePanel ||
     isRollingAnimation ||
     !!currentRoll ||
+    activePlayerNeedsJailRoll ||
     (!moveAnimation && !!lastMove && isCurrentPlayerTurn && lastMove.roll_again) ||
     (!moveAnimation && !lastMove && isCurrentPlayerTurn)
 
@@ -1033,7 +1051,55 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             textAlign: "center",
           }}
         >
-          {showPropertyPurchasePanel ? (
+          {showBankPaymentPanel ? (
+            <>
+              <div
+                style={{
+                  color: "#F76902",
+                  fontSize: 20,
+                  fontWeight: 700,
+                }}
+              >
+                {pendingBankPayment.reason === "jail release" ? "Leave Jail" : "Bank Payment"}
+              </div>
+
+              <div
+                style={{
+                  color: "#7C878E",
+                  fontSize: 13,
+                }}
+              >
+                {activePlayer ? `${activePlayer.name}` : "Waiting"}
+              </div>
+
+              <div
+                style={{
+                  color: "#000000",
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                {isCurrentPlayerTurn
+                  ? pendingBankPayment.reason === "jail release"
+                    ? "Pay to leave jail"
+                    : pendingBankPayment.reason
+                  : activePlayer
+                    ? pendingBankPayment.reason === "jail release"
+                      ? `Waiting for ${activePlayer.name} to leave jail`
+                      : `Waiting for ${activePlayer.name} to pay`
+                    : "Waiting"}
+              </div>
+
+              <div
+                style={{
+                  color: "#7C878E",
+                  fontSize: 13,
+                }}
+              >
+                Amount: ₮{pendingBankPayment.amount.toLocaleString()}
+              </div>
+            </>
+          ) : showPropertyPurchasePanel ? (
             <>
               <div
                 style={{
@@ -1082,7 +1148,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
               >
                 {isCurrentPlayerTurn
                   ? pendingPropertyPurchase.can_afford
-                    ? "Buy or end turn"
+                    ? "Buy or ignore"
                     : "Cannot afford this property"
                   : activePlayer
                     ? `Waiting for ${activePlayer.name} to decide`
@@ -1154,8 +1220,16 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                       : currentRoll.sent_to_jail
                         ? "Go to Jail"
                         : currentRoll.jailed > 0 && !currentRoll.released_from_jail
-                          ? `Jail Turn ${currentRoll.jailed}`
+                          ? currentRoll.jailed >= 4
+                            ? "No doubles. Leave jail."
+                            : "No doubles. Stay in jail or leave."
                           : `Total ${currentRoll.total}`
+                    : activePlayerNeedsJailRoll
+                      ? isCurrentPlayerTurn
+                        ? `Roll for doubles to leave jail`
+                        : activePlayer
+                          ? `Waiting for ${activePlayer.name} to roll for doubles`
+                          : "Waiting"
                     : isTurnOrderPhase
                       ? "Roll to set order"
                       : isCurrentPlayerTurn
@@ -1164,6 +1238,26 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
               </div>
             </>
           )}
+
+          {isCurrentPlayerTurn && showBankPaymentPanel ? (
+            <button
+              type="button"
+              onClick={handlePayBank}
+              disabled={payBankMutation.isPending}
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                backgroundColor: payBankMutation.isPending ? "#D0D3D4" : "#F76902",
+                color: "#FFFFFF",
+                fontWeight: 700,
+                cursor: payBankMutation.isPending ? "not-allowed" : "pointer",
+              }}
+            >
+              {pendingBankPayment.reason === "jail release"
+                ? `Pay ₮${pendingBankPayment.amount.toLocaleString()}`
+                : "Pay Bank"}
+            </button>
+          ) : null}
 
           {isCurrentPlayerTurn && showPropertyPurchasePanel ? (
             <div
@@ -1210,7 +1304,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </div>
           ) : null}
 
-          {isCurrentPlayerTurn && !showPropertyPurchasePanel && !currentRoll && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showBankPaymentPanel && !showPropertyPurchasePanel && !currentRoll && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleRoll}
@@ -1228,7 +1322,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showPropertyPurchasePanel && showMoveButton && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showBankPaymentPanel && !showPropertyPurchasePanel && showMoveButton && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleMove}
@@ -1246,7 +1340,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showPropertyPurchasePanel && showTurnOrderEndTurn && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showBankPaymentPanel && !showPropertyPurchasePanel && showTurnOrderEndTurn && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleEndTurn}
@@ -1264,7 +1358,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showPropertyPurchasePanel && showJailEndTurn && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showBankPaymentPanel && !showPropertyPurchasePanel && showJailEndTurn && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleEndTurn}
@@ -1282,7 +1376,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showPropertyPurchasePanel && showSentToJailEndTurn && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showBankPaymentPanel && !showPropertyPurchasePanel && showSentToJailEndTurn && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleEndTurn}
@@ -1300,7 +1394,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showPropertyPurchasePanel && showJailReleaseButtons && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showBankPaymentPanel && !showPropertyPurchasePanel && showJailReleaseButtons && !isRollingAnimation ? (
             <div
               style={{
                 width: "100%",

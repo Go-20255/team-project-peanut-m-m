@@ -487,7 +487,7 @@ func RollDice(
                 e.PendingRolls[data.PlayerId] = diceRoll
             } else {
                 jailedTurns := player.Jailed
-                if jailedTurns < 3 {
+                if jailedTurns < 4 {
                     jailedTurns += 1
                     err := internaldb_players.UpdatePlayerJailState(
                         log,
@@ -585,11 +585,23 @@ func EndTurn(
         }
     }
 
-    if _, ok := e.PendingRolls[data.PlayerId]; ok {
-        return internal.UserActionStatus{
-            Status: http.StatusBadRequest,
-            Msg:    "player has a pending dice roll",
+    if pendingRoll, ok := e.PendingRolls[data.PlayerId]; ok {
+        player, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
         }
+
+        if !(player.Jailed > 0 && !pendingRoll.IsDouble && !pendingRoll.ReleasedFromJail) {
+            return internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    "player has a pending dice roll",
+            }
+        }
+
+        delete(e.PendingRolls, data.PlayerId)
     }
 
     if e.TurnNumber >= len(players) {
@@ -961,6 +973,10 @@ func PayBank(
             }
         }
 
+        delete(e.PendingRolls, data.PlayerId)
+        e.TurnHasRolled[data.PlayerId] = false
+        e.ExtraRollAllowed[data.PlayerId] = false
+        e.DoubleRollCounts[data.PlayerId] = 0
         bankPayment.Jailed = 0
         e.Broker.Broadcast(log, "PayToLeaveJailEvent", internal.JailRelease{
             PlayerId:          data.PlayerId,
@@ -1451,6 +1467,10 @@ func ReleaseFromJail(
         }
     }
 
+    delete(e.PendingRolls, data.PlayerId)
+    e.TurnHasRolled[data.PlayerId] = false
+    e.ExtraRollAllowed[data.PlayerId] = false
+    e.DoubleRollCounts[data.PlayerId] = 0
     jailRelease.GetOutOfJailCards = player.GetOutOfJailCards - 1
 
     e.Broker.Broadcast(log, "UseGetOutOfJailCardEvent", jailRelease)

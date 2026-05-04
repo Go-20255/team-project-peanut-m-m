@@ -186,9 +186,10 @@ export default function PlayerSidebar({
             const isCurrentPlayer = player.id.toString() === playerId
             const isPlayerTurn = player.id === currentPlayerTurnId
             const ownedProperties =
-              gameState?.players
+              (gameState?.players
                 .find((playerInfo) => playerInfo.player.id === player.id)
-                ?.owned_properties.slice()
+                ?.owned_properties ?? [])
+                .slice()
                 .sort((a, b) => {
                   const typeDiff =
                     propertyOrder.indexOf(a.property_info.property_type) -
