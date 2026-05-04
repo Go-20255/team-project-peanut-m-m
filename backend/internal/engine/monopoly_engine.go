@@ -72,6 +72,7 @@ func SetupNewMonopolyEngine(sessionId string) {
         PendingRent:     nil,
         PendingBankPayment: nil,
         PendingBankPayout: nil,
+        PendingExchange:    nil,
         TurnHasRolled:   map[int]bool{},
         ExtraRollAllowed: map[int]bool{},
         DoubleRollCounts: map[int]int{},
@@ -250,6 +251,8 @@ func processUserAction(
         action_status = player.Bankrupt(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PayRentEvent":
         action_status = player.PayRent(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "PlayerExchangeEvent":
+        action_status = player.ExecutePlayerExchange(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseProperty":
         action_status = property.PurchaseProperty(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseHouse":

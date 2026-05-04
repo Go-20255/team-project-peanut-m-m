@@ -95,14 +95,15 @@ func main() {
 
     routes.POST("/game", gamestatehandlers.NewGameHandler)
     routes.GET("/game", gamestatehandlers.GetAllGameSessions)
-    routes.POST("/game/join", gamestatehandlers.JoinSessionHandler)
+    routes.POST("/game/join", gamestatehandlers.JoinSessionViaCodeHandler)
     routes.GET("/game/join/live", gamestatehandlers.JoinLiveGameHandler)
     routes.POST("/game/roll", gamestatehandlers.RollDiceHandler)
     routes.POST("/game/move", gamestatehandlers.MovePlayerHandler)
     routes.POST("/game/jail/release", gamestatehandlers.UseGetOutOfJailCardHandler)
     routes.POST("/game/bank/pay", gamestatehandlers.PayBankHandler)
-    routes.POST("/game/bank/get", gamestatehandlers.SetBankPayoutHandler)
+    routes.POST("/game/bank/set", gamestatehandlers.SetBankPayoutHandler)
     routes.POST("/game/bank/receive", gamestatehandlers.ReceiveBankPayoutHandler)
+    routes.POST("/game/exchange", gamestatehandlers.ExecutePlayerExchangeHandler)
     routes.POST("/game/bankrupt", gamestatehandlers.BankruptHandler)
     routes.POST("/game/rent", gamestatehandlers.PayRentHandler)
 

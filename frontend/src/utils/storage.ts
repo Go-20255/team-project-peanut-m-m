@@ -3,7 +3,7 @@ import { GameState, Player } from "@/types"
 
 export const storage = {
   getItem<T>(key: string): T | null {
-    const value = localStorage.getItem(key)
+    const value = sessionStorage.getItem(key)
     if (!value) return null
 
     try {
@@ -14,7 +14,7 @@ export const storage = {
   },
 
   setItem<T>(key: string, value: T): void {
-    localStorage.setItem(key, JSON.stringify(value))
+    sessionStorage.setItem(key, JSON.stringify(value))
   },
 
   removeItem(key: string): void {
@@ -34,8 +34,9 @@ export const storage = {
   setGameCode: (code: string) => storage.setItem("gameCode", code),
 
   clear: () => {
-    localStorage.removeItem("sessionId")
-    localStorage.removeItem("gameCode")
-    localStorage.removeItem("player")
+    sessionStorage.removeItem("sessionId")
+    sessionStorage.removeItem("gameCode")
+    sessionStorage.removeItem("player")
+    sessionStorage.removeItem("game_state")
   },
 }

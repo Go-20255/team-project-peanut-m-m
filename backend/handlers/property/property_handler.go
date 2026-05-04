@@ -18,11 +18,14 @@ import (
 func CheckPropertyOwnerHandler(c echo.Context) error {
     log := util.GetRequestLogger(c)
     ctx := c.Request().Context()
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
 
-    sessionId := c.QueryParam("session_id")
-    propertyIdStr := c.QueryParam("property_id")
+    propertyIdStr := c.QueryParam("id")
 
-    if sessionId == "" || propertyIdStr == "" {
+    if propertyIdStr == "" {
         return c.String(http.StatusBadRequest, "missing session_id or property_id")
     }
 
@@ -32,7 +35,7 @@ func CheckPropertyOwnerHandler(c echo.Context) error {
     }
 
     tx := c.Get("tx").(*pgxpool.Tx)
-    exists, err := internaldb_game_state.GameStateExists(log, ctx, tx, sessionId)
+    exists, err := internaldb_game_state.GameStateExists(log, ctx, tx, claims.SessionId)
     if err != nil {
         return c.String(http.StatusInternalServerError, "failed to query db about game state")
     }
@@ -41,15 +44,14 @@ func CheckPropertyOwnerHandler(c echo.Context) error {
         return c.String(http.StatusBadRequest, "session_id does not exist")
     }
 
-    ownerId, owned, err := internaldb_tiles.VerifyPropertyOwnerDB(log, ctx, tx, sessionId, propertyId)
+    ownerId, owned, err := internaldb_tiles.VerifyPropertyOwnerDB(log, ctx, tx, claims.SessionId, propertyId)
     if err != nil {
         return c.String(http.StatusInternalServerError, "failed to get property ownership status")
     }
 
     return c.JSON(http.StatusOK, map[string]any{
-        "ownerId":    ownerId,
+        "owner_id":    ownerId,
         "owned":      owned,
-        "session_id": sessionId,
     })
 }
 

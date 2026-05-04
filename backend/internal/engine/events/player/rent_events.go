@@ -41,6 +41,8 @@ func getRentAmount(
     sessionId string,
     tileData internaldb_tiles.RentTileData,
     diceTotal int,
+    isUtilityCard bool,
+    isRailroadCard bool,
 ) (int, error) {
     if tileData.PropertyType == "RAILROAD" {
         railroadCount, err := internaldb_tiles.GetOwnedPropertyTypeCount(log, ctx, tx, sessionId, tileData.OwnerId, "RAILROAD")
@@ -48,23 +50,28 @@ func getRentAmount(
             return 0, err
         }
 
+        rent := 0
         if railroadCount == 1 {
-            return 25, nil
-        }
-        if railroadCount == 2 {
-            return 50, nil
-        }
-        if railroadCount == 3 {
-            return 100, nil
-        }
-        if railroadCount >= 4 {
-            return 200, nil
+            rent = 25
+        } else if railroadCount == 2 {
+            rent = 50
+        } else if railroadCount == 3 {
+            rent = 100
+        } else if railroadCount >= 4 {
+            rent = 200
         }
 
-        return 0, nil
+        if isRailroadCard {
+            return rent * 2, nil
+        }
+        return rent, nil
     }
 
     if tileData.PropertyType == "UTILITY" {
+        if isUtilityCard {
+            return diceTotal * 10, nil
+        }
+
         utilityCount, err := internaldb_tiles.GetOwnedPropertyTypeCount(log, ctx, tx, sessionId, tileData.OwnerId, "UTILITY")
         if err != nil {
             return 0, err
@@ -204,7 +211,7 @@ func PayRent(
         }
     }
 
-    expectedRentAmount, err := getRentAmount(ctx, log, tx, data.SessionId, tileData, e.PendingRent.DiceTotal)
+    expectedRentAmount, err := getRentAmount(ctx, log, tx, data.SessionId, tileData, e.PendingRent.DiceTotal, e.PendingRent.IsUtilityCard, e.PendingRent.IsRailroadCard)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,

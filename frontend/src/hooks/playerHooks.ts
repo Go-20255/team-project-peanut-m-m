@@ -96,30 +96,6 @@ export function useFetchPlayersForSession() {
   })
 }
 
-export async function fetchPlayersForSession(sessionId: string): Promise<any[]> {
-  try {
-    console.log("Fetching players for session:", sessionId)
-    const res = await fetch(`${API_URL}/api/game/players?session_id=${sessionId}`, {
-      method: "GET",
-      credentials: "include",
-    })
-    console.log("Players fetch response status:", res.status)
-
-    if (!res.ok) {
-      const errorText = await res.text()
-      console.error("Players fetch error:", res.status, errorText)
-      throw new Error(`Failed to fetch players: ${res.status} ${errorText}`)
-    }
-
-    const data = await res.json()
-    console.log("Players fetched successfully:", data)
-    return data || []
-  } catch (err) {
-    console.error("Error fetching players:", err)
-    return []
-  }
-}
-
 export function useLoginPlayer() {
   return useMutation({
     mutationFn: async (p: Player) => {
@@ -134,6 +110,36 @@ export function useLoginPlayer() {
         throw new Error(response.statusText)
       }
       return response
+    },
+  })
+}
+
+export function useReadyUp() {
+  return useMutation({
+    mutationFn: async (status: boolean) => {
+      const res = await fetch(`${API_URL}/api/player/readyup?status=${status}`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        throw new Error(res.statusText)
+      }
+      return res.json()
+    },
+  })
+}
+
+export function useEndTurn() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/player/endturn`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        throw new Error(res.statusText)
+      }
+      return res.json()
     },
   })
 }
