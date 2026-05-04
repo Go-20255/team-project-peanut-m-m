@@ -146,15 +146,15 @@ type PendingPropertyPurchase struct {
 }
 
 type PendingRent struct {
-    FromPlayerId int
-    ToPlayerId   int
-    SessionId    string
-    PropertyId   int
-    Position     int
-    Amount       int
-    DiceTotal    int
-    IsUtilityCard bool
-    IsRailroadCard bool
+    FromPlayerId  int    `json:"from_player_id"`
+    ToPlayerId    int    `json:"to_player_id"`
+    SessionId     string `json:"session_id"`
+    PropertyId    int    `json:"property_id"`
+    Position      int    `json:"position"`
+    Amount        int    `json:"amount"`
+    DiceTotal     int    `json:"dice_total"`
+    IsUtilityCard bool   `json:"is_utility_card"`
+    IsRailroadCard bool  `json:"is_railroad_card"`
 }
 
 type PendingBankPayment struct {

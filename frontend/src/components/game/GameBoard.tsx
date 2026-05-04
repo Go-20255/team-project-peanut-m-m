@@ -5,7 +5,16 @@ import { getTokenIcon } from "@/utils/tokens"
 import { DiceRoll, GameState, Player } from "@/types"
 import { useReadyUp } from "@/hooks/playerHooks"
 import { useEndTurn } from "@/hooks/playerHooks"
-import { useJailRelease, useMovePlayer, usePayBank, useRollDice } from "@/hooks/useGameAPI"
+import {
+  useJailRelease,
+  useMovePlayer,
+  usePayBank,
+  usePayRent,
+  usePlayerBankrupt,
+  usePlayerExchange,
+  useReceiveBankPayout,
+  useRollDice,
+} from "@/hooks/useGameAPI"
 import { useIgnorePropertyPurchase, usePurchaseProperty } from "@/hooks/propertyHooks"
 
 interface GameBoardProps {
@@ -292,6 +301,10 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const endTurnMutation = useEndTurn()
   const jailReleaseMutation = useJailRelease()
   const payBankMutation = usePayBank()
+  const receiveBankPayoutMutation = useReceiveBankPayout()
+  const payRentMutation = usePayRent()
+  const playerExchangeMutation = usePlayerExchange()
+  const playerBankruptMutation = usePlayerBankrupt()
   const purchasePropertyMutation = usePurchaseProperty()
   const ignorePropertyMutation = useIgnorePropertyPurchase()
 
@@ -328,7 +341,10 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId
   const currentRoll = gameState.current_roll ?? null
   const lastMove = gameState.last_move ?? null
+  const pendingRent = gameState.pending_rent ?? null
   const pendingBankPayment = gameState.pending_bank_payment ?? null
+  const pendingBankPayout = gameState.pending_bank_payout ?? null
+  const pendingExchange = gameState.pending_exchange ?? null
   const pendingPropertyPurchase = gameState.pending_property_purchase ?? null
   const pendingPropertyData = useMemo(
     () =>
@@ -336,6 +352,13 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
         ? gameState.tiles.find((tile) => tile.property_data?.id === pendingPropertyPurchase.property_id)?.property_data ?? null
         : null,
     [gameState.tiles, pendingPropertyPurchase],
+  )
+  const rentRecipient = useMemo(
+    () =>
+      pendingRent
+        ? gameState.players.find((playerInfo) => playerInfo.player.id === pendingRent.to_player_id)?.player ?? null
+        : null,
+    [gameState.players, pendingRent],
   )
 
   useEffect(() => {
@@ -836,6 +859,56 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     })
   }
 
+  const handleReceiveBankPayout = () => {
+    if (!isCurrentPlayerTurn) return
+
+    setActionError(null)
+    receiveBankPayoutMutation.mutate(undefined, {
+      onError: (error: Error) => {
+        setActionError(error.message)
+      },
+    })
+  }
+
+  const handlePayRent = () => {
+    if (!isCurrentPlayerTurn || !pendingRent) return
+
+    setActionError(null)
+    payRentMutation.mutate(
+      {
+        dst_player: pendingRent.to_player_id.toString(),
+        amount: pendingRent.amount.toString(),
+      },
+      {
+        onError: (error: Error) => {
+          setActionError(error.message)
+        },
+      },
+    )
+  }
+
+  const handlePlayerExchange = () => {
+    if (!isCurrentPlayerTurn) return
+
+    setActionError(null)
+    playerExchangeMutation.mutate(undefined, {
+      onError: (error: Error) => {
+        setActionError(error.message)
+      },
+    })
+  }
+
+  const handleBankrupt = () => {
+    if (!isCurrentPlayerTurn) return
+
+    setActionError(null)
+    playerBankruptMutation.mutate(undefined, {
+      onError: (error: Error) => {
+        setActionError(error.message)
+      },
+    })
+  }
+
   const rollLabel = isTurnOrderPhase
     ? "Roll for Order"
     : lastMove?.player_id === currentPlayerTurnId && lastMove?.roll_again
@@ -864,14 +937,26 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
 
   const showTurnOrderEndTurn = !!currentRoll && isTurnOrderPhase
   const showSentToJailEndTurn = !!currentRoll && !isTurnOrderPhase && currentRoll.sent_to_jail
+  const showRentPanel = !!pendingRent && !moveAnimation
   const showBankPaymentPanel = !!pendingBankPayment && !moveAnimation
+  const showBankPayoutPanel = !!pendingBankPayout && !moveAnimation
+  const showPlayerExchangePanel = !!pendingExchange && !moveAnimation
   const showPropertyPurchasePanel = !!pendingPropertyPurchase && !moveAnimation
-  const activePlayerNeedsJailRoll = !!activePlayer && activePlayer.jailed > 0 && !currentRoll
+  const wasJustSentToJail =
+    !!lastMove &&
+    !moveAnimation &&
+    activePlayer?.id === lastMove.player_id &&
+    activePlayer.jailed > 0 &&
+    lastMove.new_position === 10
+  const activePlayerNeedsJailRoll = !!activePlayer && activePlayer.jailed > 0 && !currentRoll && !wasJustSentToJail
   const showTurnPanel =
     !isGameStarted ||
     !!readyError ||
     !!actionError ||
+    showRentPanel ||
     showBankPaymentPanel ||
+    showBankPayoutPanel ||
+    showPlayerExchangePanel ||
     showPropertyPurchasePanel ||
     isRollingAnimation ||
     !!currentRoll ||
@@ -1051,7 +1136,53 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             textAlign: "center",
           }}
         >
-          {showBankPaymentPanel ? (
+          {showRentPanel ? (
+            <>
+              <div
+                style={{
+                  color: "#F76902",
+                  fontSize: 20,
+                  fontWeight: 700,
+                }}
+              >
+                Rent
+              </div>
+
+              <div
+                style={{
+                  color: "#7C878E",
+                  fontSize: 13,
+                }}
+              >
+                {activePlayer ? `${activePlayer.name}` : "Waiting"}
+              </div>
+
+              <div
+                style={{
+                  color: "#000000",
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                {isCurrentPlayerTurn
+                  ? rentRecipient
+                    ? `Pay ${rentRecipient.name}`
+                    : "Pay rent"
+                  : activePlayer
+                    ? `Waiting for ${activePlayer.name} to pay rent`
+                    : "Waiting"}
+              </div>
+
+              <div
+                style={{
+                  color: "#7C878E",
+                  fontSize: 13,
+                }}
+              >
+                Amount: ₮{pendingRent.amount.toLocaleString()}
+              </div>
+            </>
+          ) : showBankPaymentPanel ? (
             <>
               <div
                 style={{
@@ -1097,6 +1228,96 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                 }}
               >
                 Amount: ₮{pendingBankPayment.amount.toLocaleString()}
+              </div>
+            </>
+          ) : showBankPayoutPanel ? (
+            <>
+              <div
+                style={{
+                  color: "#F76902",
+                  fontSize: 20,
+                  fontWeight: 700,
+                }}
+              >
+                Bank Payout
+              </div>
+
+              <div
+                style={{
+                  color: "#7C878E",
+                  fontSize: 13,
+                }}
+              >
+                {activePlayer ? `${activePlayer.name}` : "Waiting"}
+              </div>
+
+              <div
+                style={{
+                  color: "#000000",
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                {isCurrentPlayerTurn
+                  ? pendingBankPayout.reason
+                  : activePlayer
+                    ? `Waiting for ${activePlayer.name} to receive`
+                    : "Waiting"}
+              </div>
+
+              <div
+                style={{
+                  color: "#7C878E",
+                  fontSize: 13,
+                }}
+              >
+                Amount: ₮{pendingBankPayout.amount.toLocaleString()}
+              </div>
+            </>
+          ) : showPlayerExchangePanel ? (
+            <>
+              <div
+                style={{
+                  color: "#F76902",
+                  fontSize: 20,
+                  fontWeight: 700,
+                }}
+              >
+                Player Exchange
+              </div>
+
+              <div
+                style={{
+                  color: "#7C878E",
+                  fontSize: 13,
+                }}
+              >
+                {activePlayer ? `${activePlayer.name}` : "Waiting"}
+              </div>
+
+              <div
+                style={{
+                  color: "#000000",
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                {pendingExchange.is_paying_all
+                  ? `Pay each player ₮${pendingExchange.amount.toLocaleString()}`
+                  : `Collect ₮${pendingExchange.amount.toLocaleString()} from each player`}
+              </div>
+
+              <div
+                style={{
+                  color: "#7C878E",
+                  fontSize: 13,
+                }}
+              >
+                {isCurrentPlayerTurn
+                  ? "Continue"
+                  : activePlayer
+                    ? `Waiting for ${activePlayer.name}`
+                    : "Waiting"}
               </div>
             </>
           ) : showPropertyPurchasePanel ? (
@@ -1239,23 +1460,130 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </>
           )}
 
+          {isCurrentPlayerTurn && showRentPanel ? (
+            <div
+              style={{
+                width: "100%",
+                display: "flex",
+                gap: 10,
+              }}
+            >
+              <button
+                type="button"
+                onClick={handlePayRent}
+                disabled={payRentMutation.isPending || playerBankruptMutation.isPending}
+                style={{
+                  flex: 1,
+                  padding: "12px 14px",
+                  backgroundColor: payRentMutation.isPending || playerBankruptMutation.isPending ? "#D0D3D4" : "#F76902",
+                  color: "#FFFFFF",
+                  fontWeight: 700,
+                  cursor: payRentMutation.isPending || playerBankruptMutation.isPending ? "not-allowed" : "pointer",
+                }}
+              >
+                Pay Rent
+              </button>
+
+              {currentPlayer && currentPlayer.money < pendingRent.amount ? (
+                <button
+                  type="button"
+                  onClick={handleBankrupt}
+                  disabled={payRentMutation.isPending || playerBankruptMutation.isPending}
+                  style={{
+                    flex: 1,
+                    padding: "12px 14px",
+                    backgroundColor: "#D0D3D4",
+                    color: "#000000",
+                    fontWeight: 700,
+                    cursor: payRentMutation.isPending || playerBankruptMutation.isPending ? "not-allowed" : "pointer",
+                    opacity: payRentMutation.isPending || playerBankruptMutation.isPending ? 0.7 : 1,
+                  }}
+                >
+                  Bankrupt
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
           {isCurrentPlayerTurn && showBankPaymentPanel ? (
+            <div
+              style={{
+                width: "100%",
+                display: "flex",
+                gap: 10,
+              }}
+            >
             <button
               type="button"
               onClick={handlePayBank}
-              disabled={payBankMutation.isPending}
+              disabled={payBankMutation.isPending || playerBankruptMutation.isPending}
               style={{
-                width: "100%",
+                flex: 1,
                 padding: "12px 14px",
-                backgroundColor: payBankMutation.isPending ? "#D0D3D4" : "#F76902",
+                backgroundColor: payBankMutation.isPending || playerBankruptMutation.isPending ? "#D0D3D4" : "#F76902",
                 color: "#FFFFFF",
                 fontWeight: 700,
-                cursor: payBankMutation.isPending ? "not-allowed" : "pointer",
+                cursor: payBankMutation.isPending || playerBankruptMutation.isPending ? "not-allowed" : "pointer",
               }}
             >
               {pendingBankPayment.reason === "jail release"
                 ? `Pay ₮${pendingBankPayment.amount.toLocaleString()}`
                 : "Pay Bank"}
+            </button>
+              {currentPlayer && currentPlayer.money < pendingBankPayment.amount ? (
+                <button
+                  type="button"
+                  onClick={handleBankrupt}
+                  disabled={payBankMutation.isPending || playerBankruptMutation.isPending}
+                  style={{
+                    flex: 1,
+                    padding: "12px 14px",
+                    backgroundColor: "#D0D3D4",
+                    color: "#000000",
+                    fontWeight: 700,
+                    cursor: payBankMutation.isPending || playerBankruptMutation.isPending ? "not-allowed" : "pointer",
+                    opacity: payBankMutation.isPending || playerBankruptMutation.isPending ? 0.7 : 1,
+                  }}
+                >
+                  Bankrupt
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {isCurrentPlayerTurn && showBankPayoutPanel ? (
+            <button
+              type="button"
+              onClick={handleReceiveBankPayout}
+              disabled={receiveBankPayoutMutation.isPending}
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                backgroundColor: receiveBankPayoutMutation.isPending ? "#D0D3D4" : "#F76902",
+                color: "#FFFFFF",
+                fontWeight: 700,
+                cursor: receiveBankPayoutMutation.isPending ? "not-allowed" : "pointer",
+              }}
+            >
+              Receive
+            </button>
+          ) : null}
+
+          {isCurrentPlayerTurn && showPlayerExchangePanel ? (
+            <button
+              type="button"
+              onClick={handlePlayerExchange}
+              disabled={playerExchangeMutation.isPending}
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                backgroundColor: playerExchangeMutation.isPending ? "#D0D3D4" : "#F76902",
+                color: "#FFFFFF",
+                fontWeight: 700,
+                cursor: playerExchangeMutation.isPending ? "not-allowed" : "pointer",
+              }}
+            >
+              Continue
             </button>
           ) : null}
 
@@ -1304,7 +1632,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </div>
           ) : null}
 
-          {isCurrentPlayerTurn && !showBankPaymentPanel && !showPropertyPurchasePanel && !currentRoll && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && !currentRoll && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleRoll}
@@ -1322,7 +1650,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showBankPaymentPanel && !showPropertyPurchasePanel && showMoveButton && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showMoveButton && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleMove}
@@ -1340,7 +1668,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showBankPaymentPanel && !showPropertyPurchasePanel && showTurnOrderEndTurn && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showTurnOrderEndTurn && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleEndTurn}
@@ -1358,7 +1686,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showBankPaymentPanel && !showPropertyPurchasePanel && showJailEndTurn && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showJailEndTurn && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleEndTurn}
@@ -1376,7 +1704,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showBankPaymentPanel && !showPropertyPurchasePanel && showSentToJailEndTurn && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showSentToJailEndTurn && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleEndTurn}
@@ -1394,7 +1722,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showBankPaymentPanel && !showPropertyPurchasePanel && showJailReleaseButtons && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showJailReleaseButtons && !isRollingAnimation ? (
             <div
               style={{
                 width: "100%",

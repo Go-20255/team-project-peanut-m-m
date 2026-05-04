@@ -1,6 +1,14 @@
 "use client"
 
-import { GameState, GameStateUpdate, PendingBankPayment, PropertyPurchaseAvailable } from "@/types"
+import {
+  GameState,
+  GameStateUpdate,
+  PendingBankPayment,
+  PendingBankPayout,
+  PendingPlayerExchange,
+  PendingRent,
+  PropertyPurchaseAvailable,
+} from "@/types"
 import { Dispatch, SetStateAction } from "react"
 
 const parse = <T>(raw: string): T | null => {
@@ -23,8 +31,11 @@ export function HandleInitialGameBoardUpdateEvent(
       ...data,
       current_roll: null,
       last_move: null,
+      pending_rent: null,
       pending_property_purchase: null,
       pending_bank_payment: null,
+      pending_bank_payout: null,
+      pending_exchange: null,
     })
   }
 }
@@ -55,8 +66,11 @@ export function HandleMovePlayerEvent(
       ...prev,
       current_turn: data.turn_number ?? prev.current_turn,
       current_roll: null,
+      pending_rent: null,
       pending_property_purchase: null,
-      pending_bank_payment: null,
+      pending_bank_payment: prev.pending_bank_payment,
+      pending_bank_payout: prev.pending_bank_payout,
+      pending_exchange: prev.pending_exchange,
       last_move: {
         player_id: data.player_id,
         session_id: prev.players.find((pi) => pi.player.id === data.player_id)?.player.session_id ?? "",
@@ -98,8 +112,11 @@ export function HandleGameStateUpdateEvent(
       current_turn: data.current_turn,
       current_roll: turnChanged ? null : prev.current_roll,
       last_move: turnChanged ? null : prev.last_move,
+      pending_rent: turnChanged ? null : prev.pending_rent,
       pending_property_purchase: turnChanged ? null : prev.pending_property_purchase,
       pending_bank_payment: turnChanged ? null : prev.pending_bank_payment,
+      pending_bank_payout: turnChanged ? null : prev.pending_bank_payout,
+      pending_exchange: turnChanged ? null : prev.pending_exchange,
       players: data.players,
     }
   })
@@ -115,6 +132,7 @@ export function HandleBankPaymentEvent(
     return {
       ...prev,
       pending_bank_payment: null,
+      pending_rent: null,
     }
   })
 }
@@ -123,7 +141,15 @@ export function HandleBankPayoutEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_bank_payout: null,
+    }
+  })
+}
 
 export function HandleBankPaymentDueEvent(
   gameState: GameState | null,
@@ -146,7 +172,18 @@ export function HandleBankPayoutDueEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  const data = parse<PendingBankPayout>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_bank_payout: data,
+    }
+  })
+}
 
 export function HandleGameReadyEvent(
   gameState: GameState | null,
@@ -160,8 +197,11 @@ export function HandleGameReadyEvent(
       current_turn: 0,
       current_roll: null,
       last_move: null,
+      pending_rent: null,
       pending_property_purchase: null,
       pending_bank_payment: null,
+      pending_bank_payout: null,
+      pending_exchange: null,
     }
   })
 }
@@ -198,7 +238,18 @@ export function HandleRentDueEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  const data = parse<PendingRent>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_rent: data,
+    }
+  })
+}
 
 export function HandlePropertyPurchaseAvailableEvent(
   gameState: GameState | null,
@@ -263,19 +314,46 @@ export function HandlePlayerExchangeDueEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  const data = parse<PendingPlayerExchange>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_exchange: data,
+    }
+  })
+}
 
 export function HandlePlayerExchangeEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_exchange: null,
+    }
+  })
+}
 
 export function HandleRentPaidEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_rent: null,
+    }
+  })
+}
 
 export function HandleHousePurchaseEvent(
   gameState: GameState | null,

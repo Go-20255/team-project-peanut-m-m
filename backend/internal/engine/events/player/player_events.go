@@ -807,6 +807,30 @@ func MovePlayer(
 
     e.PendingPropertyPurchase = nil
 
+    if tileData.Name == "Go To Jail" {
+        err = internaldb_players.UpdatePlayerPositionAndJailed(log, ctx, tx, data.PlayerId, data.SessionId, 10, 1)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+
+        e.ExtraRollAllowed[data.PlayerId] = false
+        e.DoubleRollCounts[data.PlayerId] = 0
+        playerMovement.NewPosition = 10
+        playerMovement.PropertyId = 0
+        playerMovement.RollAgain = false
+
+        e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
+        events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+        return internal.UserActionStatus{
+            Status: http.StatusOK,
+            Data:   playerMovement,
+        }
+    }
+
     if tileData.HasProperty && tileData.Owned && tileData.OwnerId != data.PlayerId && !tileData.IsMortgaged {
         isUtilityCard, _ := e.TempStore["special_utility_rent"].(bool)
         isRailroadCard, _ := e.TempStore["special_railroad_rent"].(bool)

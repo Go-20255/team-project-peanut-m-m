@@ -57,8 +57,11 @@ export interface GameState {
   players: PlayerInfo[]
   current_roll?: DiceRoll | null
   last_move?: PlayerMovement | null
+  pending_rent?: PendingRent | null
   pending_property_purchase?: PropertyPurchaseAvailable | null
   pending_bank_payment?: PendingBankPayment | null
+  pending_bank_payout?: PendingBankPayout | null
+  pending_exchange?: PendingPlayerExchange | null
 }
 
 export interface Tile {
@@ -109,4 +112,31 @@ export interface PendingBankPayment {
   session_id: string
   amount: number
   reason: string
+}
+
+export interface PendingBankPayout {
+  player_id: number
+  session_id: string
+  amount: number
+  reason: string
+}
+
+export interface PendingRent {
+  from_player_id: number
+  to_player_id: number
+  session_id: string
+  property_id: number
+  position: number
+  amount: number
+  dice_total: number
+  is_utility_card: boolean
+  is_railroad_card: boolean
+}
+
+export interface PendingPlayerExchange {
+  acting_player_id: number
+  session_id: string
+  amount: number
+  reason: string
+  is_paying_all: boolean
 }
