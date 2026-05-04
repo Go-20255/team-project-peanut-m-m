@@ -196,6 +196,66 @@ function getMovementPath(oldPosition: number, newPosition: number) {
   return path
 }
 
+function getTokenSlots(count: number, centerX: number, centerY: number, tokenSize: number, gap: number) {
+  const columns = count > 2 ? 2 : count
+  const rows = Math.ceil(count / columns)
+  const totalWidth = columns * tokenSize + (columns - 1) * gap
+  const totalHeight = rows * tokenSize + (rows - 1) * gap
+  const startX = centerX - totalWidth / 2
+  const startY = centerY - totalHeight / 2
+
+  return Array.from({ length: count }, (_, index) => {
+    const column = index % columns
+    const row = Math.floor(index / columns)
+
+    return {
+      x: startX + column * (tokenSize + gap),
+      y: startY + row * (tokenSize + gap),
+    }
+  })
+}
+
+function getTileTokenSlots(
+  placement: TilePlacement,
+  playersOnTile: Player[],
+  tokenSize: number,
+  gap: number,
+) {
+  const bounds = getTileBounds(placement)
+
+  if (placement.index !== 10) {
+    return getTokenSlots(playersOnTile.length, bounds.x + bounds.width / 2, bounds.y + bounds.height / 2, tokenSize, gap)
+  }
+
+  const jailedPlayers = playersOnTile.filter((player) => player.jailed > 0)
+  const visitingPlayers = playersOnTile.filter((player) => player.jailed === 0)
+  const slotMap = new Map<number, { x: number; y: number }>()
+
+  const visitingSlots = getTokenSlots(
+    visitingPlayers.length,
+    bounds.x + bounds.width * 0.28,
+    bounds.y + bounds.height * 0.78,
+    tokenSize,
+    gap,
+  )
+  const jailedSlots = getTokenSlots(
+    jailedPlayers.length,
+    bounds.x + bounds.width * 0.68,
+    bounds.y + bounds.height * 0.34,
+    tokenSize,
+    gap,
+  )
+
+  visitingPlayers.forEach((player, index) => {
+    slotMap.set(player.id, visitingSlots[index])
+  })
+  jailedPlayers.forEach((player, index) => {
+    slotMap.set(player.id, jailedSlots[index])
+  })
+
+  return playersOnTile.map((player) => slotMap.get(player.id) ?? { x: bounds.x, y: bounds.y })
+}
+
 export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, gameState }: GameBoardProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -514,23 +574,17 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
       )
       if (playersOnTile.length === 0) return
 
-      const columns = playersOnTile.length > 2 ? 2 : playersOnTile.length
-      const rows = Math.ceil(playersOnTile.length / columns)
       const tokenSize = isCornerTile ? 58 : 42
       const gap = 8
-      const totalWidth = columns * tokenSize + (columns - 1) * gap
-      const totalHeight = rows * tokenSize + (rows - 1) * gap
-      const startX = x + width / 2 - totalWidth / 2
-      const startY = y + height / 2 - totalHeight / 2
+      const tokenSlots = getTileTokenSlots(placement, playersOnTile, tokenSize, gap)
 
       playersOnTile.forEach((player, index) => {
         const tokenImage = tokenImagesRef.current[player.piece_token]
         if (!tokenImage) return
 
-        const column = index % columns
-        const row = Math.floor(index / columns)
-        const tokenX = startX + column * (tokenSize + gap)
-        const tokenY = startY + row * (tokenSize + gap)
+        const slot = tokenSlots[index]
+        const tokenX = slot.x
+        const tokenY = slot.y
         const isTurn = player.id === currentPlayerTurnId
 
         ctx.save()
