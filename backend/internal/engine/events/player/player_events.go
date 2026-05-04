@@ -832,6 +832,34 @@ func MovePlayer(
     }
 
     e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
+
+    if tileData.HasProperty && !tileData.Owned && tileData.PropertyId > 0 {
+        currentPlayer, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+
+        propertyData, err := internaldb_tiles.GetPropertyData(log, ctx, tx, data.SessionId, tileData.PropertyId)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+
+        e.Broker.Broadcast(log, "PropertyPurchaseAvailableEvent", internal.PropertyPurchaseAvailable{
+            PlayerId:     data.PlayerId,
+            SessionId:    data.SessionId,
+            PropertyId:   tileData.PropertyId,
+            PurchaseCost: propertyData.PurchaseCost,
+            PlayerMoney:  currentPlayer.Money,
+            CanAfford:    currentPlayer.Money >= propertyData.PurchaseCost,
+        })
+    }
+
     events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     return internal.UserActionStatus{
