@@ -148,7 +148,8 @@ export function useJailRelease() {
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
       }
       return res.json()
     },
@@ -163,7 +164,8 @@ export function usePayBank() {
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
       }
       return res.json()
     },
@@ -178,7 +180,8 @@ export function useSetBankPayout() {
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
       }
       return res.json()
     },
@@ -193,7 +196,8 @@ export function useReceiveBankPayout() {
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
       }
       return res.json()
     },
@@ -208,7 +212,8 @@ export function usePlayerExchange() {
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
       }
       return res.json()
     },
@@ -223,7 +228,8 @@ export function usePlayerBankrupt() {
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
       }
       return res.json()
     },
@@ -238,10 +244,10 @@ export function usePayRent() {
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
       }
       return res.json()
     },
   })
 }
-

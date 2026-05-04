@@ -2,8 +2,10 @@
 
 import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react"
 import { getTokenIcon } from "@/utils/tokens"
-import { GameState, Player } from "@/types"
+import { DiceRoll, GameState, Player } from "@/types"
 import { useReadyUp } from "@/hooks/playerHooks"
+import { useEndTurn } from "@/hooks/playerHooks"
+import { useJailRelease, useMovePlayer, useRollDice } from "@/hooks/useGameAPI"
 
 interface GameBoardProps {
   sessionId: string
@@ -35,6 +37,14 @@ type ViewportState = {
   x: number
   y: number
   rotation: number
+}
+
+type MoveAnimation = {
+  playerId: number
+  pieceToken: number
+  path: { x: number; y: number; index: number }[]
+  x: number
+  y: number
 }
 
 function getTilePlacement(index: number): TilePlacement {
@@ -154,7 +164,39 @@ function getContainSize(sourceWidth: number, sourceHeight: number, maxWidth: num
   }
 }
 
-export default function GameBoard({ playerId, currentPlayerTurnId, gameState }: GameBoardProps) {
+function getTileBounds(placement: TilePlacement) {
+  return {
+    x: (placement.colStart / BOARD_UNITS) * BOARD_SIZE,
+    y: (placement.rowStart / BOARD_UNITS) * BOARD_SIZE,
+    width: (placement.colSpan / BOARD_UNITS) * BOARD_SIZE,
+    height: (placement.rowSpan / BOARD_UNITS) * BOARD_SIZE,
+  }
+}
+
+function getTileCenter(index: number) {
+  const placement = getTilePlacement(index)
+  const bounds = getTileBounds(placement)
+
+  return {
+    x: bounds.x + bounds.width / 2,
+    y: bounds.y + bounds.height / 2,
+    index,
+  }
+}
+
+function getMovementPath(oldPosition: number, newPosition: number) {
+  const path = [getTileCenter(oldPosition)]
+  let current = oldPosition
+
+  while (current !== newPosition) {
+    current = (current + 1) % 40
+    path.push(getTileCenter(current))
+  }
+
+  return path
+}
+
+export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, gameState }: GameBoardProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const tileImagesRef = useRef<Record<number, HTMLImageElement>>({})
@@ -178,8 +220,16 @@ export default function GameBoard({ playerId, currentPlayerTurnId, gameState }: 
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [imageVersion, setImageVersion] = useState(0)
   const [readyError, setReadyError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [rollDisplay, setRollDisplay] = useState<DiceRoll | null>(null)
+  const [isRollingAnimation, setIsRollingAnimation] = useState(false)
+  const [moveAnimation, setMoveAnimation] = useState<MoveAnimation | null>(null)
 
   const readyMutation = useReadyUp()
+  const rollMutation = useRollDice()
+  const moveMutation = useMovePlayer()
+  const endTurnMutation = useEndTurn()
+  const jailReleaseMutation = useJailRelease()
 
   const boardTiles = useMemo(() => Array.from({ length: 40 }, (_, index) => getTilePlacement(index)), [])
 
@@ -202,6 +252,18 @@ export default function GameBoard({ playerId, currentPlayerTurnId, gameState }: 
     () => gameState.players.find((playerInfo) => playerInfo.player.id.toString() === playerId) ?? null,
     [gameState.players, playerId],
   )
+  const isTurnOrderPhase = gameState.current_turn >= 0 && gameState.players.some((playerInfo) => playerInfo.player.player_order === -1)
+  const activePlayer = useMemo(
+    () => gameState.players.find((playerInfo) => playerInfo.player.id === currentPlayerTurnId)?.player ?? null,
+    [currentPlayerTurnId, gameState.players],
+  )
+  const currentPlayer = useMemo(
+    () => gameState.players.find((playerInfo) => playerInfo.player.id.toString() === playerId)?.player ?? null,
+    [gameState.players, playerId],
+  )
+  const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId
+  const currentRoll = gameState.current_roll ?? null
+  const lastMove = gameState.last_move ?? null
 
   useEffect(() => {
     const container = containerRef.current
@@ -301,6 +363,99 @@ export default function GameBoard({ playerId, currentPlayerTurnId, gameState }: 
   }, [])
 
   useEffect(() => {
+    if (!currentRoll) {
+      setRollDisplay(null)
+      setIsRollingAnimation(false)
+      return
+    }
+
+    setActionError(null)
+    setIsRollingAnimation(true)
+
+    const interval = window.setInterval(() => {
+      setRollDisplay({
+        ...currentRoll,
+        die_one: Math.floor(Math.random() * 6) + 1,
+        die_two: Math.floor(Math.random() * 6) + 1,
+      })
+    }, 90)
+
+    const timeout = window.setTimeout(() => {
+      window.clearInterval(interval)
+      setRollDisplay(currentRoll)
+      setIsRollingAnimation(false)
+    }, 1100)
+
+    return () => {
+      window.clearInterval(interval)
+      window.clearTimeout(timeout)
+    }
+  }, [currentRoll])
+
+  useEffect(() => {
+    if (!lastMove) {
+      setMoveAnimation(null)
+      return
+    }
+
+    const movingPlayer = gameState.players.find((playerInfo) => playerInfo.player.id === lastMove.player_id)?.player
+    if (!movingPlayer) {
+      setMoveAnimation(null)
+      return
+    }
+
+    const path = getMovementPath(lastMove.old_position, lastMove.new_position)
+    if (path.length < 2) {
+      setMoveAnimation(null)
+      return
+    }
+
+    let frame = 0
+    let startTime = 0
+    const duration = Math.max(320, (path.length - 1) * 220)
+
+    setMoveAnimation({
+      playerId: movingPlayer.id,
+      pieceToken: movingPlayer.piece_token,
+      path,
+      x: path[0].x,
+      y: path[0].y,
+    })
+
+    const tick = (time: number) => {
+      if (!startTime) startTime = time
+
+      const progress = Math.min((time - startTime) / duration, 1)
+      const segmentProgress = progress * (path.length - 1)
+      const segmentIndex = Math.min(Math.floor(segmentProgress), path.length - 2)
+      const localProgress = segmentProgress - segmentIndex
+      const from = path[segmentIndex]
+      const to = path[segmentIndex + 1]
+
+      setMoveAnimation({
+        playerId: movingPlayer.id,
+        pieceToken: movingPlayer.piece_token,
+        path,
+        x: from.x + (to.x - from.x) * localProgress,
+        y: from.y + (to.y - from.y) * localProgress,
+      })
+
+      if (progress < 1) {
+        frame = window.requestAnimationFrame(tick)
+        return
+      }
+
+      setMoveAnimation(null)
+    }
+
+    frame = window.requestAnimationFrame(tick)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+    }
+  }, [gameState.players, lastMove])
+
+  useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || size.width === 0 || size.height === 0) return
 
@@ -331,10 +486,11 @@ export default function GameBoard({ playerId, currentPlayerTurnId, gameState }: 
       const image = tileImagesRef.current[placement.index]
       if (!image) return
 
-      const x = (placement.colStart / BOARD_UNITS) * BOARD_SIZE
-      const y = (placement.rowStart / BOARD_UNITS) * BOARD_SIZE
-      const width = (placement.colSpan / BOARD_UNITS) * BOARD_SIZE
-      const height = (placement.rowSpan / BOARD_UNITS) * BOARD_SIZE
+      const bounds = getTileBounds(placement)
+      const x = bounds.x
+      const y = bounds.y
+      const width = bounds.width
+      const height = bounds.height
       const isCornerTile = placement.rowSpan === CORNER_UNITS && placement.colSpan === CORNER_UNITS
       const isSideTile = !isCornerTile && (placement.side === "left" || placement.side === "right")
 
@@ -353,7 +509,9 @@ export default function GameBoard({ playerId, currentPlayerTurnId, gameState }: 
       }
       ctx.restore()
 
-      const playersOnTile = playerPositions[placement.index] || []
+      const playersOnTile = (playerPositions[placement.index] || []).filter(
+        (player) => player.id !== moveAnimation?.playerId,
+      )
       if (playersOnTile.length === 0) return
 
       const columns = playersOnTile.length > 2 ? 2 : playersOnTile.length
@@ -398,6 +556,35 @@ export default function GameBoard({ playerId, currentPlayerTurnId, gameState }: 
       })
     })
 
+    if (moveAnimation) {
+      const tokenImage = tokenImagesRef.current[moveAnimation.pieceToken]
+      if (tokenImage) {
+        const tokenSize = 52
+        const isTurn = moveAnimation.playerId === currentPlayerTurnId
+
+        ctx.save()
+        ctx.fillStyle = "#FFFFFF"
+        ctx.beginPath()
+        ctx.arc(moveAnimation.x, moveAnimation.y, tokenSize / 2, 0, Math.PI * 2)
+        ctx.fill()
+
+        if (isTurn) {
+          ctx.strokeStyle = "#F76902"
+          ctx.lineWidth = 4
+          ctx.stroke()
+        }
+
+        ctx.drawImage(
+          tokenImage,
+          moveAnimation.x - tokenSize * 0.36,
+          moveAnimation.y - tokenSize * 0.36,
+          tokenSize * 0.72,
+          tokenSize * 0.72,
+        )
+        ctx.restore()
+      }
+    }
+
     const drawCenterCard = (
       image: HTMLImageElement | undefined,
       centerX: number,
@@ -426,7 +613,7 @@ export default function GameBoard({ playerId, currentPlayerTurnId, gameState }: 
     drawCenterCard(centerImagesRef.current.chance, BOARD_SIZE * 0.68, BOARD_SIZE * 0.68, BOARD_SIZE * 0.22, -45)
 
     ctx.restore()
-  }, [boardTiles, currentPlayerTurnId, imageVersion, playerPositions, size, viewport])
+  }, [boardTiles, currentPlayerTurnId, imageVersion, moveAnimation, playerPositions, size, viewport])
 
   const onWheel = (event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -492,6 +679,98 @@ export default function GameBoard({ playerId, currentPlayerTurnId, gameState }: 
       },
     })
   }
+
+  const handleRoll = () => {
+    if (!isCurrentPlayerTurn) return
+
+    setActionError(null)
+    rollMutation.mutate(
+      {
+        playerId,
+        sessionId,
+      },
+      {
+        onError: (error: Error) => {
+          setActionError(error.message)
+        },
+      },
+    )
+  }
+
+  const handleMove = () => {
+    if (!isCurrentPlayerTurn) return
+
+    setActionError(null)
+    moveMutation.mutate(
+      {
+        playerId,
+        sessionId,
+      },
+      {
+        onError: (error: Error) => {
+          setActionError(error.message)
+        },
+      },
+    )
+  }
+
+  const handleEndTurn = () => {
+    if (!isCurrentPlayerTurn) return
+
+    setActionError(null)
+    endTurnMutation.mutate(undefined, {
+      onError: (error: Error) => {
+        setActionError(error.message)
+      },
+    })
+  }
+
+  const handleJailRelease = (method: string) => {
+    if (!isCurrentPlayerTurn) return
+
+    setActionError(null)
+    jailReleaseMutation.mutate(method, {
+      onError: (error: Error) => {
+        setActionError(error.message)
+      },
+    })
+  }
+
+  const rollLabel = isTurnOrderPhase
+    ? "Roll for Order"
+    : lastMove?.player_id === currentPlayerTurnId && lastMove?.roll_again
+      ? "Roll Again"
+      : "Roll Dice"
+
+  const showMoveButton =
+    !!currentRoll &&
+    !isTurnOrderPhase &&
+    !currentRoll.sent_to_jail &&
+    (currentRoll.jailed === 0 || currentRoll.released_from_jail)
+
+  const showJailEndTurn =
+    !!currentRoll &&
+    !isTurnOrderPhase &&
+    currentRoll.jailed > 0 &&
+    !currentRoll.released_from_jail &&
+    currentRoll.jailed < 3
+
+  const showJailReleaseButtons =
+    !!currentRoll &&
+    !isTurnOrderPhase &&
+    currentRoll.jailed >= 3 &&
+    !currentRoll.released_from_jail
+
+  const showTurnOrderEndTurn = !!currentRoll && isTurnOrderPhase
+  const showSentToJailEndTurn = !!currentRoll && !isTurnOrderPhase && currentRoll.sent_to_jail
+  const showTurnPanel =
+    !isGameStarted ||
+    !!readyError ||
+    !!actionError ||
+    isRollingAnimation ||
+    !!currentRoll ||
+    (!moveAnimation && !!lastMove && isCurrentPlayerTurn && lastMove.roll_again) ||
+    (!moveAnimation && !lastMove && isCurrentPlayerTurn)
 
   return (
     <div
@@ -641,6 +920,244 @@ export default function GameBoard({ playerId, currentPlayerTurnId, gameState }: 
               }}
             >
               {readyError}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {isGameStarted && showTurnPanel ? (
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 15,
+            width: "min(360px, 80%)",
+            backgroundColor: "#FFFFFF",
+            border: "2px solid #D0D3D4",
+            padding: 20,
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+            alignItems: "center",
+            textAlign: "center",
+          }}
+        >
+          <div
+            style={{
+              color: "#F76902",
+              fontSize: 20,
+              fontWeight: 700,
+            }}
+          >
+            {isTurnOrderPhase ? "Turn Order" : "Turn"}
+          </div>
+
+          <div
+            style={{
+              color: "#7C878E",
+              fontSize: 13,
+            }}
+          >
+            {activePlayer ? `${activePlayer.name}` : "Waiting"}
+          </div>
+
+          {rollDisplay ? (
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+              }}
+            >
+              {[rollDisplay.die_one, rollDisplay.die_two].map((value, index) => (
+                <div
+                  key={`${value}-${index}`}
+                  style={{
+                    width: 64,
+                    height: 64,
+                    border: "2px solid #D0D3D4",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 28,
+                    fontWeight: 700,
+                    color: "#F76902",
+                    backgroundColor: "#FFFFFF",
+                  }}
+                >
+                  {value}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div
+            style={{
+              color: "#000000",
+              fontSize: 14,
+              fontWeight: 600,
+            }}
+          >
+            {isRollingAnimation
+              ? "Rolling..."
+              : currentRoll
+                ? isTurnOrderPhase
+                  ? `Total ${currentRoll.total}`
+                  : currentRoll.sent_to_jail
+                    ? "Go to Jail"
+                    : currentRoll.jailed > 0 && !currentRoll.released_from_jail
+                      ? `Jail Turn ${currentRoll.jailed}`
+                      : `Total ${currentRoll.total}`
+                : isTurnOrderPhase
+                  ? "Roll to set order"
+                  : isCurrentPlayerTurn
+                    ? "Start your turn"
+                    : "Waiting"}
+          </div>
+
+          {isCurrentPlayerTurn && !currentRoll && !isRollingAnimation ? (
+            <button
+              type="button"
+              onClick={handleRoll}
+              disabled={rollMutation.isPending}
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                backgroundColor: rollMutation.isPending ? "#D0D3D4" : "#F76902",
+                color: "#FFFFFF",
+                fontWeight: 700,
+                cursor: rollMutation.isPending ? "not-allowed" : "pointer",
+              }}
+            >
+              {rollLabel}
+            </button>
+          ) : null}
+
+          {isCurrentPlayerTurn && showMoveButton && !isRollingAnimation ? (
+            <button
+              type="button"
+              onClick={handleMove}
+              disabled={moveMutation.isPending}
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                backgroundColor: moveMutation.isPending ? "#D0D3D4" : "#F76902",
+                color: "#FFFFFF",
+                fontWeight: 700,
+                cursor: moveMutation.isPending ? "not-allowed" : "pointer",
+              }}
+            >
+              Move
+            </button>
+          ) : null}
+
+          {isCurrentPlayerTurn && showTurnOrderEndTurn && !isRollingAnimation ? (
+            <button
+              type="button"
+              onClick={handleEndTurn}
+              disabled={endTurnMutation.isPending}
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                backgroundColor: endTurnMutation.isPending ? "#D0D3D4" : "#F76902",
+                color: "#FFFFFF",
+                fontWeight: 700,
+                cursor: endTurnMutation.isPending ? "not-allowed" : "pointer",
+              }}
+            >
+              End Turn
+            </button>
+          ) : null}
+
+          {isCurrentPlayerTurn && showJailEndTurn && !isRollingAnimation ? (
+            <button
+              type="button"
+              onClick={handleEndTurn}
+              disabled={endTurnMutation.isPending}
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                backgroundColor: endTurnMutation.isPending ? "#D0D3D4" : "#F76902",
+                color: "#FFFFFF",
+                fontWeight: 700,
+                cursor: endTurnMutation.isPending ? "not-allowed" : "pointer",
+              }}
+            >
+              End Turn
+            </button>
+          ) : null}
+
+          {isCurrentPlayerTurn && showSentToJailEndTurn && !isRollingAnimation ? (
+            <button
+              type="button"
+              onClick={handleEndTurn}
+              disabled={endTurnMutation.isPending}
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                backgroundColor: endTurnMutation.isPending ? "#D0D3D4" : "#F76902",
+                color: "#FFFFFF",
+                fontWeight: 700,
+                cursor: endTurnMutation.isPending ? "not-allowed" : "pointer",
+              }}
+            >
+              End Turn
+            </button>
+          ) : null}
+
+          {isCurrentPlayerTurn && showJailReleaseButtons && !isRollingAnimation ? (
+            <div
+              style={{
+                width: "100%",
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+              }}
+            >
+              {currentPlayer && currentPlayer.get_out_of_jail_cards > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => handleJailRelease("card")}
+                  disabled={jailReleaseMutation.isPending}
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    backgroundColor: jailReleaseMutation.isPending ? "#D0D3D4" : "#F76902",
+                    color: "#FFFFFF",
+                    fontWeight: 700,
+                    cursor: jailReleaseMutation.isPending ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Use Card
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => handleJailRelease("pay")}
+                disabled={jailReleaseMutation.isPending}
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  backgroundColor: jailReleaseMutation.isPending ? "#D0D3D4" : "#F76902",
+                  color: "#FFFFFF",
+                  fontWeight: 700,
+                  cursor: jailReleaseMutation.isPending ? "not-allowed" : "pointer",
+                }}
+              >
+                Pay $50
+              </button>
+            </div>
+          ) : null}
+
+          {isCurrentPlayerTurn && actionError ? (
+            <div
+              style={{
+                color: "#D32F2F",
+                fontSize: 12,
+              }}
+            >
+              {actionError}
             </div>
           ) : null}
         </div>

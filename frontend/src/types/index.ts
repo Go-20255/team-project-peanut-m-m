@@ -55,6 +55,8 @@ export interface GameState {
   current_turn: number
   tiles: Tile[]
   players: PlayerInfo[]
+  current_roll?: DiceRoll | null
+  last_move?: PlayerMovement | null
 }
 
 export interface Tile {
@@ -69,6 +71,11 @@ export interface DiceRoll {
   die_one: number
   die_two: number
   total: number
+  is_double: boolean
+  roll_again: boolean
+  released_from_jail: boolean
+  sent_to_jail: boolean
+  jailed: number
 }
 
 export interface PlayerMovement {
@@ -79,4 +86,9 @@ export interface PlayerMovement {
   total: number
   passed_go: boolean
   turn_number: number
+  rent_due: boolean
+  rent_amount: number
+  rent_to_id: number
+  property_id: number
+  roll_again: boolean
 }

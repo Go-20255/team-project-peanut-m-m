@@ -371,6 +371,8 @@ func ReadyUp(
     if ready_stats.Ready == ready_stats.Total {
         // everyone is ready
         internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx, data.SessionId, 0)
+        e.TurnNumber = 0
+        e.TempStore["turn_decision_rolls"] = make([]internal.DiceRoll, 0)
         log.Info().Msg("final player has readied up; Start Game")
         e.Broker.Broadcast(log, "GameReadyEvent", "START")
     }
