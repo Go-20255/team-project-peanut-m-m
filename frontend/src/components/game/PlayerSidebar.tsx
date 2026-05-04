@@ -29,6 +29,7 @@ export default function PlayerSidebar({
   const [joinCode, setJoinCode] = useState<string>("")
 
   const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId
+  const isGameStarted = (gameState?.current_turn ?? -1) >= 0
 
   const currentPlayer = players.find((p) => p.id === currentPlayerTurnId)
   const rollMutation = useRollDice()
@@ -108,33 +109,43 @@ export default function PlayerSidebar({
       <div
         className="mb-4 p-3 border-2"
         style={{
-          borderColor: isCurrentPlayerTurn ? "#00AA00" : "#D0D3D4",
-          backgroundColor: isCurrentPlayerTurn ? "#E8F5E9" : "#F9F9F9",
+          borderColor: isGameStarted && isCurrentPlayerTurn ? "#00AA00" : "#D0D3D4",
+          backgroundColor: isGameStarted && isCurrentPlayerTurn ? "#E8F5E9" : "#F9F9F9",
         }}
       >
         <div className="text-xs font-bold mb-2" style={{ color: "#7C878E" }}>
-          CURRENT TURN
+          {isGameStarted ? "CURRENT TURN" : "LOBBY"}
         </div>
-        <div className="text-lg font-bold mb-2" style={{ color: isCurrentPlayerTurn ? "#00AA00" : "#F76902" }}>
-          {currentPlayer ? currentPlayer.name : "Waiting..."}
+        <div className="text-lg font-bold mb-2" style={{ color: isGameStarted && isCurrentPlayerTurn ? "#00AA00" : "#F76902" }}>
+          {isGameStarted ? (currentPlayer ? currentPlayer.name : "Waiting...") : "Waiting"}
         </div>
 
-        {isCurrentPlayerTurn && (
+        {isGameStarted && isCurrentPlayerTurn && (
           <div className="text-xs mb-3" style={{ color: "#00AA00" }}>
-            ✅ It's your turn to play!
+            Your Turn
           </div>
         )}
 
-        {!isCurrentPlayerTurn && currentPlayer && (
+        {isGameStarted && !isCurrentPlayerTurn && currentPlayer && (
           <div className="text-xs mb-3" style={{ color: "#7C878E" }}>
             Waiting for {currentPlayer.name} to play...
+          </div>
+        )}
+
+        {!isGameStarted && (
+          <div className="text-xs mb-3" style={{ color: "#7C878E" }}>
+            Ready up to start
           </div>
         )}
       </div>
 
       {/* Actions Section */}
       <div className="mb-4 p-3 border-2 flex flex-col gap-4" style={{ borderColor: "#D0D3D4" }}>
-        {diceRoll ? (
+        {!isGameStarted ? (
+          <div className="text-sm" style={{ color: "#7C878E" }}>
+            Use the center panel to ready up.
+          </div>
+        ) : diceRoll ? (
           <>
             <div className="text-sm font-bold mb-3" style={{ color: "#F76902" }}>
               🎲 Last Roll: {diceRoll.die_one} + {diceRoll.die_two} = {diceRoll.total}
@@ -240,21 +251,17 @@ export default function PlayerSidebar({
                   {isPlayerTurn && (
                     <span style={{ fontSize: "0.75em", color: "#F57F17", fontWeight: "bold" }}>PLAYING</span>
                   )}
-                  {player.in_game ? (
-                    <span
-                      className="bg-green-600 text-white px-2 py-0.5 rounded-full "
-                      style={{ fontSize: "0.75em", fontWeight: "bold" }}
-                    >
-                      In Game
-                    </span>
-                  ) : (
-                    <span
-                      className="bg-red-600 text-white px-2 py-0.5 rounded-full "
-                      style={{ fontSize: "0.75em", fontWeight: "bold" }}
-                    >
-                      Offline
-                    </span>
-                  )}
+                  <span
+                    title={player.in_game ? "In Game" : "Offline"}
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "999px",
+                      backgroundColor: player.in_game ? "#00AA00" : "#D32F2F",
+                      display: "inline-block",
+                      flexShrink: 0,
+                    }}
+                  />
                 </div>
 
                 {/* Position */}
@@ -275,6 +282,15 @@ export default function PlayerSidebar({
                   }}
                 >
                   Money: ${player.money.toLocaleString()}
+                </div>
+
+                <div
+                  className="text-xs mb-2"
+                  style={{
+                    color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#000000" : "#7C878E",
+                  }}
+                >
+                  {player.ready_up_status ? "Ready" : "Not Ready"}
                 </div>
 
                 {/* Properties placeholder */}

@@ -3,6 +3,7 @@
 import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react"
 import { getTokenIcon } from "@/utils/tokens"
 import { GameState, Player } from "@/types"
+import { useReadyUp } from "@/hooks/playerHooks"
 
 interface GameBoardProps {
   sessionId: string
@@ -153,7 +154,7 @@ function getContainSize(sourceWidth: number, sourceHeight: number, maxWidth: num
   }
 }
 
-export default function GameBoard({ currentPlayerTurnId, gameState }: GameBoardProps) {
+export default function GameBoard({ playerId, currentPlayerTurnId, gameState }: GameBoardProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const tileImagesRef = useRef<Record<number, HTMLImageElement>>({})
@@ -176,6 +177,9 @@ export default function GameBoard({ currentPlayerTurnId, gameState }: GameBoardP
   const [isDragging, setIsDragging] = useState(false)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [imageVersion, setImageVersion] = useState(0)
+  const [readyError, setReadyError] = useState<string | null>(null)
+
+  const readyMutation = useReadyUp()
 
   const boardTiles = useMemo(() => Array.from({ length: 40 }, (_, index) => getTilePlacement(index)), [])
 
@@ -188,6 +192,16 @@ export default function GameBoard({ currentPlayerTurnId, gameState }: GameBoardP
     })
     return positions
   }, [gameState.players])
+
+  const isGameStarted = gameState.current_turn >= 0
+  const readyPlayers = useMemo(
+    () => gameState.players.filter((playerInfo) => playerInfo.player.ready_up_status),
+    [gameState.players],
+  )
+  const currentLobbyPlayer = useMemo(
+    () => gameState.players.find((playerInfo) => playerInfo.player.id.toString() === playerId) ?? null,
+    [gameState.players, playerId],
+  )
 
   useEffect(() => {
     const container = containerRef.current
@@ -468,6 +482,17 @@ export default function GameBoard({ currentPlayerTurnId, gameState }: GameBoardP
     setIsDragging(false)
   }
 
+  const toggleReady = () => {
+    if (!currentLobbyPlayer || isGameStarted) return
+
+    setReadyError(null)
+    readyMutation.mutate(!currentLobbyPlayer.player.ready_up_status, {
+      onError: (error: Error) => {
+        setReadyError(error.message)
+      },
+    })
+  }
+
   return (
     <div
       ref={containerRef}
@@ -481,7 +506,7 @@ export default function GameBoard({ currentPlayerTurnId, gameState }: GameBoardP
         position: "relative",
         overflow: "hidden",
         backgroundColor: "#FFFFFF",
-        minHeight: "100vh",
+        height: "100%",
         cursor: isDragging ? "grabbing" : "grab",
       }}
     >
@@ -511,6 +536,115 @@ export default function GameBoard({ currentPlayerTurnId, gameState }: GameBoardP
           ↻
         </button>
       </div>
+
+      {!isGameStarted ? (
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 15,
+            width: "min(360px, 80%)",
+            backgroundColor: "#FFFFFF",
+            border: "2px solid #D0D3D4",
+            padding: 20,
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+          }}
+        >
+          <div
+            style={{
+              color: "#F76902",
+              fontSize: 22,
+              fontWeight: 700,
+              textAlign: "center",
+            }}
+          >
+            Lobby
+          </div>
+
+          <div
+            style={{
+              color: "#7C878E",
+              fontSize: 13,
+              textAlign: "center",
+            }}
+          >
+            {readyPlayers.length} / {gameState.players.length} ready
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            {gameState.players.map((playerInfo) => (
+              <div
+                key={playerInfo.player.id}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "10px 12px",
+                  border: "1px solid #D0D3D4",
+                  backgroundColor: playerInfo.player.id.toString() === playerId ? "#FFF3E0" : "#FFFFFF",
+                }}
+              >
+                <div
+                  style={{
+                    color: "#000000",
+                    fontSize: 14,
+                    fontWeight: 600,
+                  }}
+                >
+                  {playerInfo.player.name}
+                </div>
+                <div
+                  style={{
+                    color: playerInfo.player.ready_up_status ? "#F76902" : "#7C878E",
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  {playerInfo.player.ready_up_status ? "READY" : "WAITING"}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={toggleReady}
+            disabled={!currentLobbyPlayer || readyMutation.isPending}
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              backgroundColor: readyMutation.isPending ? "#D0D3D4" : "#F76902",
+              color: "#FFFFFF",
+              fontWeight: 700,
+              cursor: readyMutation.isPending ? "not-allowed" : "pointer",
+            }}
+          >
+            {currentLobbyPlayer?.player.ready_up_status ? "Unready" : "Ready Up"}
+          </button>
+
+          {readyError ? (
+            <div
+              style={{
+                color: "#D32F2F",
+                fontSize: 12,
+                textAlign: "center",
+              }}
+            >
+              {readyError}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <canvas ref={canvasRef} />
     </div>

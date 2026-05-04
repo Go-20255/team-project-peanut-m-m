@@ -33,16 +33,15 @@ export default function GamePage() {
 
   const currentPlayerTurnId = useMemo(() => {
     if (!gameState) return null
-    const ordered = players.filter((p) => p.player_order !== -1).sort((a, b) => a.player_order - b.player_order)
-    if (ordered.length === 0) return null
-    return ordered[gameState.current_turn % ordered.length]?.id ?? null
-  }, [gameState, players])
+    if (gameState.current_turn < 0 || gameState.players.length === 0) return null
+    return gameState.players[gameState.current_turn % gameState.players.length]?.player.id ?? null
+  }, [gameState])
 
   if (!sessionId || !playerId || !playerName) return null
 
   return (
-    <div className="w-full h-screen flex" style={{ backgroundColor: "#FFFFFF" }}>
-      <div style={{ flex: "6" }}>
+    <div className="w-full h-screen flex overflow-hidden" style={{ backgroundColor: "#FFFFFF" }}>
+      <div className="h-full overflow-hidden" style={{ flex: "7" }}>
         {gameState ? (
           <GameBoard
             sessionId={sessionId}
@@ -56,7 +55,7 @@ export default function GamePage() {
         )}
       </div>
 
-      <div style={{ flex: "1", borderLeft: "2px solid #D0D3D4" }}>
+      <div className="h-full overflow-y-auto overflow-x-hidden" style={{ flex: "2", borderLeft: "2px solid #D0D3D4" }}>
         <PlayerSidebar
           sessionId={sessionId}
           playerId={playerId.toString()}
