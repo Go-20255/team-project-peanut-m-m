@@ -158,6 +158,7 @@ export default function GameBoard({ currentPlayerTurnId, gameState }: GameBoardP
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const tileImagesRef = useRef<Record<number, HTMLImageElement>>({})
   const tokenImagesRef = useRef<Record<number, HTMLImageElement>>({})
+  const centerImagesRef = useRef<Record<string, HTMLImageElement>>({})
   const rotationRef = useRef(0)
   const dragRef = useRef<{ active: boolean; x: number; y: number }>({
     active: false,
@@ -248,7 +249,7 @@ export default function GameBoard({ currentPlayerTurnId, gameState }: GameBoardP
 
     const tileEntries = Array.from({ length: 40 }, (_, index) => index)
     let loadedCount = 0
-    const targetCount = tileEntries.length + 4
+    const targetCount = tileEntries.length + 6
 
     const finishLoad = () => {
       loadedCount += 1
@@ -268,6 +269,16 @@ export default function GameBoard({ currentPlayerTurnId, gameState }: GameBoardP
       image.onload = finishLoad
       image.src = getTokenIcon(token)
       tokenImagesRef.current[token] = image
+    })
+
+    ;[
+      ["cchest", "/assets/img/tiles/cchest.jpeg"],
+      ["chance", "/assets/img/tiles/chance.jpeg"],
+    ].forEach(([key, src]) => {
+      const image = new Image()
+      image.onload = finishLoad
+      image.src = src
+      centerImagesRef.current[key] = image
     })
 
     return () => {
@@ -372,6 +383,33 @@ export default function GameBoard({ currentPlayerTurnId, gameState }: GameBoardP
         ctx.restore()
       })
     })
+
+    const drawCenterCard = (
+      image: HTMLImageElement | undefined,
+      centerX: number,
+      centerY: number,
+      width: number,
+      rotation: number,
+    ) => {
+      if (!image) return
+
+      const drawSize = getContainSize(image.width, image.height, width, width)
+
+      ctx.save()
+      ctx.translate(centerX, centerY)
+      ctx.rotate((rotation * Math.PI) / 180)
+      ctx.drawImage(
+        image,
+        -drawSize.width / 2,
+        -drawSize.height / 2,
+        drawSize.width,
+        drawSize.height,
+      )
+      ctx.restore()
+    }
+
+    drawCenterCard(centerImagesRef.current.cchest, BOARD_SIZE * 0.32, BOARD_SIZE * 0.32, BOARD_SIZE * 0.22, 135)
+    drawCenterCard(centerImagesRef.current.chance, BOARD_SIZE * 0.68, BOARD_SIZE * 0.68, BOARD_SIZE * 0.22, -45)
 
     ctx.restore()
   }, [boardTiles, currentPlayerTurnId, imageVersion, playerPositions, size, viewport])
