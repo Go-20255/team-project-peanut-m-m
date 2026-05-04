@@ -160,16 +160,6 @@ export default function PlayerSidebar({
                   />
                 </div>
 
-                {/* Position */}
-                <div
-                  className="text-sm mb-2"
-                  style={{
-                    color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#000000" : "#7C878E",
-                  }}
-                >
-                  Position: {player.position}
-                </div>
-
                 {/* Money */}
                 <div
                   className="text-sm mb-2"
@@ -177,16 +167,7 @@ export default function PlayerSidebar({
                     color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#000000" : "#7C878E",
                   }}
                 >
-                  Money: ${player.money.toLocaleString()}
-                </div>
-
-                <div
-                  className="text-xs mb-2"
-                  style={{
-                    color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#000000" : "#7C878E",
-                  }}
-                >
-                  {player.ready_up_status ? "Ready" : "Not Ready"}
+                  Money: ₮{player.money.toLocaleString()}
                 </div>
 
                 {/* Properties placeholder */}
