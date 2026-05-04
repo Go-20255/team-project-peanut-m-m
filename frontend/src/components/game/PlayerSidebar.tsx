@@ -3,9 +3,7 @@
 import { useState, useEffect } from "react"
 import { getTokenIcon, getTokenName } from "@/utils/tokens"
 import { Player, GameState } from "@/types"
-import { useMovePlayer, useRollDice } from "@/hooks/useGameAPI"
 import { storage } from "@/utils"
-import { useEndTurn } from "@/hooks/playerHooks"
 
 interface PlayerSidebarProps {
   sessionId: string
@@ -24,72 +22,18 @@ export default function PlayerSidebar({
   currentPlayerTurnId,
   gameState,
 }: PlayerSidebarProps) {
-  const [diceRoll, setDiceRoll] = useState<any>(null)
-  const [error, setError] = useState<string | null>(null)
   const [joinCode, setJoinCode] = useState<string>("")
 
   const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId
   const isGameStarted = (gameState?.current_turn ?? -1) >= 0
+  const isTurnOrderPhase = (gameState?.current_turn ?? -1) >= 0 && !!gameState?.players.some((playerInfo) => playerInfo.player.player_order === -1)
 
   const currentPlayer = players.find((p) => p.id === currentPlayerTurnId)
-  const rollMutation = useRollDice()
-  const endTurnMutation = useEndTurn()
-  const movePlayerMutation = useMovePlayer()
 
   useEffect(() => {
     const code = storage.getGameCode()
     if (code) setJoinCode(code)
   }, [])
-
-  const handleEndTurn = () => {
-    if (!isCurrentPlayerTurn) {
-      setError("It's not your turn!")
-      return
-    }
-    setError(null)
-    endTurnMutation.mutate()
-  }
-
-  const handleRollDice = async () => {
-    if (!isCurrentPlayerTurn) {
-      setError("It's not your turn!")
-      return
-    }
-
-    setError(null)
-    rollMutation.mutate(
-      { playerId: playerId, sessionId: sessionId },
-      {
-        onSuccess: (res) => {
-          setDiceRoll(res)
-          console.log("Dice roll successful:", res)
-        },
-        onError: (err) => {
-          var errorText = err.message
-          setError(`Failed to roll: ${errorText}`)
-          console.error("Roll dice error:", errorText)
-        },
-      },
-    )
-  }
-
-  const handleMove = async () => {
-    setError(null)
-    movePlayerMutation.mutate(
-      { playerId: playerId, sessionId: sessionId },
-      {
-        onSuccess: (res) => {
-          setDiceRoll(null)
-          console.log("Move successful")
-        },
-        onError: (err) => {
-          var errorText = err.message
-          setError(`Failed to move: ${errorText}`)
-          console.error("Move error:", errorText)
-        },
-      },
-    )
-  }
 
   return (
     <div className="w-full h-full flex flex-col p-4 overflow-y-auto" style={{ backgroundColor: "#FFFFFF" }}>
@@ -114,7 +58,7 @@ export default function PlayerSidebar({
         }}
       >
         <div className="text-xs font-bold mb-2" style={{ color: "#7C878E" }}>
-          {isGameStarted ? "CURRENT TURN" : "LOBBY"}
+          {isGameStarted ? (isTurnOrderPhase ? "TURN ORDER" : "CURRENT TURN") : "LOBBY"}
         </div>
         <div className="text-lg font-bold mb-2" style={{ color: isGameStarted && isCurrentPlayerTurn ? "#00AA00" : "#F76902" }}>
           {isGameStarted ? (currentPlayer ? currentPlayer.name : "Waiting...") : "Waiting"}
@@ -145,57 +89,9 @@ export default function PlayerSidebar({
           <div className="text-sm" style={{ color: "#7C878E" }}>
             Use the center panel to ready up.
           </div>
-        ) : diceRoll ? (
-          <>
-            <div className="text-sm font-bold mb-3" style={{ color: "#F76902" }}>
-              🎲 Last Roll: {diceRoll.die_one} + {diceRoll.die_two} = {diceRoll.total}
-            </div>
-            <button
-              onClick={handleMove}
-              disabled={movePlayerMutation.isPending || !isCurrentPlayerTurn}
-              className="w-full py-2 px-3 rounded font-bold text-white"
-              style={{
-                backgroundColor: movePlayerMutation.isPending || !isCurrentPlayerTurn ? "#ccc" : "#F76902",
-                cursor: movePlayerMutation.isPending || !isCurrentPlayerTurn ? "not-allowed" : "pointer",
-              }}
-              title={!isCurrentPlayerTurn ? "Not your turn" : "Move your piece"}
-            >
-              {movePlayerMutation.isPending ? "Moving..." : "Move"}
-            </button>
-          </>
         ) : (
-          <button
-            onClick={handleRollDice}
-            disabled={rollMutation.isPending || !isCurrentPlayerTurn}
-            className="w-full py-2 px-3 rounded font-bold text-white"
-            style={{
-              backgroundColor: rollMutation.isPending || !isCurrentPlayerTurn ? "#ccc" : "#F76902",
-              cursor: rollMutation.isPending || !isCurrentPlayerTurn ? "not-allowed" : "pointer",
-            }}
-            title={!isCurrentPlayerTurn ? "Not your turn - wait for your turn to roll" : "Roll the dice"}
-          >
-            {rollMutation.isPending ? "Rolling..." : "Roll Dice"}
-          </button>
-        )}
-        <>
-          <button
-            onClick={handleEndTurn}
-            disabled={!isCurrentPlayerTurn}
-            className="w-full py-2 px-3 rounded font-bold text-white"
-            style={{
-              backgroundColor: !isCurrentPlayerTurn ? "#ccc" : "#F76902",
-              cursor: !isCurrentPlayerTurn ? "not-allowed" : "pointer",
-            }}
-            title={!isCurrentPlayerTurn ? "Not your turn" : "End Turn"}
-          >
-            End Turn
-          </button>
-        </>
-
-        {/* Error message */}
-        {error && (
-          <div className="text-xs mt-2 p-2 rounded" style={{ color: "#D32F2F", backgroundColor: "#FFEBEE" }}>
-            {error}
+          <div className="text-sm" style={{ color: "#7C878E" }}>
+            Use the center panel for turn actions.
           </div>
         )}
       </div>
