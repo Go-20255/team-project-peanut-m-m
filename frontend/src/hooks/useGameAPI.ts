@@ -47,7 +47,7 @@ export function useCreateGame() {
 export function useFetchAllGameSessions() {
   return useQuery<string[]>({
     queryKey: ["fetchAllGameSessions"],
-    queryFn: async (): Promise<string[]> => {
+    queryFn: async () => {
       const res = await fetch(`${API_URL}/api/game`, {
         method: "GET",
         credentials: "include",
