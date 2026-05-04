@@ -1199,7 +1199,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                   cursor: jailReleaseMutation.isPending ? "not-allowed" : "pointer",
                 }}
               >
-                Pay $50
+                Pay ₮50
               </button>
             </div>
           ) : null}
