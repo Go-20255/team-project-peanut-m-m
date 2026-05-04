@@ -10,6 +10,8 @@ export interface Player {
   jailed: number
   session_id: string
   in_game: boolean
+  bankrupt: boolean
+  rank: number
 }
 
 export interface PlayerInfo {
@@ -57,6 +59,8 @@ export interface GameState {
   players: PlayerInfo[]
   current_roll?: DiceRoll | null
   last_move?: PlayerMovement | null
+  pending_card_draw?: PendingCardDraw | null
+  drawn_card?: DrawnCard | null
   pending_rent?: PendingRent | null
   pending_property_purchase?: PropertyPurchaseAvailable | null
   pending_bank_payment?: PendingBankPayment | null
@@ -105,6 +109,28 @@ export interface PropertyPurchaseAvailable {
   purchase_cost: number
   player_money: number
   can_afford: boolean
+}
+
+export interface PendingCardDraw {
+  player_id: number
+  session_id: string
+  card_type: string
+  tile_name: string
+  position: number
+  dice_total: number
+}
+
+export interface EventCard {
+  id: number
+  name: string
+  description: string
+  card_type: string
+}
+
+export interface DrawnCard extends EventCard {
+  player_id: number
+  session_id: string
+  dice_total: number
 }
 
 export interface PendingBankPayment {

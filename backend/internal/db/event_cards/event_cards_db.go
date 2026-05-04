@@ -2,6 +2,7 @@ package internaldb_event_cards
 
 import (
     "context"
+    "monopoly-backend/internal"
     "github.com/jackc/pgx/v5/pgxpool"
     "github.com/rs/zerolog"
 )
@@ -98,4 +99,29 @@ func AssignEventCardDB(log zerolog.Logger, ctx context.Context, db *pgxpool.Tx, 
 	}
 
 	return cardId, nil
+}
+
+func GetEventCard(log zerolog.Logger, ctx context.Context, db *pgxpool.Tx, cardId int) (internal.EventCard, error) {
+    var card internal.EventCard
+
+    err := db.QueryRow(ctx, `
+        SELECT
+            id,
+            name,
+            description,
+            type
+        FROM event_cards
+        WHERE id = $1
+    `, cardId).Scan(
+        &card.Id,
+        &card.Name,
+        &card.Description,
+        &card.CardType,
+    )
+    if err != nil {
+        log.Error().Err(err).Msg("failed to fetch event card")
+        return internal.EventCard{}, err
+    }
+
+    return card, nil
 }

@@ -69,14 +69,13 @@ func advanceToGoEffect(ctx context.Context, log zerolog.Logger, e *internal.Mono
 		}
 	}
 
-	playerMovement := internal.PlayerMovement{
+	e.TempStore["card_movement"] = internal.PlayerMovement{
 		PlayerId:    playerId,
 		SessionId:   sessionId,
 		OldPosition: player.Position,
 		NewPosition: 0,
 		PassedGo:    true,
 	}
-	e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
 
 	return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Advance to Go")
 }
@@ -98,14 +97,13 @@ func advanceToIllinoisAvenueEffect(ctx context.Context, log zerolog.Logger, e *i
 		}
 	}
 
-	playerMovement := internal.PlayerMovement{
+	e.TempStore["card_movement"] = internal.PlayerMovement{
 		PlayerId:    playerId,
 		SessionId:   sessionId,
 		OldPosition: player.Position,
 		NewPosition: 24,
 		PassedGo:    player.Position > 24,
 	}
-	e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
 
 	if player.Position > 24 {
 		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Advance to Illinois Avenue")
@@ -131,14 +129,13 @@ func advanceToStCharlesPlaceEffect(ctx context.Context, log zerolog.Logger, e *i
 		}
 	}
 
-	playerMovement := internal.PlayerMovement{
+	e.TempStore["card_movement"] = internal.PlayerMovement{
 		PlayerId:    playerId,
 		SessionId:   sessionId,
 		OldPosition: player.Position,
 		NewPosition: 11,
 		PassedGo:    player.Position > 11,
 	}
-	e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
 
 	if player.Position > 11 {
 		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Advance to St. Charles Place")
@@ -175,14 +172,13 @@ func advanceToNearestUtilityEffect(ctx context.Context, log zerolog.Logger, e *i
 
 	e.TempStore["special_utility_rent"] = true
 
-	playerMovement := internal.PlayerMovement{
+	e.TempStore["card_movement"] = internal.PlayerMovement{
 		PlayerId:    playerId,
 		SessionId:   sessionId,
 		OldPosition: player.Position,
 		NewPosition: nearest,
 		PassedGo:    player.Position > nearest,
 	}
-	e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
 
 	if player.Position > nearest {
 		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Advance to Nearest Utility")
@@ -223,14 +219,13 @@ func advanceToNearestRailroadEffect(ctx context.Context, log zerolog.Logger, e *
 
 	e.TempStore["special_railroad_rent"] = true
 
-	playerMovement := internal.PlayerMovement{
+	e.TempStore["card_movement"] = internal.PlayerMovement{
 		PlayerId:    playerId,
 		SessionId:   sessionId,
 		OldPosition: player.Position,
 		NewPosition: nearest,
 		PassedGo:    player.Position > nearest,
 	}
-	e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
 
 	if player.Position > nearest {
 		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Advance to Nearest Railroad")
@@ -256,14 +251,13 @@ func advanceToBoardwalkEffect(ctx context.Context, log zerolog.Logger, e *intern
 		}
 	}
 
-	playerMovement := internal.PlayerMovement{
+	e.TempStore["card_movement"] = internal.PlayerMovement{
 		PlayerId:    playerId,
 		SessionId:   sessionId,
 		OldPosition: player.Position,
 		NewPosition: 39,
 		PassedGo:    player.Position > 39,
 	}
-	e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
 
 	if player.Position > 39 {
 		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Advance to Boardwalk")
@@ -282,12 +276,28 @@ func getOutOfJailFreeEffect(ctx context.Context, log zerolog.Logger, e *internal
 }
 
 func goToJailEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	err := internaldb_players.UpdatePlayerPositionAndJailed(log, ctx, tx, playerId, sessionId, 10, 1)
+	player, err := internaldb_players.GetPlayer(log, ctx, tx, playerId, sessionId)
+	if err != nil {
+		return internal.UserActionStatus{
+			Status: http.StatusInternalServerError,
+			Msg:    err.Error(),
+		}
+	}
+
+	err = internaldb_players.UpdatePlayerPositionAndJailed(log, ctx, tx, playerId, sessionId, 10, 1)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
             Msg:    err.Error(),
         }
+    }
+
+    e.TempStore["card_movement"] = internal.PlayerMovement{
+        PlayerId:    playerId,
+        SessionId:   sessionId,
+        OldPosition: player.Position,
+        NewPosition: 10,
+        PassedGo:    false,
     }
 
     return internal.UserActionStatus{Status: http.StatusOK}
@@ -330,14 +340,13 @@ func readingRailroadEffect(ctx context.Context, log zerolog.Logger, e *internal.
 		return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
 	}
 
-	playerMovement := internal.PlayerMovement{
+	e.TempStore["card_movement"] = internal.PlayerMovement{
 		PlayerId:    playerId,
 		SessionId:   sessionId,
 		OldPosition: player.Position,
 		NewPosition: 5,
 		PassedGo:    player.Position > 5,
 	}
-	e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
 
 	if player.Position > 5 {
 		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Advance to Reading Railroad")

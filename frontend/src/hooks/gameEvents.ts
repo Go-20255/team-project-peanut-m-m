@@ -1,8 +1,10 @@
 "use client"
 
 import {
+  DrawnCard,
   GameState,
   GameStateUpdate,
+  PendingCardDraw,
   PendingBankPayment,
   PendingBankPayout,
   PendingPlayerExchange,
@@ -31,11 +33,6 @@ export function HandleInitialGameBoardUpdateEvent(
       ...data,
       current_roll: null,
       last_move: null,
-      pending_rent: null,
-      pending_property_purchase: null,
-      pending_bank_payment: null,
-      pending_bank_payout: null,
-      pending_exchange: null,
     })
   }
 }
@@ -66,6 +63,8 @@ export function HandleMovePlayerEvent(
       ...prev,
       current_turn: data.turn_number ?? prev.current_turn,
       current_roll: null,
+      pending_card_draw: prev.pending_card_draw,
+      drawn_card: prev.drawn_card,
       pending_rent: null,
       pending_property_purchase: null,
       pending_bank_payment: prev.pending_bank_payment,
@@ -112,11 +111,13 @@ export function HandleGameStateUpdateEvent(
       current_turn: data.current_turn,
       current_roll: turnChanged ? null : prev.current_roll,
       last_move: turnChanged ? null : prev.last_move,
-      pending_rent: turnChanged ? null : prev.pending_rent,
-      pending_property_purchase: turnChanged ? null : prev.pending_property_purchase,
-      pending_bank_payment: turnChanged ? null : prev.pending_bank_payment,
-      pending_bank_payout: turnChanged ? null : prev.pending_bank_payout,
-      pending_exchange: turnChanged ? null : prev.pending_exchange,
+      pending_card_draw: data.pending_card_draw,
+      drawn_card: data.drawn_card,
+      pending_rent: data.pending_rent,
+      pending_property_purchase: data.pending_property_purchase,
+      pending_bank_payment: data.pending_bank_payment,
+      pending_bank_payout: data.pending_bank_payout,
+      pending_exchange: data.pending_exchange,
       players: data.players,
     }
   })
@@ -197,6 +198,8 @@ export function HandleGameReadyEvent(
       current_turn: 0,
       current_roll: null,
       last_move: null,
+      pending_card_draw: null,
+      drawn_card: null,
       pending_rent: null,
       pending_property_purchase: null,
       pending_bank_payment: null,
@@ -272,7 +275,52 @@ export function HandleDrawCardEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  const data = parse<DrawnCard>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_card_draw: null,
+      drawn_card: data,
+    }
+  })
+}
+
+export function HandleCardDrawAvailableEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  const data = parse<PendingCardDraw>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_card_draw: data,
+      drawn_card: null,
+    }
+  })
+}
+
+export function HandleCardResolvedEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_card_draw: null,
+      drawn_card: null,
+    }
+  })
+}
 
 export function HandlePayToLeaveJailEvent(
   gameState: GameState | null,
