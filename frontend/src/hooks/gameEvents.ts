@@ -1,6 +1,6 @@
 "use client"
 
-import { GameState, GameStateUpdate } from "@/types"
+import { GameState, GameStateUpdate, PropertyPurchaseAvailable } from "@/types"
 import { Dispatch, SetStateAction } from "react"
 
 const parse = <T>(raw: string): T | null => {
@@ -23,6 +23,7 @@ export function HandleInitialGameBoardUpdateEvent(
       ...data,
       current_roll: null,
       last_move: null,
+      pending_property_purchase: null,
     })
   }
 }
@@ -53,6 +54,7 @@ export function HandleMovePlayerEvent(
       ...prev,
       current_turn: data.turn_number ?? prev.current_turn,
       current_roll: null,
+      pending_property_purchase: null,
       last_move: {
         player_id: data.player_id,
         session_id: prev.players.find((pi) => pi.player.id === data.player_id)?.player.session_id ?? "",
@@ -94,6 +96,7 @@ export function HandleGameStateUpdateEvent(
       current_turn: data.current_turn,
       current_roll: turnChanged ? null : prev.current_roll,
       last_move: turnChanged ? null : prev.last_move,
+      pending_property_purchase: turnChanged ? null : prev.pending_property_purchase,
       players: data.players,
     }
   })
@@ -135,6 +138,7 @@ export function HandleGameReadyEvent(
       current_turn: 0,
       current_roll: null,
       last_move: null,
+      pending_property_purchase: null,
     }
   })
 }
@@ -172,6 +176,23 @@ export function HandleRentDueEvent(
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
 ) {}
+
+export function HandlePropertyPurchaseAvailableEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  const data = parse<PropertyPurchaseAvailable>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_property_purchase: data,
+    }
+  })
+}
 
 export function HandleDrawCardEvent(
   gameState: GameState | null,
@@ -243,7 +264,29 @@ export function HandlePropertyPurchasedEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_property_purchase: null,
+    }
+  })
+}
+
+export function HandlePropertyPurchaseIgnoredEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_property_purchase: null,
+    }
+  })
+}
 
 export function HandlePropertyMortgagedEvent(
   gameState: GameState | null,

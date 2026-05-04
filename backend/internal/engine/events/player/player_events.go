@@ -608,6 +608,11 @@ func EndTurn(
         }
     }
 
+    if e.PendingPropertyPurchase != nil && e.PendingPropertyPurchase.PlayerId == data.PlayerId && e.PendingPropertyPurchase.SessionId == data.SessionId {
+        e.Broker.Broadcast(log, "PropertyPurchaseIgnoredEvent", e.PendingPropertyPurchase)
+        e.PendingPropertyPurchase = nil
+    }
+
     err := internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx, data.SessionId, e.TurnNumber+1)
     if err != nil {
         return internal.UserActionStatus{
@@ -788,6 +793,8 @@ func MovePlayer(
 		}
 	}
 
+    e.PendingPropertyPurchase = nil
+
     if tileData.HasProperty && tileData.Owned && tileData.OwnerId != data.PlayerId && !tileData.IsMortgaged {
         isUtilityCard, _ := e.TempStore["special_utility_rent"].(bool)
         isRailroadCard, _ := e.TempStore["special_railroad_rent"].(bool)
@@ -850,14 +857,16 @@ func MovePlayer(
             }
         }
 
-        e.Broker.Broadcast(log, "PropertyPurchaseAvailableEvent", internal.PropertyPurchaseAvailable{
+        e.PendingPropertyPurchase = &internal.PendingPropertyPurchase{
             PlayerId:     data.PlayerId,
             SessionId:    data.SessionId,
             PropertyId:   tileData.PropertyId,
             PurchaseCost: propertyData.PurchaseCost,
             PlayerMoney:  currentPlayer.Money,
             CanAfford:    currentPlayer.Money >= propertyData.PurchaseCost,
-        })
+        }
+
+        e.Broker.Broadcast(log, "PropertyPurchaseAvailableEvent", e.PendingPropertyPurchase)
     }
 
     events.EmitGameBoardUpdate(log, ctx, e, tx)

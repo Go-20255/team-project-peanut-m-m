@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { getTokenIcon, getTokenName } from "@/utils/tokens"
-import { Player, GameState } from "@/types"
+import { Player, GameState, OwnedProperty } from "@/types"
+import { useEndTurn } from "@/hooks/playerHooks"
 import { storage } from "@/utils"
 
 interface PlayerSidebarProps {
@@ -23,6 +24,49 @@ export default function PlayerSidebar({
   gameState,
 }: PlayerSidebarProps) {
   const [joinCode, setJoinCode] = useState<string>("")
+  const [actionError, setActionError] = useState<string | null>(null)
+  const endTurnMutation = useEndTurn()
+  const propertyOrder = [
+    "BROWN",
+    "LIGHTBLUE",
+    "PINK",
+    "ORANGE",
+    "RED",
+    "YELLOW",
+    "GREEN",
+    "DARKBLUE",
+    "RAILROAD",
+    "UTILITY",
+  ]
+
+  const getPropertyColor = (property: OwnedProperty) => {
+    const propertyType = property.property_info.property_type
+
+    switch (propertyType) {
+      case "BROWN":
+        return "#8B5A2B"
+      case "LIGHTBLUE":
+        return "#87CEEB"
+      case "PINK":
+        return "#FF69B4"
+      case "ORANGE":
+        return "#F5A623"
+      case "RED":
+        return "#D32F2F"
+      case "YELLOW":
+        return "#F7D54A"
+      case "GREEN":
+        return "#4CAF50"
+      case "DARKBLUE":
+        return "#1E3A8A"
+      case "RAILROAD":
+        return "#000000"
+      case "UTILITY":
+        return "#FFFFFF"
+      default:
+        return "#FFFFFF"
+    }
+  }
 
   const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId
   const isGameStarted = (gameState?.current_turn ?? -1) >= 0
@@ -34,6 +78,17 @@ export default function PlayerSidebar({
     const code = storage.getGameCode()
     if (code) setJoinCode(code)
   }, [])
+
+  const handleEndTurn = () => {
+    if (!isCurrentPlayerTurn) return
+
+    setActionError(null)
+    endTurnMutation.mutate(undefined, {
+      onError: (error: Error) => {
+        setActionError(error.message)
+      },
+    })
+  }
 
   return (
     <div className="w-full h-full flex flex-col p-4 overflow-y-auto" style={{ backgroundColor: "#FFFFFF" }}>
@@ -65,9 +120,22 @@ export default function PlayerSidebar({
         </div>
 
         {isGameStarted && isCurrentPlayerTurn && (
-          <div className="text-xs mb-3" style={{ color: "#00AA00" }}>
-            Your Turn
-          </div>
+          <button
+            type="button"
+            onClick={handleEndTurn}
+            disabled={endTurnMutation.isPending}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              marginBottom: 12,
+              backgroundColor: endTurnMutation.isPending ? "#D0D3D4" : "#F76902",
+              color: "#FFFFFF",
+              fontWeight: 700,
+              cursor: endTurnMutation.isPending ? "not-allowed" : "pointer",
+            }}
+          >
+            End Turn
+          </button>
         )}
 
         {isGameStarted && !isCurrentPlayerTurn && currentPlayer && (
@@ -90,9 +158,16 @@ export default function PlayerSidebar({
             Use the center panel to ready up.
           </div>
         ) : (
-          <div className="text-sm" style={{ color: "#7C878E" }}>
-            Use the center panel for turn actions.
-          </div>
+          <>
+            <div className="text-sm" style={{ color: "#7C878E" }}>
+              Use the center panel for turn actions.
+            </div>
+            {actionError ? (
+              <div className="text-xs" style={{ color: "#D32F2F" }}>
+                {actionError}
+              </div>
+            ) : null}
+          </>
         )}
       </div>
 
@@ -110,6 +185,21 @@ export default function PlayerSidebar({
           players.map((player) => {
             const isCurrentPlayer = player.id.toString() === playerId
             const isPlayerTurn = player.id === currentPlayerTurnId
+            const ownedProperties =
+              gameState?.players
+                .find((playerInfo) => playerInfo.player.id === player.id)
+                ?.owned_properties.slice()
+                .sort((a, b) => {
+                  const typeDiff =
+                    propertyOrder.indexOf(a.property_info.property_type) -
+                    propertyOrder.indexOf(b.property_info.property_type)
+
+                  if (typeDiff !== 0) {
+                    return typeDiff
+                  }
+
+                  return a.property_info.purchase_cost - b.property_info.purchase_cost
+                }) ?? []
 
             return (
               <div
@@ -178,7 +268,25 @@ export default function PlayerSidebar({
                     color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#000000" : "#7C878E",
                   }}
                 >
-                  Properties: None
+                  {ownedProperties.length === 0 ? (
+                    <div>Properties: None</div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {ownedProperties.map((property) => (
+                        <div
+                          key={property.id}
+                          title={property.property_info.name}
+                          style={{
+                            width: 14,
+                            height: 14,
+                            border: "1px solid #000000",
+                            backgroundColor: getPropertyColor(property),
+                            flexShrink: 0,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )

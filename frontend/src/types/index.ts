@@ -57,6 +57,7 @@ export interface GameState {
   players: PlayerInfo[]
   current_roll?: DiceRoll | null
   last_move?: PlayerMovement | null
+  pending_property_purchase?: PropertyPurchaseAvailable | null
 }
 
 export interface Tile {
@@ -91,4 +92,13 @@ export interface PlayerMovement {
   rent_to_id: number
   property_id: number
   roll_again: boolean
+}
+
+export interface PropertyPurchaseAvailable {
+  player_id: number
+  session_id: string
+  property_id: number
+  purchase_cost: number
+  player_money: number
+  can_afford: boolean
 }
