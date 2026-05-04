@@ -74,6 +74,26 @@ export default function PlayerSidebar({
 
   const currentPlayer = players.find((p) => p.id === currentPlayerTurnId)
 
+  const getRankLabel = (rank: number) => {
+    const value = Math.abs(rank)
+    const mod100 = value % 100
+
+    if (mod100 >= 11 && mod100 <= 13) {
+      return `${rank}th place`
+    }
+
+    switch (value % 10) {
+      case 1:
+        return `${rank}st place`
+      case 2:
+        return `${rank}nd place`
+      case 3:
+        return `${rank}rd place`
+      default:
+        return `${rank}th place`
+    }
+  }
+
   useEffect(() => {
     const code = storage.getGameCode()
     if (code) setJoinCode(code)
@@ -232,6 +252,11 @@ export default function PlayerSidebar({
                     title={getTokenName(player.piece_token)}
                   />
                   <span>{player.name}</span>
+                  {player.rank > 0 ? (
+                    <span style={{ fontSize: "0.75em", color: "#7C878E", fontWeight: 700 }}>
+                      {getRankLabel(player.rank)}
+                    </span>
+                  ) : null}
                   {isCurrentPlayer && !isPlayerTurn && (
                     <span style={{ fontSize: "0.85em", color: "#F76902" }}>(you)</span>
                   )}

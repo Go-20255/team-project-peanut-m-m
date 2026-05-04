@@ -6,6 +6,7 @@ import { DiceRoll, GameState, Player } from "@/types"
 import { useReadyUp } from "@/hooks/playerHooks"
 import { useEndTurn } from "@/hooks/playerHooks"
 import {
+  useDrawCard,
   useJailRelease,
   useMovePlayer,
   usePayBank,
@@ -13,6 +14,7 @@ import {
   usePlayerBankrupt,
   usePlayerExchange,
   useReceiveBankPayout,
+  useResolveCard,
   useRollDice,
 } from "@/hooks/useGameAPI"
 import { useIgnorePropertyPurchase, usePurchaseProperty } from "@/hooks/propertyHooks"
@@ -29,6 +31,11 @@ const BOARD_UNITS = 37
 const CORNER_UNITS = 5
 const EDGE_UNITS = 3
 const BOARD_SIZE = 1850
+const CENTER_CARD_WIDTH = BOARD_SIZE * 0.22
+const CENTER_CARD_SPECS = {
+  COMMUNITY: { x: BOARD_SIZE * 0.32, y: BOARD_SIZE * 0.32, rotation: 135 },
+  CHANCE: { x: BOARD_SIZE * 0.68, y: BOARD_SIZE * 0.68, rotation: -45 },
+} as const
 
 type BoardSide = "bottom" | "left" | "top" | "right"
 
@@ -55,6 +62,10 @@ type MoveAnimation = {
   path: { x: number; y: number; index: number }[]
   x: number
   y: number
+}
+
+function isCardTile(index: number) {
+  return index === 2 || index === 7 || index === 17 || index === 22 || index === 33 || index === 36
 }
 
 function getTilePlacement(index: number): TilePlacement {
@@ -266,6 +277,49 @@ function getTileTokenSlots(
   return playersOnTile.map((player) => slotMap.get(player.id) ?? { x: bounds.x, y: bounds.y })
 }
 
+function rotatePoint(x: number, y: number, degrees: number) {
+  const radians = (degrees * Math.PI) / 180
+  const cos = Math.cos(radians)
+  const sin = Math.sin(radians)
+
+  return {
+    x: x * cos - y * sin,
+    y: x * sin + y * cos,
+  }
+}
+
+function getBoardPointFromScreen(
+  clientX: number,
+  clientY: number,
+  rect: DOMRect,
+  viewport: ViewportState,
+) {
+  const centeredX = clientX - rect.left - rect.width / 2
+  const centeredY = clientY - rect.top - rect.height / 2
+  const unpannedX = centeredX - viewport.x
+  const unpannedY = centeredY - viewport.y
+  const unzoomedX = unpannedX / viewport.zoom
+  const unzoomedY = unpannedY / viewport.zoom
+  const unrotated = rotatePoint(unzoomedX, unzoomedY, -viewport.rotation)
+
+  return {
+    x: unrotated.x + BOARD_SIZE / 2,
+    y: unrotated.y + BOARD_SIZE / 2,
+  }
+}
+
+function isInsideCenterCard(
+  boardX: number,
+  boardY: number,
+  cardType: string,
+) {
+  const spec = cardType === "COMMUNITY" ? CENTER_CARD_SPECS.COMMUNITY : CENTER_CARD_SPECS.CHANCE
+  const local = rotatePoint(boardX - spec.x, boardY - spec.y, -spec.rotation)
+  const halfSize = CENTER_CARD_WIDTH / 2
+
+  return Math.abs(local.x) <= halfSize && Math.abs(local.y) <= halfSize
+}
+
 export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, gameState }: GameBoardProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -273,8 +327,9 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const tokenImagesRef = useRef<Record<number, HTMLImageElement>>({})
   const centerImagesRef = useRef<Record<string, HTMLImageElement>>({})
   const rotationRef = useRef(0)
-  const dragRef = useRef<{ active: boolean; x: number; y: number }>({
+  const dragRef = useRef<{ active: boolean; moved: boolean; x: number; y: number }>({
     active: false,
+    moved: false,
     x: 0,
     y: 0,
   })
@@ -294,11 +349,14 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const [rollDisplay, setRollDisplay] = useState<DiceRoll | null>(null)
   const [isRollingAnimation, setIsRollingAnimation] = useState(false)
   const [moveAnimation, setMoveAnimation] = useState<MoveAnimation | null>(null)
+  const [showBankruptConfirm, setShowBankruptConfirm] = useState(false)
 
   const readyMutation = useReadyUp()
   const rollMutation = useRollDice()
   const moveMutation = useMovePlayer()
   const endTurnMutation = useEndTurn()
+  const drawCardMutation = useDrawCard()
+  const resolveCardMutation = useResolveCard()
   const jailReleaseMutation = useJailRelease()
   const payBankMutation = usePayBank()
   const receiveBankPayoutMutation = useReceiveBankPayout()
@@ -341,11 +399,14 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId
   const currentRoll = gameState.current_roll ?? null
   const lastMove = gameState.last_move ?? null
+  const pendingCardDraw = gameState.pending_card_draw ?? null
+  const drawnCard = gameState.drawn_card ?? null
   const pendingRent = gameState.pending_rent ?? null
   const pendingBankPayment = gameState.pending_bank_payment ?? null
   const pendingBankPayout = gameState.pending_bank_payout ?? null
   const pendingExchange = gameState.pending_exchange ?? null
   const pendingPropertyPurchase = gameState.pending_property_purchase ?? null
+  const isCardTriggeredMove = !!lastMove && isCardTile(lastMove.old_position)
   const pendingPropertyData = useMemo(
     () =>
       pendingPropertyPurchase
@@ -552,6 +613,10 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   }, [lastMove])
 
   useEffect(() => {
+    setShowBankruptConfirm(false)
+  }, [pendingRent, pendingBankPayment, currentPlayerTurnId])
+
+  useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || size.width === 0 || size.height === 0) return
 
@@ -681,6 +746,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
       centerY: number,
       width: number,
       rotation: number,
+      isHighlighted: boolean,
     ) => {
       if (!image) return
 
@@ -696,14 +762,38 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
         drawSize.width,
         drawSize.height,
       )
+      if (isHighlighted) {
+        ctx.strokeStyle = "#F76902"
+        ctx.lineWidth = 8
+        ctx.strokeRect(
+          -drawSize.width / 2,
+          -drawSize.height / 2,
+          drawSize.width,
+          drawSize.height,
+        )
+      }
       ctx.restore()
     }
 
-    drawCenterCard(centerImagesRef.current.cchest, BOARD_SIZE * 0.32, BOARD_SIZE * 0.32, BOARD_SIZE * 0.22, 135)
-    drawCenterCard(centerImagesRef.current.chance, BOARD_SIZE * 0.68, BOARD_SIZE * 0.68, BOARD_SIZE * 0.22, -45)
+    drawCenterCard(
+      centerImagesRef.current.cchest,
+      CENTER_CARD_SPECS.COMMUNITY.x,
+      CENTER_CARD_SPECS.COMMUNITY.y,
+      CENTER_CARD_WIDTH,
+      CENTER_CARD_SPECS.COMMUNITY.rotation,
+      pendingCardDraw?.card_type === "COMMUNITY" || drawnCard?.card_type === "COMMUNITY",
+    )
+    drawCenterCard(
+      centerImagesRef.current.chance,
+      CENTER_CARD_SPECS.CHANCE.x,
+      CENTER_CARD_SPECS.CHANCE.y,
+      CENTER_CARD_WIDTH,
+      CENTER_CARD_SPECS.CHANCE.rotation,
+      pendingCardDraw?.card_type === "CHANCE" || drawnCard?.card_type === "CHANCE",
+    )
 
     ctx.restore()
-  }, [boardTiles, currentPlayerTurnId, imageVersion, moveAnimation, playerPositions, size, viewport])
+  }, [boardTiles, currentPlayerTurnId, drawnCard, imageVersion, moveAnimation, pendingCardDraw, playerPositions, size, viewport])
 
   const onWheel = (event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -729,6 +819,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const onMouseDown = (event: MouseEvent<HTMLDivElement>) => {
     dragRef.current = {
       active: true,
+      moved: false,
       x: event.clientX,
       y: event.clientY,
     }
@@ -740,9 +831,11 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
 
     const dx = event.clientX - dragRef.current.x
     const dy = event.clientY - dragRef.current.y
+    const moved = dragRef.current.moved || Math.abs(dx) > 2 || Math.abs(dy) > 2
 
     dragRef.current = {
       active: true,
+      moved,
       x: event.clientX,
       y: event.clientY,
     }
@@ -754,8 +847,24 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     }))
   }
 
+  const onMouseUp = (event: MouseEvent<HTMLDivElement>) => {
+    const wasDragging = dragRef.current.moved
+    stopDrag()
+
+    if (wasDragging || !pendingCardDraw || !isCurrentPlayerTurn) return
+
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+
+    const boardPoint = getBoardPointFromScreen(event.clientX, event.clientY, rect, viewport)
+    if (!isInsideCenterCard(boardPoint.x, boardPoint.y, pendingCardDraw.card_type)) return
+
+    handleDrawCard()
+  }
+
   const stopDrag = () => {
     dragRef.current.active = false
+    dragRef.current.moved = false
     setIsDragging(false)
   }
 
@@ -774,6 +883,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     if (!isCurrentPlayerTurn) return
 
     setActionError(null)
+    setShowBankruptConfirm(false)
     rollMutation.mutate(
       {
         playerId,
@@ -791,6 +901,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     if (!isCurrentPlayerTurn) return
 
     setActionError(null)
+    setShowBankruptConfirm(false)
     moveMutation.mutate(
       {
         playerId,
@@ -808,6 +919,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     if (!isCurrentPlayerTurn) return
 
     setActionError(null)
+    setShowBankruptConfirm(false)
     endTurnMutation.mutate(undefined, {
       onError: (error: Error) => {
         setActionError(error.message)
@@ -819,6 +931,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     if (!isCurrentPlayerTurn) return
 
     setActionError(null)
+    setShowBankruptConfirm(false)
     jailReleaseMutation.mutate(method, {
       onError: (error: Error) => {
         setActionError(error.message)
@@ -830,6 +943,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     if (!isCurrentPlayerTurn || !pendingPropertyPurchase) return
 
     setActionError(null)
+    setShowBankruptConfirm(false)
     purchasePropertyMutation.mutate(undefined, {
       onError: (error: Error) => {
         setActionError(error.message)
@@ -841,6 +955,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     if (!isCurrentPlayerTurn) return
 
     setActionError(null)
+    setShowBankruptConfirm(false)
     ignorePropertyMutation.mutate(undefined, {
       onError: (error: Error) => {
         setActionError(error.message)
@@ -852,6 +967,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     if (!isCurrentPlayerTurn) return
 
     setActionError(null)
+    setShowBankruptConfirm(false)
     payBankMutation.mutate(undefined, {
       onError: (error: Error) => {
         setActionError(error.message)
@@ -863,6 +979,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     if (!isCurrentPlayerTurn) return
 
     setActionError(null)
+    setShowBankruptConfirm(false)
     receiveBankPayoutMutation.mutate(undefined, {
       onError: (error: Error) => {
         setActionError(error.message)
@@ -874,6 +991,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     if (!isCurrentPlayerTurn || !pendingRent) return
 
     setActionError(null)
+    setShowBankruptConfirm(false)
     payRentMutation.mutate(
       {
         dst_player: pendingRent.to_player_id.toString(),
@@ -891,6 +1009,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     if (!isCurrentPlayerTurn) return
 
     setActionError(null)
+    setShowBankruptConfirm(false)
     playerExchangeMutation.mutate(undefined, {
       onError: (error: Error) => {
         setActionError(error.message)
@@ -902,7 +1021,32 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     if (!isCurrentPlayerTurn) return
 
     setActionError(null)
+    setShowBankruptConfirm(false)
     playerBankruptMutation.mutate(undefined, {
+      onError: (error: Error) => {
+        setActionError(error.message)
+      },
+    })
+  }
+
+  const handleDrawCard = () => {
+    if (!isCurrentPlayerTurn || !pendingCardDraw) return
+
+    setActionError(null)
+    setShowBankruptConfirm(false)
+    drawCardMutation.mutate(undefined, {
+      onError: (error: Error) => {
+        setActionError(error.message)
+      },
+    })
+  }
+
+  const handleResolveCard = () => {
+    if (!isCurrentPlayerTurn || !drawnCard) return
+
+    setActionError(null)
+    setShowBankruptConfirm(false)
+    resolveCardMutation.mutate(undefined, {
       onError: (error: Error) => {
         setActionError(error.message)
       },
@@ -911,7 +1055,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
 
   const rollLabel = isTurnOrderPhase
     ? "Roll for Order"
-    : lastMove?.player_id === currentPlayerTurnId && lastMove?.roll_again
+    : lastMove?.player_id === currentPlayerTurnId && lastMove?.roll_again && !isCardTriggeredMove
       ? "Roll Again"
       : "Roll Dice"
 
@@ -937,6 +1081,8 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
 
   const showTurnOrderEndTurn = !!currentRoll && isTurnOrderPhase
   const showSentToJailEndTurn = !!currentRoll && !isTurnOrderPhase && currentRoll.sent_to_jail
+  const showCardDrawPanel = !!pendingCardDraw && !moveAnimation
+  const showDrawnCardPanel = !!drawnCard && !moveAnimation
   const showRentPanel = !!pendingRent && !moveAnimation
   const showBankPaymentPanel = !!pendingBankPayment && !moveAnimation
   const showBankPayoutPanel = !!pendingBankPayout && !moveAnimation
@@ -953,6 +1099,8 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     !isGameStarted ||
     !!readyError ||
     !!actionError ||
+    showCardDrawPanel ||
+    showDrawnCardPanel ||
     showRentPanel ||
     showBankPaymentPanel ||
     showBankPayoutPanel ||
@@ -961,7 +1109,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     isRollingAnimation ||
     !!currentRoll ||
     activePlayerNeedsJailRoll ||
-    (!moveAnimation && !!lastMove && isCurrentPlayerTurn && lastMove.roll_again) ||
+    (!moveAnimation && !!lastMove && isCurrentPlayerTurn && lastMove.roll_again && !isCardTriggeredMove) ||
     (!moveAnimation && !lastMove && isCurrentPlayerTurn)
 
   return (
@@ -971,7 +1119,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
       onWheel={onWheel}
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}
-      onMouseUp={stopDrag}
+      onMouseUp={onMouseUp}
       onMouseLeave={stopDrag}
       style={{
         position: "relative",
@@ -1136,7 +1284,83 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             textAlign: "center",
           }}
         >
-          {showRentPanel ? (
+          {showCardDrawPanel ? (
+            <>
+              <div
+                style={{
+                  color: "#F76902",
+                  fontSize: 20,
+                  fontWeight: 700,
+                }}
+              >
+                {pendingCardDraw.tile_name}
+              </div>
+
+              <div
+                style={{
+                  color: "#7C878E",
+                  fontSize: 13,
+                }}
+              >
+                {activePlayer ? `${activePlayer.name}` : "Waiting"}
+              </div>
+
+              <div
+                style={{
+                  color: "#000000",
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                {isCurrentPlayerTurn
+                  ? `Click the ${pendingCardDraw.tile_name} card to draw`
+                  : activePlayer
+                    ? `Waiting for ${activePlayer.name} to draw`
+                    : "Waiting"}
+              </div>
+            </>
+          ) : showDrawnCardPanel ? (
+            <>
+              <div
+                style={{
+                  color: "#F76902",
+                  fontSize: 20,
+                  fontWeight: 700,
+                }}
+              >
+                {drawnCard.card_type === "CHANCE" ? "Chance" : "Community Chest"}
+              </div>
+
+              <div
+                style={{
+                  color: "#7C878E",
+                  fontSize: 13,
+                }}
+              >
+                {activePlayer ? `${activePlayer.name}` : "Waiting"}
+              </div>
+
+              <div
+                style={{
+                  color: "#000000",
+                  fontSize: 16,
+                  fontWeight: 700,
+                }}
+              >
+                {drawnCard.name}
+              </div>
+
+              <div
+                style={{
+                  color: "#000000",
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                {drawnCard.description}
+              </div>
+            </>
+          ) : showRentPanel ? (
             <>
               <div
                 style={{
@@ -1460,34 +1684,59 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </>
           )}
 
+          {isCurrentPlayerTurn && showDrawnCardPanel ? (
+            <button
+              type="button"
+              onClick={handleResolveCard}
+              disabled={resolveCardMutation.isPending}
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                backgroundColor: resolveCardMutation.isPending ? "#D0D3D4" : "#F76902",
+                color: "#FFFFFF",
+                fontWeight: 700,
+                cursor: resolveCardMutation.isPending ? "not-allowed" : "pointer",
+              }}
+            >
+              Continue
+            </button>
+          ) : null}
+
           {isCurrentPlayerTurn && showRentPanel ? (
             <div
               style={{
                 width: "100%",
                 display: "flex",
+                flexDirection: "column",
                 gap: 10,
               }}
             >
-              <button
-                type="button"
-                onClick={handlePayRent}
-                disabled={payRentMutation.isPending || playerBankruptMutation.isPending}
+              <div
                 style={{
-                  flex: 1,
-                  padding: "12px 14px",
-                  backgroundColor: payRentMutation.isPending || playerBankruptMutation.isPending ? "#D0D3D4" : "#F76902",
-                  color: "#FFFFFF",
-                  fontWeight: 700,
-                  cursor: payRentMutation.isPending || playerBankruptMutation.isPending ? "not-allowed" : "pointer",
+                  width: "100%",
+                  display: "flex",
+                  gap: 10,
                 }}
               >
-                Pay Rent
-              </button>
-
-              {currentPlayer && currentPlayer.money < pendingRent.amount ? (
                 <button
                   type="button"
-                  onClick={handleBankrupt}
+                  onClick={handlePayRent}
+                  disabled={payRentMutation.isPending || playerBankruptMutation.isPending}
+                  style={{
+                    flex: 1,
+                    padding: "12px 14px",
+                    backgroundColor: payRentMutation.isPending || playerBankruptMutation.isPending ? "#D0D3D4" : "#F76902",
+                    color: "#FFFFFF",
+                    fontWeight: 700,
+                    cursor: payRentMutation.isPending || playerBankruptMutation.isPending ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Pay Rent
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowBankruptConfirm((value) => !value)}
                   disabled={payRentMutation.isPending || playerBankruptMutation.isPending}
                   style={{
                     flex: 1,
@@ -1499,7 +1748,26 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                     opacity: payRentMutation.isPending || playerBankruptMutation.isPending ? 0.7 : 1,
                   }}
                 >
-                  Bankrupt
+                  {showBankruptConfirm ? "Cancel" : "Bankrupt"}
+                </button>
+              </div>
+
+              {showBankruptConfirm ? (
+                <button
+                  type="button"
+                  onClick={handleBankrupt}
+                  disabled={payRentMutation.isPending || playerBankruptMutation.isPending}
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    backgroundColor: "#D0D3D4",
+                    color: "#000000",
+                    fontWeight: 700,
+                    cursor: payRentMutation.isPending || playerBankruptMutation.isPending ? "not-allowed" : "pointer",
+                    opacity: payRentMutation.isPending || playerBankruptMutation.isPending ? 0.7 : 1,
+                  }}
+                >
+                  Confirm Bankrupt
                 </button>
               ) : null}
             </div>
@@ -1510,30 +1778,37 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
               style={{
                 width: "100%",
                 display: "flex",
+                flexDirection: "column",
                 gap: 10,
               }}
             >
-            <button
-              type="button"
-              onClick={handlePayBank}
-              disabled={payBankMutation.isPending || playerBankruptMutation.isPending}
-              style={{
-                flex: 1,
-                padding: "12px 14px",
-                backgroundColor: payBankMutation.isPending || playerBankruptMutation.isPending ? "#D0D3D4" : "#F76902",
-                color: "#FFFFFF",
-                fontWeight: 700,
-                cursor: payBankMutation.isPending || playerBankruptMutation.isPending ? "not-allowed" : "pointer",
-              }}
-            >
-              {pendingBankPayment.reason === "jail release"
-                ? `Pay ₮${pendingBankPayment.amount.toLocaleString()}`
-                : "Pay Bank"}
-            </button>
-              {currentPlayer && currentPlayer.money < pendingBankPayment.amount ? (
+              <div
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  gap: 10,
+                }}
+              >
                 <button
                   type="button"
-                  onClick={handleBankrupt}
+                  onClick={handlePayBank}
+                  disabled={payBankMutation.isPending || playerBankruptMutation.isPending}
+                  style={{
+                    flex: 1,
+                    padding: "12px 14px",
+                    backgroundColor: payBankMutation.isPending || playerBankruptMutation.isPending ? "#D0D3D4" : "#F76902",
+                    color: "#FFFFFF",
+                    fontWeight: 700,
+                    cursor: payBankMutation.isPending || playerBankruptMutation.isPending ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {pendingBankPayment.reason === "jail release"
+                    ? `Pay ₮${pendingBankPayment.amount.toLocaleString()}`
+                    : "Pay Bank"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBankruptConfirm((value) => !value)}
                   disabled={payBankMutation.isPending || playerBankruptMutation.isPending}
                   style={{
                     flex: 1,
@@ -1545,7 +1820,26 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                     opacity: payBankMutation.isPending || playerBankruptMutation.isPending ? 0.7 : 1,
                   }}
                 >
-                  Bankrupt
+                  {showBankruptConfirm ? "Cancel" : "Bankrupt"}
+                </button>
+              </div>
+
+              {showBankruptConfirm ? (
+                <button
+                  type="button"
+                  onClick={handleBankrupt}
+                  disabled={payBankMutation.isPending || playerBankruptMutation.isPending}
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    backgroundColor: "#D0D3D4",
+                    color: "#000000",
+                    fontWeight: 700,
+                    cursor: payBankMutation.isPending || playerBankruptMutation.isPending ? "not-allowed" : "pointer",
+                    opacity: payBankMutation.isPending || playerBankruptMutation.isPending ? 0.7 : 1,
+                  }}
+                >
+                  Confirm Bankrupt
                 </button>
               ) : null}
             </div>
@@ -1632,7 +1926,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </div>
           ) : null}
 
-          {isCurrentPlayerTurn && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && !currentRoll && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showCardDrawPanel && !showDrawnCardPanel && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && !currentRoll && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleRoll}
@@ -1650,7 +1944,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showMoveButton && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showCardDrawPanel && !showDrawnCardPanel && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showMoveButton && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleMove}
@@ -1668,7 +1962,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showTurnOrderEndTurn && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showCardDrawPanel && !showDrawnCardPanel && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showTurnOrderEndTurn && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleEndTurn}
@@ -1686,7 +1980,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showJailEndTurn && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showCardDrawPanel && !showDrawnCardPanel && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showJailEndTurn && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleEndTurn}
@@ -1704,7 +1998,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showSentToJailEndTurn && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showCardDrawPanel && !showDrawnCardPanel && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showSentToJailEndTurn && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleEndTurn}
@@ -1722,7 +2016,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showJailReleaseButtons && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showCardDrawPanel && !showDrawnCardPanel && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showJailReleaseButtons && !isRollingAnimation ? (
             <div
               style={{
                 width: "100%",

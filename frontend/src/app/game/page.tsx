@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { storage } from "@/utils/storage"
 import PlayerSidebar from "@/components/game/PlayerSidebar"
 import GameBoard from "@/components/game/GameBoard"
+import FinalRanksPage from "@/components/game/FinalRanksPage"
 import { useLiveGameUpdates } from "@/hooks/liveUpdates"
 
 export default function GamePage() {
@@ -30,14 +31,35 @@ export default function GamePage() {
   const gameState = useLiveGameUpdates(sessionId, playerId, playerName)
 
   const players = useMemo(() => gameState?.players.map((pi) => pi.player) ?? [], [gameState])
+  const nonBankruptPlayers = useMemo(() => players.filter((player) => !player.bankrupt), [players])
+  const showFinalRanksPage = useMemo(() => {
+    if (!gameState) return false
+    if (gameState.current_turn < 0) return false
+    if (players.length === 0) return false
+
+    return nonBankruptPlayers.length <= 1 && players.every((player) => player.rank > 0)
+  }, [gameState, nonBankruptPlayers.length, players])
 
   const currentPlayerTurnId = useMemo(() => {
     if (!gameState) return null
     if (gameState.current_turn < 0 || gameState.players.length === 0) return null
-    return gameState.players[gameState.current_turn % gameState.players.length]?.player.id ?? null
+
+    const currentPlayerIndex = gameState.current_turn % gameState.players.length
+    for (let i = 0; i < gameState.players.length; i += 1) {
+      const playerInfo = gameState.players[(currentPlayerIndex + i) % gameState.players.length]
+      if (!playerInfo.player.bankrupt) {
+        return playerInfo.player.id
+      }
+    }
+
+    return null
   }, [gameState])
 
   if (!sessionId || !playerId || !playerName) return null
+
+  if (showFinalRanksPage) {
+    return <FinalRanksPage players={players} />
+  }
 
   return (
     <div className="w-full h-screen flex overflow-hidden" style={{ backgroundColor: "#FFFFFF" }}>

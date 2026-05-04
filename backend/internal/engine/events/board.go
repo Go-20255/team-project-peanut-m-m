@@ -79,6 +79,13 @@ func EmitInitialGameBoardData(log zerolog.Logger, ctx context.Context, e *intern
     board_data.CurrentTurn = current_turn
     board_data.Players = all_players_info
     board_data.Tiles = tiles
+    board_data.PendingCardDraw = e.PendingCardDraw
+    board_data.DrawnCard = e.PendingDrawnCard
+    board_data.PendingRent = e.PendingRent
+    board_data.PendingPropertyPurchase = e.PendingPropertyPurchase
+    board_data.PendingBankPayment = e.PendingBankPayment
+    board_data.PendingBankPayout = e.PendingBankPayout
+    board_data.PendingExchange = e.PendingExchange
 
     e.Broker.Broadcast(log, "InitialGameBoardDataEvent", board_data)
     return nil
@@ -134,9 +141,15 @@ func EmitGameBoardUpdate(log zerolog.Logger, ctx context.Context, e *internal.Mo
     var board_update internal.GameStateUpdate
     board_update.CurrentTurn = current_turn
     board_update.Players = all_players_info
+    board_update.PendingCardDraw = e.PendingCardDraw
+    board_update.DrawnCard = e.PendingDrawnCard
+    board_update.PendingRent = e.PendingRent
+    board_update.PendingPropertyPurchase = e.PendingPropertyPurchase
+    board_update.PendingBankPayment = e.PendingBankPayment
+    board_update.PendingBankPayout = e.PendingBankPayout
+    board_update.PendingExchange = e.PendingExchange
 
     e.Broker.Broadcast(log, "GameStateUpdateEvent", board_update)
     return nil
 }
-
 

@@ -156,6 +156,40 @@ export function useJailRelease() {
   })
 }
 
+export function useDrawCard() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/game/card/draw`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
+      }
+      return res.json()
+    },
+  })
+}
+
+export function useResolveCard() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/game/card/resolve`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
+      }
+
+      const responseText = await res.text()
+      return responseText ? JSON.parse(responseText) : null
+    },
+  })
+}
+
 export function usePayBank() {
   return useMutation({
     mutationFn: async () => {

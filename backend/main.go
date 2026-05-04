@@ -99,6 +99,8 @@ func main() {
     routes.GET("/game/join/live", gamestatehandlers.JoinLiveGameHandler)
     routes.POST("/game/roll", gamestatehandlers.RollDiceHandler)
     routes.POST("/game/move", gamestatehandlers.MovePlayerHandler)
+    routes.POST("/game/card/draw", gamestatehandlers.DrawCardHandler)
+    routes.POST("/game/card/resolve", gamestatehandlers.ResolveCardHandler)
     routes.POST("/game/jail/release", gamestatehandlers.UseGetOutOfJailCardHandler)
     routes.POST("/game/bank/pay", gamestatehandlers.PayBankHandler)
     routes.POST("/game/bank/set", gamestatehandlers.SetBankPayoutHandler)

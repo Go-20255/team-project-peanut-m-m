@@ -31,6 +31,8 @@ type MonopolyEngine struct {
     TempStore         map[string]any
     PendingRolls      map[int]DiceRoll
     PendingRent       *PendingRent
+    PendingCardDraw   *PendingCardDraw
+    PendingDrawnCard  *DrawnCard
     PendingPropertyPurchase *PendingPropertyPurchase
     PendingBankPayment *PendingBankPayment
     PendingBankPayout  *PendingBankPayout
@@ -45,6 +47,13 @@ type MonopolyEngine struct {
 type GameStateUpdate struct {
     CurrentTurn     int             `json:"current_turn"`
     Players         []PlayerInfo    `json:"players"`
+    PendingCardDraw *PendingCardDraw `json:"pending_card_draw"`
+    DrawnCard       *DrawnCard       `json:"drawn_card"`
+    PendingRent     *PendingRent     `json:"pending_rent"`
+    PendingPropertyPurchase *PendingPropertyPurchase `json:"pending_property_purchase"`
+    PendingBankPayment *PendingBankPayment `json:"pending_bank_payment"`
+    PendingBankPayout *PendingBankPayout `json:"pending_bank_payout"`
+    PendingExchange *PendingPlayerExchange `json:"pending_exchange"`
 }
 
 type GameBoardData struct {
@@ -79,6 +88,11 @@ type BankPayoutActionData struct {
     SessionId   string `json:"session_id"`
     Amount      int    `json:"amount"`
     Reason      string `json:"reason"`
+}
+
+type CardActionData struct {
+    PlayerId    int    `json:"player_id"`
+    SessionId   string `json:"session_id"`
 }
 
 type RentPaymentActionData struct {
@@ -143,6 +157,22 @@ type PendingPropertyPurchase struct {
     PurchaseCost int    `json:"purchase_cost"`
     PlayerMoney  int    `json:"player_money"`
     CanAfford    bool   `json:"can_afford"`
+}
+
+type PendingCardDraw struct {
+    PlayerId    int    `json:"player_id"`
+    SessionId   string `json:"session_id"`
+    CardType    string `json:"card_type"`
+    TileName    string `json:"tile_name"`
+    Position    int    `json:"position"`
+    DiceTotal   int    `json:"dice_total"`
+}
+
+type DrawnCard struct {
+    PlayerId     int    `json:"player_id"`
+    SessionId    string `json:"session_id"`
+    DiceTotal    int    `json:"dice_total"`
+    EventCard
 }
 
 type PendingRent struct {
