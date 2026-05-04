@@ -70,6 +70,7 @@ func SetupNewMonopolyEngine(sessionId string) {
         TempStore:       make(map[string]any),
         PendingRolls:    map[int]internal.DiceRoll{},
         PendingRent:     nil,
+        PendingPropertyPurchase: nil,
         PendingBankPayment: nil,
         PendingBankPayout: nil,
         PendingExchange:    nil,
@@ -255,6 +256,8 @@ func processUserAction(
         action_status = player.ExecutePlayerExchange(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseProperty":
         action_status = property.PurchaseProperty(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "IgnorePropertyPurchase":
+        action_status = property.IgnorePropertyPurchase(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseHouse":
         action_status = property.PurchaseHouse(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseHotel":

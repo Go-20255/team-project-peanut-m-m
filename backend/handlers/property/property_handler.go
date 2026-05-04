@@ -81,6 +81,32 @@ func PurchasePropertyHandler(c echo.Context) error {
     return c.String(http.StatusOK, res.Msg)
 }
 
+func IgnorePropertyPurchaseHandler(c echo.Context) error {
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
+
+    res, err := monopoly_engine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "IgnorePropertyPurchase",
+        Data: internal.SimpleActionData{
+            SessionId: claims.SessionId,
+            PlayerId:  claims.PlayerId,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.String(http.StatusOK, res.Msg)
+}
+
 func PurchaseHouseHandler(c echo.Context) error {
     claims, err := util.GetPlayerJwtClaims(c)
     if err != nil {

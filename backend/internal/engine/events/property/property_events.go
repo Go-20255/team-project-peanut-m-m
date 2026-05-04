@@ -81,6 +81,13 @@ func PurchaseProperty(
         return *status
     }
 
+    if e.PendingPropertyPurchase == nil || e.PendingPropertyPurchase.PlayerId != data.PlayerId || e.PendingPropertyPurchase.SessionId != data.SessionId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is no pending property purchase",
+        }
+    }
+
     tile, err := internaldb_tiles.GetTileByPosition(
         log,
         ctx,
@@ -166,6 +173,7 @@ func PurchaseProperty(
     event.PropertyId = property.Id
     event.OwnershipId = ownershipId
 
+    e.PendingPropertyPurchase = nil
     e.Broker.Broadcast(log, "PropertyPurchasedEvent", event)
     events.EmitGameBoardUpdate(log, ctx, e, tx)
 
@@ -173,6 +181,44 @@ func PurchaseProperty(
     return internal.UserActionStatus{
         Status: http.StatusOK,
         Msg:    fmt.Sprintf("property purchased successfully (Ownership ID: %d)", ownershipId),
+    }
+}
+
+func IgnorePropertyPurchase(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    data, ok := action.Data.(internal.SimpleActionData)
+    if !ok {
+        log.Error().Msg("invalid data format received for IgnorePropertyPurchase")
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "internal data format error",
+        }
+    }
+
+    _, _, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
+    }
+
+    if e.PendingPropertyPurchase == nil || e.PendingPropertyPurchase.PlayerId != data.PlayerId || e.PendingPropertyPurchase.SessionId != data.SessionId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is no pending property purchase",
+        }
+    }
+
+    ignoredEvent := *e.PendingPropertyPurchase
+    e.PendingPropertyPurchase = nil
+    e.Broker.Broadcast(log, "PropertyPurchaseIgnoredEvent", ignoredEvent)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Msg:    "property purchase ignored",
     }
 }
 

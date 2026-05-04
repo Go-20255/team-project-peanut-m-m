@@ -28,29 +28,32 @@ export function useFetchPropertyOwner(property_id: string) {
  */
 export function usePurchaseProperty() {
   return useMutation({
-    mutationFn: async ({
-      playerId,
-      sessionId,
-      propertyId,
-    }: {
-      playerId: number
-      sessionId: string
-      propertyId: number
-    }) => {
-      const formData = new FormData()
-      formData.append("player_id", playerId.toString())
-      formData.append("session_id", sessionId)
-      formData.append("property_id", propertyId.toString())
-
+    mutationFn: async () => {
       const res = await fetch(`${API_URL}/api/game/property`, {
         method: "POST",
         credentials: "include",
-        body: formData,
       })
       if (!res.ok) {
-        throw new Error("Failed to purchase property")
+        const errorText = await res.text()
+        throw new Error(errorText || "Failed to purchase property")
       }
-      return res.json()
+      return res.text()
+    },
+  })
+}
+
+export function useIgnorePropertyPurchase() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/game/property/ignore`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || "Failed to ignore property")
+      }
+      return res.text()
     },
   })
 }
@@ -144,4 +147,3 @@ export function useUnmortgageProperty() {
     },
   })
 }
-

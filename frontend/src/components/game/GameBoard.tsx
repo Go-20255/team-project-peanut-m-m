@@ -6,6 +6,7 @@ import { DiceRoll, GameState, Player } from "@/types"
 import { useReadyUp } from "@/hooks/playerHooks"
 import { useEndTurn } from "@/hooks/playerHooks"
 import { useJailRelease, useMovePlayer, useRollDice } from "@/hooks/useGameAPI"
+import { useIgnorePropertyPurchase, usePurchaseProperty } from "@/hooks/propertyHooks"
 
 interface GameBoardProps {
   sessionId: string
@@ -290,6 +291,8 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const moveMutation = useMovePlayer()
   const endTurnMutation = useEndTurn()
   const jailReleaseMutation = useJailRelease()
+  const purchasePropertyMutation = usePurchaseProperty()
+  const ignorePropertyMutation = useIgnorePropertyPurchase()
 
   const boardTiles = useMemo(() => Array.from({ length: 40 }, (_, index) => getTilePlacement(index)), [])
 
@@ -324,6 +327,14 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId
   const currentRoll = gameState.current_roll ?? null
   const lastMove = gameState.last_move ?? null
+  const pendingPropertyPurchase = gameState.pending_property_purchase ?? null
+  const pendingPropertyData = useMemo(
+    () =>
+      pendingPropertyPurchase
+        ? gameState.tiles.find((tile) => tile.property_data?.id === pendingPropertyPurchase.property_id)?.property_data ?? null
+        : null,
+    [gameState.tiles, pendingPropertyPurchase],
+  )
 
   useEffect(() => {
     const container = containerRef.current
@@ -513,7 +524,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     return () => {
       window.cancelAnimationFrame(frame)
     }
-  }, [gameState.players, lastMove])
+  }, [lastMove])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -790,6 +801,28 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     })
   }
 
+  const handlePurchaseProperty = () => {
+    if (!isCurrentPlayerTurn || !pendingPropertyPurchase) return
+
+    setActionError(null)
+    purchasePropertyMutation.mutate(undefined, {
+      onError: (error: Error) => {
+        setActionError(error.message)
+      },
+    })
+  }
+
+  const handleIgnoreProperty = () => {
+    if (!isCurrentPlayerTurn) return
+
+    setActionError(null)
+    ignorePropertyMutation.mutate(undefined, {
+      onError: (error: Error) => {
+        setActionError(error.message)
+      },
+    })
+  }
+
   const rollLabel = isTurnOrderPhase
     ? "Roll for Order"
     : lastMove?.player_id === currentPlayerTurnId && lastMove?.roll_again
@@ -817,10 +850,12 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
 
   const showTurnOrderEndTurn = !!currentRoll && isTurnOrderPhase
   const showSentToJailEndTurn = !!currentRoll && !isTurnOrderPhase && currentRoll.sent_to_jail
+  const showPropertyPurchasePanel = !!pendingPropertyPurchase && !moveAnimation
   const showTurnPanel =
     !isGameStarted ||
     !!readyError ||
     !!actionError ||
+    showPropertyPurchasePanel ||
     isRollingAnimation ||
     !!currentRoll ||
     (!moveAnimation && !!lastMove && isCurrentPlayerTurn && lastMove.roll_again) ||
@@ -998,79 +1033,184 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             textAlign: "center",
           }}
         >
-          <div
-            style={{
-              color: "#F76902",
-              fontSize: 20,
-              fontWeight: 700,
-            }}
-          >
-            {isTurnOrderPhase ? "Turn Order" : "Turn"}
-          </div>
+          {showPropertyPurchasePanel ? (
+            <>
+              <div
+                style={{
+                  color: "#F76902",
+                  fontSize: 20,
+                  fontWeight: 700,
+                }}
+              >
+                Property
+              </div>
 
-          <div
-            style={{
-              color: "#7C878E",
-              fontSize: 13,
-            }}
-          >
-            {activePlayer ? `${activePlayer.name}` : "Waiting"}
-          </div>
+              <div
+                style={{
+                  color: "#7C878E",
+                  fontSize: 13,
+                }}
+              >
+                {activePlayer ? `${activePlayer.name}` : "Waiting"}
+              </div>
 
-          {rollDisplay ? (
-            <div
-              style={{
-                display: "flex",
-                gap: 12,
-              }}
-            >
-              {[rollDisplay.die_one, rollDisplay.die_two].map((value, index) => (
+              <div
+                style={{
+                  color: "#000000",
+                  fontSize: 16,
+                  fontWeight: 700,
+                }}
+              >
+                {pendingPropertyData?.name ?? "Unowned Property"}
+              </div>
+
+              <div
+                style={{
+                  color: "#7C878E",
+                  fontSize: 13,
+                }}
+              >
+                Cost: ₮{pendingPropertyPurchase.purchase_cost.toLocaleString()}
+              </div>
+
+              <div
+                style={{
+                  color: "#000000",
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                {isCurrentPlayerTurn
+                  ? pendingPropertyPurchase.can_afford
+                    ? "Buy or end turn"
+                    : "Cannot afford this property"
+                  : activePlayer
+                    ? `Waiting for ${activePlayer.name} to decide`
+                    : "Waiting"}
+              </div>
+            </>
+          ) : (
+            <>
+              <div
+                style={{
+                  color: "#F76902",
+                  fontSize: 20,
+                  fontWeight: 700,
+                }}
+              >
+                {isTurnOrderPhase ? "Turn Order" : "Turn"}
+              </div>
+
+              <div
+                style={{
+                  color: "#7C878E",
+                  fontSize: 13,
+                }}
+              >
+                {activePlayer ? `${activePlayer.name}` : "Waiting"}
+              </div>
+
+              {rollDisplay ? (
                 <div
-                  key={`${value}-${index}`}
                   style={{
-                    width: 64,
-                    height: 64,
-                    border: "2px solid #D0D3D4",
                     display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 28,
-                    fontWeight: 700,
-                    color: "#F76902",
-                    backgroundColor: "#FFFFFF",
+                    gap: 12,
                   }}
                 >
-                  {value}
+                  {[rollDisplay.die_one, rollDisplay.die_two].map((value, index) => (
+                    <div
+                      key={`${value}-${index}`}
+                      style={{
+                        width: 64,
+                        height: 64,
+                        border: "2px solid #D0D3D4",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 28,
+                        fontWeight: 700,
+                        color: "#F76902",
+                        backgroundColor: "#FFFFFF",
+                      }}
+                    >
+                      {value}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : null}
+
+              <div
+                style={{
+                  color: "#000000",
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                {isRollingAnimation
+                  ? "Rolling..."
+                  : currentRoll
+                    ? isTurnOrderPhase
+                      ? `Total ${currentRoll.total}`
+                      : currentRoll.sent_to_jail
+                        ? "Go to Jail"
+                        : currentRoll.jailed > 0 && !currentRoll.released_from_jail
+                          ? `Jail Turn ${currentRoll.jailed}`
+                          : `Total ${currentRoll.total}`
+                    : isTurnOrderPhase
+                      ? "Roll to set order"
+                      : isCurrentPlayerTurn
+                        ? "Start your turn"
+                        : "Waiting"}
+              </div>
+            </>
+          )}
+
+          {isCurrentPlayerTurn && showPropertyPurchasePanel ? (
+            <div
+              style={{
+                width: "100%",
+                display: "flex",
+                gap: 10,
+              }}
+            >
+              {pendingPropertyPurchase.can_afford ? (
+                <button
+                  type="button"
+                  onClick={handlePurchaseProperty}
+                  disabled={purchasePropertyMutation.isPending || ignorePropertyMutation.isPending}
+                  style={{
+                    flex: 1,
+                    padding: "12px 14px",
+                    backgroundColor: purchasePropertyMutation.isPending || ignorePropertyMutation.isPending ? "#D0D3D4" : "#F76902",
+                    color: "#FFFFFF",
+                    fontWeight: 700,
+                    cursor: purchasePropertyMutation.isPending || ignorePropertyMutation.isPending ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Buy
+                </button>
+              ) : null}
+
+                <button
+                  type="button"
+                  onClick={handleIgnoreProperty}
+                  disabled={purchasePropertyMutation.isPending || ignorePropertyMutation.isPending}
+                  style={{
+                    flex: 1,
+                    padding: "12px 14px",
+                    backgroundColor: "#D0D3D4",
+                    color: "#000000",
+                    fontWeight: 700,
+                    cursor: purchasePropertyMutation.isPending || ignorePropertyMutation.isPending ? "not-allowed" : "pointer",
+                    opacity: purchasePropertyMutation.isPending || ignorePropertyMutation.isPending ? 0.7 : 1,
+                  }}
+                >
+                  Ignore
+              </button>
             </div>
           ) : null}
 
-          <div
-            style={{
-              color: "#000000",
-              fontSize: 14,
-              fontWeight: 600,
-            }}
-          >
-            {isRollingAnimation
-              ? "Rolling..."
-              : currentRoll
-                ? isTurnOrderPhase
-                  ? `Total ${currentRoll.total}`
-                  : currentRoll.sent_to_jail
-                    ? "Go to Jail"
-                    : currentRoll.jailed > 0 && !currentRoll.released_from_jail
-                      ? `Jail Turn ${currentRoll.jailed}`
-                      : `Total ${currentRoll.total}`
-                : isTurnOrderPhase
-                  ? "Roll to set order"
-                  : isCurrentPlayerTurn
-                    ? "Start your turn"
-                    : "Waiting"}
-          </div>
-
-          {isCurrentPlayerTurn && !currentRoll && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showPropertyPurchasePanel && !currentRoll && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleRoll}
@@ -1088,7 +1228,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && showMoveButton && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showPropertyPurchasePanel && showMoveButton && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleMove}
@@ -1106,7 +1246,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && showTurnOrderEndTurn && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showPropertyPurchasePanel && showTurnOrderEndTurn && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleEndTurn}
@@ -1124,7 +1264,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && showJailEndTurn && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showPropertyPurchasePanel && showJailEndTurn && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleEndTurn}
@@ -1142,7 +1282,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && showSentToJailEndTurn && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showPropertyPurchasePanel && showSentToJailEndTurn && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleEndTurn}
@@ -1160,7 +1300,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && showJailReleaseButtons && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && !showPropertyPurchasePanel && showJailReleaseButtons && !isRollingAnimation ? (
             <div
               style={{
                 width: "100%",

@@ -31,6 +31,7 @@ type MonopolyEngine struct {
     TempStore         map[string]any
     PendingRolls      map[int]DiceRoll
     PendingRent       *PendingRent
+    PendingPropertyPurchase *PendingPropertyPurchase
     PendingBankPayment *PendingBankPayment
     PendingBankPayout  *PendingBankPayout
     PendingExchange    *PendingPlayerExchange
@@ -127,6 +128,15 @@ type PlayerMovement struct {
 }
 
 type PropertyPurchaseAvailable struct {
+    PlayerId     int    `json:"player_id"`
+    SessionId    string `json:"session_id"`
+    PropertyId   int    `json:"property_id"`
+    PurchaseCost int    `json:"purchase_cost"`
+    PlayerMoney  int    `json:"player_money"`
+    CanAfford    bool   `json:"can_afford"`
+}
+
+type PendingPropertyPurchase struct {
     PlayerId     int    `json:"player_id"`
     SessionId    string `json:"session_id"`
     PropertyId   int    `json:"property_id"`
