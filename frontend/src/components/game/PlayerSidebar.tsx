@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react"
 import { getTokenIcon, getTokenName } from "@/utils/tokens"
 import { Player, GameState } from "@/types"
+import { useMovePlayer, useRollDice } from "@/hooks/useGameAPI"
+import { storage } from "@/utils"
+import { useEndTurn } from "@/hooks/playerHooks"
 
 interface PlayerSidebarProps {
   sessionId: string
@@ -22,13 +25,29 @@ export default function PlayerSidebar({
   gameState,
 }: PlayerSidebarProps) {
   const [diceRoll, setDiceRoll] = useState<any>(null)
-  const [isRolling, setIsRolling] = useState(false)
-  const [isMoving, setIsMoving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [joinCode, setJoinCode] = useState<string>("")
 
   const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId
 
   const currentPlayer = players.find((p) => p.id === currentPlayerTurnId)
+  const rollMutation = useRollDice()
+  const endTurnMutation = useEndTurn()
+  const movePlayerMutation = useMovePlayer()
+
+  useEffect(() => {
+    const code = storage.getGameCode()
+    if (code) setJoinCode(code)
+  }, [])
+
+  const handleEndTurn = () => {
+    if (!isCurrentPlayerTurn) {
+      setError("It's not your turn!")
+      return
+    }
+    setError(null)
+    endTurnMutation.mutate()
+  }
 
   const handleRollDice = async () => {
     if (!isCurrentPlayerTurn) {
@@ -37,69 +56,50 @@ export default function PlayerSidebar({
     }
 
     setError(null)
-    setIsRolling(true)
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/game/roll`, {
-        method: "POST",
-        credentials: "include",
-        body: new URLSearchParams({
-          session_id: sessionId,
-          player_id: playerId,
-        }),
-      })
-
-      if (!res.ok) {
-        const errorText = await res.text()
-        setError(`Failed to roll: ${errorText}`)
-        console.error("Roll dice error:", res.status, errorText)
-        return
-      }
-
-      const data = await res.json()
-      setDiceRoll(data)
-      console.log("Dice roll successful:", data)
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to roll dice"
-      setError(errorMsg)
-      console.error("Roll dice error:", err)
-    } finally {
-      setIsRolling(false)
-    }
+    rollMutation.mutate(
+      { playerId: playerId, sessionId: sessionId },
+      {
+        onSuccess: (res) => {
+          setDiceRoll(res)
+          console.log("Dice roll successful:", res)
+        },
+        onError: (err) => {
+          var errorText = err.message
+          setError(`Failed to roll: ${errorText}`)
+          console.error("Roll dice error:", errorText)
+        },
+      },
+    )
   }
 
   const handleMove = async () => {
     setError(null)
-    setIsMoving(true)
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/game/move`, {
-        method: "POST",
-        credentials: "include",
-        body: new URLSearchParams({
-          session_id: sessionId,
-          player_id: playerId,
-        }),
-      })
-
-      if (!res.ok) {
-        const errorText = await res.text()
-        setError(`Failed to move: ${errorText}`)
-        console.error("Move error:", res.status, errorText)
-        return
-      }
-
-      setDiceRoll(null)
-      console.log("Move successful")
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to move"
-      setError(errorMsg)
-      console.error("Move error:", err)
-    } finally {
-      setIsMoving(false)
-    }
+    movePlayerMutation.mutate(
+      { playerId: playerId, sessionId: sessionId },
+      {
+        onSuccess: (res) => {
+          setDiceRoll(null)
+          console.log("Move successful")
+        },
+        onError: (err) => {
+          var errorText = err.message
+          setError(`Failed to move: ${errorText}`)
+          console.error("Move error:", errorText)
+        },
+      },
+    )
   }
 
   return (
     <div className="w-full h-full flex flex-col p-4 overflow-y-auto" style={{ backgroundColor: "#FFFFFF" }}>
+      <div className="flex flex-col text-center border-2 px-3 py-1 mb-3" style={{ borderColor: "#D0D3D4" }}>
+        <div className="text-xs" style={{ color: "#7C878E" }}>
+          Game Join Code
+        </div>
+        <div className="text-lg font-bold" style={{ color: "#F76902" }}>
+          {joinCode || "..."}
+        </div>
+      </div>
       <h3 className="text-xl font-bold mb-4" style={{ color: "#F76902" }}>
         Players
       </h3>
@@ -132,8 +132,8 @@ export default function PlayerSidebar({
         )}
       </div>
 
-      {/* Dice Roll Section */}
-      <div className="mb-4 p-3 border-2" style={{ borderColor: "#D0D3D4" }}>
+      {/* Actions Section */}
+      <div className="mb-4 p-3 border-2 flex flex-col gap-4" style={{ borderColor: "#D0D3D4" }}>
         {diceRoll ? (
           <>
             <div className="text-sm font-bold mb-3" style={{ color: "#F76902" }}>
@@ -141,31 +141,45 @@ export default function PlayerSidebar({
             </div>
             <button
               onClick={handleMove}
-              disabled={isMoving || !isCurrentPlayerTurn}
+              disabled={movePlayerMutation.isPending || !isCurrentPlayerTurn}
               className="w-full py-2 px-3 rounded font-bold text-white"
               style={{
-                backgroundColor: isMoving || !isCurrentPlayerTurn ? "#ccc" : "#F76902",
-                cursor: isMoving || !isCurrentPlayerTurn ? "not-allowed" : "pointer",
+                backgroundColor: movePlayerMutation.isPending || !isCurrentPlayerTurn ? "#ccc" : "#F76902",
+                cursor: movePlayerMutation.isPending || !isCurrentPlayerTurn ? "not-allowed" : "pointer",
               }}
               title={!isCurrentPlayerTurn ? "Not your turn" : "Move your piece"}
             >
-              {isMoving ? "Moving..." : "Move"}
+              {movePlayerMutation.isPending ? "Moving..." : "Move"}
             </button>
           </>
         ) : (
           <button
             onClick={handleRollDice}
-            disabled={isRolling || !isCurrentPlayerTurn}
+            disabled={rollMutation.isPending || !isCurrentPlayerTurn}
             className="w-full py-2 px-3 rounded font-bold text-white"
             style={{
-              backgroundColor: isRolling || !isCurrentPlayerTurn ? "#ccc" : "#F76902",
-              cursor: isRolling || !isCurrentPlayerTurn ? "not-allowed" : "pointer",
+              backgroundColor: rollMutation.isPending || !isCurrentPlayerTurn ? "#ccc" : "#F76902",
+              cursor: rollMutation.isPending || !isCurrentPlayerTurn ? "not-allowed" : "pointer",
             }}
             title={!isCurrentPlayerTurn ? "Not your turn - wait for your turn to roll" : "Roll the dice"}
           >
-            {isRolling ? "Rolling..." : !isCurrentPlayerTurn ? "Waiting..." : "Roll Dice"}
+            {rollMutation.isPending ? "Rolling..." : "Roll Dice"}
           </button>
         )}
+        <>
+          <button
+            onClick={handleEndTurn}
+            disabled={!isCurrentPlayerTurn}
+            className="w-full py-2 px-3 rounded font-bold text-white"
+            style={{
+              backgroundColor: !isCurrentPlayerTurn ? "#ccc" : "#F76902",
+              cursor: !isCurrentPlayerTurn ? "not-allowed" : "pointer",
+            }}
+            title={!isCurrentPlayerTurn ? "Not your turn" : "End Turn"}
+          >
+            End Turn
+          </button>
+        </>
 
         {/* Error message */}
         {error && (
@@ -225,6 +239,21 @@ export default function PlayerSidebar({
                   )}
                   {isPlayerTurn && (
                     <span style={{ fontSize: "0.75em", color: "#F57F17", fontWeight: "bold" }}>PLAYING</span>
+                  )}
+                  {player.in_game ? (
+                    <span
+                      className="bg-green-600 text-white px-2 py-0.5 rounded-full "
+                      style={{ fontSize: "0.75em", fontWeight: "bold" }}
+                    >
+                      In Game
+                    </span>
+                  ) : (
+                    <span
+                      className="bg-red-600 text-white px-2 py-0.5 rounded-full "
+                      style={{ fontSize: "0.75em", fontWeight: "bold" }}
+                    >
+                      Offline
+                    </span>
                   )}
                 </div>
 

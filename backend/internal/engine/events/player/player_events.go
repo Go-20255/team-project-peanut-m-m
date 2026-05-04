@@ -8,6 +8,7 @@ import (
     internaldb_game_state "monopoly-backend/internal/db/game_state"
     internaldb_players "monopoly-backend/internal/db/player"
     internaldb_tiles "monopoly-backend/internal/db/tile"
+	internaldb_event_cards "monopoly-backend/internal/db/event_cards"
     "monopoly-backend/internal/engine/events"
     turn_events "monopoly-backend/internal/engine/events/turn"
     "net/http"
@@ -89,6 +90,38 @@ func SetPendingBankPayout(
         Status: http.StatusOK,
         Data:   *e.PendingBankPayout,
     }
+}
+
+func SetPendingPlayerExchange(
+	log zerolog.Logger,
+	e *internal.MonopolyEngine,
+	actingPlayerId int,
+	sessionId string,
+	amount int,
+	reason string,
+	isPayingAll bool,
+) internal.UserActionStatus {
+	if e.PendingExchange != nil {
+		return internal.UserActionStatus{
+			Status: http.StatusBadRequest,
+			Msg:    "there is already a pending player exchange",
+		}
+	}
+
+	e.PendingExchange = &internal.PendingPlayerExchange{
+		ActingPlayerId: actingPlayerId,
+		SessionId:      sessionId,
+		Amount:         amount,
+		Reason:         reason,
+		IsPayingAll:    isPayingAll,
+	}
+
+	e.Broker.Broadcast(log, "PlayerExchangeDueEvent", e.PendingExchange)
+
+	return internal.UserActionStatus{
+		Status: http.StatusOK,
+		Data:   *e.PendingExchange,
+	}
 }
 
 func clearPlayerTurnState(e *internal.MonopolyEngine, playerId int) {
@@ -380,6 +413,7 @@ func RollDice(
         DieOne:    rand.IntN(6) + 1,
         DieTwo:    rand.IntN(6) + 1,
     }
+	
     diceRoll.Total = diceRoll.DieOne + diceRoll.DieTwo
     diceRoll.IsDouble = diceRoll.DieOne == diceRoll.DieTwo
 
@@ -704,14 +738,68 @@ func MovePlayer(
 
     playerMovement.PropertyId = tileData.PropertyId
 
+	if tileData.Name == "Community Chest" || tileData.Name == "Chance" {
+		var dbCardType string
+		if tileData.Name == "Chance" {
+			dbCardType = "CHANCE"
+		} else {
+			dbCardType = "COMMUNITY"
+		}
+
+		cardId, err := internaldb_event_cards.AssignEventCardDB(log, ctx, tx, data.SessionId, dbCardType, data.PlayerId)
+		if err != nil {
+			return internal.UserActionStatus{
+				Status: http.StatusInternalServerError,
+				Msg:    err.Error(),
+			}
+		}
+
+		e.Broker.Broadcast(log, "DrawCardEvent", map[string]interface{}{
+			"player_id":  data.PlayerId,
+			"session_id": data.SessionId,
+			"card_id":    cardId,
+		})
+
+		effectFunc, exists := CardEffects[cardId]
+		if exists {
+			status := effectFunc(ctx, log, e, tx, data.SessionId, data.PlayerId)
+			if status.Status != http.StatusOK {
+				return status
+			}
+		}
+
+		updatedPlayer, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
+		if err != nil {
+			return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
+		}
+
+		// this is so that the tile data is updated if we move
+		if updatedPlayer.Position != newPosition {
+			newPosition = updatedPlayer.Position
+			playerMovement.NewPosition = newPosition
+
+			tileData, err = internaldb_tiles.GetRentTileData(log, ctx, tx, data.SessionId, newPosition)
+			if err != nil {
+				return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
+			}
+			playerMovement.PropertyId = tileData.PropertyId
+		}
+	}
+
     if tileData.HasProperty && tileData.Owned && tileData.OwnerId != data.PlayerId && !tileData.IsMortgaged {
-        rentAmount, err := getRentAmount(ctx, log, tx, data.SessionId, tileData, diceRoll.Total)
+        isUtilityCard, _ := e.TempStore["special_utility_rent"].(bool)
+        isRailroadCard, _ := e.TempStore["special_railroad_rent"].(bool)
+
+        rentAmount, err := getRentAmount(ctx, log, tx, data.SessionId, tileData, diceRoll.Total, isUtilityCard, isRailroadCard)
         if err != nil {
             return internal.UserActionStatus{
                 Status: http.StatusInternalServerError,
                 Msg:    err.Error(),
             }
         }
+
+        delete(e.TempStore, "special_utility_rent")
+        delete(e.TempStore, "special_railroad_rent")
 
         if rentAmount > 0 {
             e.PendingRent = &internal.PendingRent{
@@ -722,6 +810,8 @@ func MovePlayer(
                 Position:     newPosition,
                 Amount:       rentAmount,
                 DiceTotal:    diceRoll.Total,
+                IsUtilityCard: isUtilityCard,
+                IsRailroadCard: isRailroadCard,
             }
 
             playerMovement.RentDue = true
@@ -843,7 +933,7 @@ func PayBank(
         })
     }
 
-    e.PendingBankPayment = nil
+	e.PendingBankPayment = nil
 
     e.Broker.Broadcast(log, "BankPaymentEvent", bankPayment)
     events.EmitGameBoardUpdate(log, ctx, e, tx)
@@ -946,6 +1036,110 @@ func ReceiveBankPayout(
         Status: http.StatusOK,
         Data:   bankPayout,
     }
+}
+
+func ExecutePlayerExchange(
+	ctx context.Context,
+	log zerolog.Logger,
+	e *internal.MonopolyEngine,
+	action *internal.UserActionEvent,
+	tx *pgxpool.Tx,
+) internal.UserActionStatus {
+	data := action.Data.(internal.PlayerExchangeActionData)
+
+	if e.PendingExchange == nil {
+		return internal.UserActionStatus{
+			Status: http.StatusBadRequest,
+			Msg:    "there is no pending player exchange",
+		}
+	}
+
+	_, _, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+	if status != nil {
+		return *status
+	}
+
+	if e.PendingExchange.ActingPlayerId != data.PlayerId || e.PendingExchange.SessionId != data.SessionId {
+		return internal.UserActionStatus{
+			Status: http.StatusBadRequest,
+			Msg:    "acting player for exchange is incorrect",
+		}
+	}
+
+	players, err := internaldb_players.GetPlayersInSession(log, ctx, tx, data.SessionId)
+	if err != nil {
+		return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
+	}
+
+	balances := make(map[int]int)
+	actingPlayer, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
+	if err != nil {
+		return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
+	}
+
+	totalActingAdjustment := 0
+
+	if e.PendingExchange.IsPayingAll {
+		if actingPlayer.Money < e.PendingExchange.Amount * (len(players) - 1) {
+			return internal.UserActionStatus{
+				Status: http.StatusBadRequest,
+				Msg:    "player does not have enough money to pay everyone",
+			}
+		}
+	} else {
+		for _, p := range players {
+			if p.Id != data.PlayerId && p.Money < e.PendingExchange.Amount {
+				return internal.UserActionStatus{
+					Status: http.StatusBadRequest,
+					Msg:    fmt.Sprintf("player %s does not have enough money", p.Name),
+				}
+			}
+		}
+	}
+
+	for _, p := range players {
+		if p.Id == data.PlayerId {
+			continue
+		}
+
+		if e.PendingExchange.IsPayingAll {
+			totalActingAdjustment -= e.PendingExchange.Amount
+			err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, p.Id, data.SessionId, p.Money+e.PendingExchange.Amount)
+			balances[p.Id] = p.Money + e.PendingExchange.Amount
+		} else {
+			totalActingAdjustment += e.PendingExchange.Amount
+			err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, p.Id, data.SessionId, p.Money-e.PendingExchange.Amount)
+			balances[p.Id] = p.Money - e.PendingExchange.Amount
+		}
+
+		if err != nil {
+			return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
+		}
+	}
+
+	err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, data.PlayerId, data.SessionId, actingPlayer.Money+totalActingAdjustment)
+	if err != nil {
+		return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
+	}
+	balances[data.PlayerId] = actingPlayer.Money + totalActingAdjustment
+
+	exchange := internal.PlayerExchange{
+		ActingPlayerId: data.PlayerId,
+		SessionId:      data.SessionId,
+		Amount:         e.PendingExchange.Amount,
+		Reason:         e.PendingExchange.Reason,
+		IsPayingAll:    e.PendingExchange.IsPayingAll,
+		Balances:       balances,
+	}
+
+	e.PendingExchange = nil
+	e.Broker.Broadcast(log, "PlayerExchangeEvent", exchange)
+	events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+	return internal.UserActionStatus{
+		Status: http.StatusOK,
+		Data:   exchange,
+	}
 }
 
 func Bankrupt(

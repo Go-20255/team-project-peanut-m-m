@@ -10,7 +10,7 @@ import (
     "github.com/labstack/echo/v4"
 )
 
-func JoinSessionHandler(c echo.Context) error {
+func JoinSessionViaCodeHandler(c echo.Context) error {
     log := util.GetRequestLogger(c)
     ctx := c.Request().Context()
 

@@ -29,16 +29,11 @@ export default function GamePage() {
 
   const gameState = useLiveGameUpdates(sessionId, playerId, playerName)
 
-  const players = useMemo(
-    () => gameState?.players.map((pi) => pi.player) ?? [],
-    [gameState],
-  )
+  const players = useMemo(() => gameState?.players.map((pi) => pi.player) ?? [], [gameState])
 
   const currentPlayerTurnId = useMemo(() => {
     if (!gameState) return null
-    const ordered = players
-      .filter((p) => p.player_order !== -1)
-      .sort((a, b) => a.player_order - b.player_order)
+    const ordered = players.filter((p) => p.player_order !== -1).sort((a, b) => a.player_order - b.player_order)
     if (ordered.length === 0) return null
     return ordered[gameState.current_turn % ordered.length]?.id ?? null
   }, [gameState, players])
@@ -46,10 +41,7 @@ export default function GamePage() {
   if (!sessionId || !playerId || !playerName) return null
 
   return (
-    <div
-      className="w-full h-screen flex"
-      style={{ backgroundColor: "#FFFFFF" }}
-    >
+    <div className="w-full h-screen flex" style={{ backgroundColor: "#FFFFFF" }}>
       <div style={{ flex: "6" }}>
         {gameState ? (
           <GameBoard
@@ -60,9 +52,7 @@ export default function GamePage() {
             gameState={gameState}
           />
         ) : (
-          <div className="flex items-center justify-center h-full">
-            Loading game state...
-          </div>
+          <div className="flex items-center justify-center h-full">Loading game state...</div>
         )}
       </div>
 

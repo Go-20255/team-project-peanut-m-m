@@ -409,12 +409,42 @@ $$ LANGUAGE plpgsql;
         log.Fatal().Err(err).Msg("failed to create event cards table")
     }
 
-    _, err = tx.Exec(ctx, `
-        INSERT INTO Event_Cards (name, description, type)
-        VALUES 
-        ('example community card', 'example description', 'COMMUNITY'),
-        ('example chance card', 'example description', 'CHANCE')
-        `)
+	_, err = tx.Exec(ctx, `
+        INSERT INTO event_cards (id, name, description, type)
+        VALUES
+            (1, 'Advance to Go', 'Advance to Go (Collect $200).', 'CHANCE'),
+            (2, 'Advance to Illinois Ave.', 'Advance to Illinois Avenue. If you pass Go, collect $200.', 'CHANCE'),
+            (3, 'Advance to St. Charles Place', 'Advance to St. Charles Place. If you pass Go, collect $200.', 'CHANCE'),
+            (4, 'Advance to Nearest Utility', 'Advance to the nearest Utility. If unowned, you may buy it from the Bank. If owned, throw dice and pay owner a total ten times amount thrown.', 'CHANCE'),
+            (5, 'Advance to Nearest Railroad', 'Advance to the nearest Railroad. If unowned, you may buy it from the Bank. If owned, pay owner twice the rental to which they are otherwise entitled.', 'CHANCE'),
+            (6, 'Advance to Nearest Railroad', 'Advance to the nearest Railroad. If unowned, you may buy it from the Bank. If owned, pay owner twice the rental to which they are otherwise entitled.', 'CHANCE'),
+            (7, 'Advance to Boardwalk', 'Advance token to Boardwalk.', 'CHANCE'),
+            (8, 'Dividend', 'Bank pays you dividend of $50.', 'CHANCE'),
+            (9, 'Get Out of Jail Free', 'Get Out of Jail Free. This card may be kept until needed or traded.', 'CHANCE'),
+            (10, 'Go to Jail', 'Go to Jail. Go directly to Jail, do not pass Go, do not collect $200.', 'CHANCE'),
+            (11, 'General Repairs', 'Make general repairs on all your property. For each house pay $25. For each hotel pay $100.', 'CHANCE'),
+            (12, 'Speeding Fine', 'Speeding fine $15.', 'CHANCE'),
+            (13, 'Reading Railroad', 'Take a trip to Reading Railroad. If you pass Go, collect $200.', 'CHANCE'),
+            (14, 'Chairman of the Board', 'You have been elected Chairman of the Board. Pay each player $50.', 'CHANCE'),
+            (15, 'Building Loan Matures', 'Your building loan matures. Collect $150.', 'CHANCE'),
+            (16, 'Advance to Go', 'Advance to Go (Collect $200).', 'COMMUNITY'),
+            (17, 'Bank Error', 'Bank error in your favor. Collect $200.', 'COMMUNITY'),
+            (18, 'Doctor Fee', 'Doctor''s fee. Pay $50.', 'COMMUNITY'),
+            (19, 'Stock Sale', 'From sale of stock you get $50.', 'COMMUNITY'),
+            (20, 'Get Out of Jail Free', 'Get Out of Jail Free. This card may be kept until needed or traded.', 'COMMUNITY'),
+            (21, 'Go to Jail', 'Go to Jail. Go directly to jail, do not pass Go, do not collect $200.', 'COMMUNITY'),
+            (22, 'Holiday Fund', 'Holiday fund matures. Receive $100.', 'COMMUNITY'),
+            (23, 'Tax Refund', 'Income tax refund. Collect $20.', 'COMMUNITY'),
+            (24, 'Birthday', 'It is your birthday. Collect $10 from every player.', 'COMMUNITY'),
+            (25, 'Life Insurance', 'Life insurance matures. Collect $100.', 'COMMUNITY'),
+            (26, 'Hospital Fees', 'Pay hospital fees of $100.', 'COMMUNITY'),
+            (27, 'School Fees', 'Pay school fees of $50.', 'COMMUNITY'),
+            (28, 'Consultancy Fee', 'Receive $25 consultancy fee.', 'COMMUNITY'),
+            (29, 'Street Repairs', 'You are assessed for street repairs. $40 per house. $115 per hotel.', 'COMMUNITY'),
+            (30, 'Beauty Contest', 'You have won second prize in a beauty contest. Collect $10.', 'COMMUNITY'),
+            (31, 'Inheritance', 'You inherit $100.', 'COMMUNITY')
+        ON CONFLICT (id) DO NOTHING;
+    `)
     if err != nil {
         log.Fatal().Err(err).Msg("failed to insert event cards into db")
     }
