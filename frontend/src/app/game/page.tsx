@@ -13,6 +13,9 @@ export default function GamePage() {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [playerId, setPlayerId] = useState<number | null>(null)
   const [playerName, setPlayerName] = useState<string | null>(null)
+  const [selectedPropertyId, setSelectedPropertyId] = useState<number | null>(null)
+  const [hoveredPropertyId, setHoveredPropertyId] = useState<number | null>(null)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   useEffect(() => {
     const player = storage.getPlayer()
@@ -28,7 +31,31 @@ export default function GamePage() {
     setPlayerName(player.name)
   }, [router])
 
+  useEffect(() => {
+    let timeoutId = 0
+
+    const handleToast = (event: Event) => {
+      const customEvent = event as CustomEvent<{ message?: string }>
+      const message = customEvent.detail?.message
+      if (!message) return
+
+      setToastMessage(message)
+      window.clearTimeout(timeoutId)
+      timeoutId = window.setTimeout(() => {
+        setToastMessage(null)
+      }, 3200)
+    }
+
+    window.addEventListener("game-toast", handleToast)
+
+    return () => {
+      window.removeEventListener("game-toast", handleToast)
+      window.clearTimeout(timeoutId)
+    }
+  }, [])
+
   const gameState = useLiveGameUpdates(sessionId, playerId, playerName)
+  const activePropertyId = selectedPropertyId ?? hoveredPropertyId
 
   const players = useMemo(() => gameState?.players.map((pi) => pi.player) ?? [], [gameState])
   const nonBankruptPlayers = useMemo(() => players.filter((player) => !player.bankrupt), [players])
@@ -71,6 +98,8 @@ export default function GamePage() {
             playerName={playerName}
             currentPlayerTurnId={currentPlayerTurnId}
             gameState={gameState}
+            activePropertyId={activePropertyId}
+            onHoverProperty={setHoveredPropertyId}
           />
         ) : (
           <div className="flex items-center justify-center h-full">Loading game state...</div>
@@ -85,8 +114,29 @@ export default function GamePage() {
           players={players}
           currentPlayerTurnId={currentPlayerTurnId}
           gameState={gameState ?? undefined}
+          activePropertyId={activePropertyId}
+          onSelectProperty={setSelectedPropertyId}
         />
       </div>
+
+      {toastMessage ? (
+        <div
+          style={{
+            position: "fixed",
+            left: "50%",
+            bottom: 20,
+            transform: "translateX(-50%)",
+            zIndex: 60,
+            backgroundColor: "#D32F2F",
+            color: "#FFFFFF",
+            padding: "10px 14px",
+            fontSize: 13,
+            fontWeight: 700,
+          }}
+        >
+          {toastMessage}
+        </div>
+      ) : null}
     </div>
   )
 }

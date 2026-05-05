@@ -18,6 +18,7 @@ import {
   useRollDice,
 } from "@/hooks/useGameAPI"
 import { useIgnorePropertyPurchase, usePurchaseProperty } from "@/hooks/propertyHooks"
+import { emitToast } from "@/utils/toast"
 
 interface GameBoardProps {
   sessionId: string
@@ -25,12 +26,15 @@ interface GameBoardProps {
   playerName: string
   currentPlayerTurnId?: number | null
   gameState: GameState
+  activePropertyId?: number | null
+  onHoverProperty: (propertyId: number | null) => void
 }
 
 const BOARD_UNITS = 37
 const CORNER_UNITS = 5
 const EDGE_UNITS = 3
 const BOARD_SIZE = 1850
+const BOARD_MARGIN = 80
 const CENTER_CARD_WIDTH = BOARD_SIZE * 0.22
 const CENTER_CARD_SPECS = {
   COMMUNITY: { x: BOARD_SIZE * 0.32, y: BOARD_SIZE * 0.32, rotation: 135 },
@@ -168,6 +172,10 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
+function getBaseZoom(width: number) {
+  return width / (BOARD_SIZE + BOARD_MARGIN * 2)
+}
+
 function getContainSize(sourceWidth: number, sourceHeight: number, maxWidth: number, maxHeight: number) {
   const sourceRatio = sourceWidth / sourceHeight
   const boxRatio = maxWidth / maxHeight
@@ -182,6 +190,17 @@ function getContainSize(sourceWidth: number, sourceHeight: number, maxWidth: num
   return {
     width: maxHeight * sourceRatio,
     height: maxHeight,
+  }
+}
+
+function getCoverTopSize(sourceWidth: number, sourceHeight: number, boxWidth: number, boxHeight: number) {
+  const scale = Math.max(boxWidth / sourceWidth, boxHeight / sourceHeight)
+
+  return {
+    width: sourceWidth * scale,
+    height: sourceHeight * scale,
+    x: (boxWidth - sourceWidth * scale) / 2,
+    y: 0,
   }
 }
 
@@ -205,16 +224,106 @@ function getTileCenter(index: number) {
   }
 }
 
-function getMovementPath(oldPosition: number, newPosition: number) {
+function getOutsideOwnerTokenPosition(placement: TilePlacement) {
+  const bounds = getTileBounds(placement)
+  const offset = 24
+
+  switch (placement.side) {
+    case "bottom":
+      return {
+        x: bounds.x + bounds.width / 2,
+        y: bounds.y + bounds.height + offset,
+      }
+    case "left":
+      return {
+        x: bounds.x - offset,
+        y: bounds.y + bounds.height / 2,
+      }
+    case "top":
+      return {
+        x: bounds.x + bounds.width / 2,
+        y: bounds.y - offset,
+      }
+    case "right":
+      return {
+        x: bounds.x + bounds.width + offset,
+        y: bounds.y + bounds.height / 2,
+      }
+  }
+}
+
+function getMovementPath(oldPosition: number, newPosition: number, passedGo: boolean, fromCard: boolean) {
   const path = [getTileCenter(oldPosition)]
   let current = oldPosition
+  const moveBackward = fromCard && !passedGo && newPosition < oldPosition
 
   while (current !== newPosition) {
-    current = (current + 1) % 40
+    current = moveBackward ? (current + 39) % 40 : (current + 1) % 40
     path.push(getTileCenter(current))
   }
 
   return path
+}
+
+function getTileIndexFromBoardPoint(boardTiles: TilePlacement[], boardX: number, boardY: number) {
+  for (const placement of boardTiles) {
+    const bounds = getTileBounds(placement)
+    if (
+      boardX >= bounds.x &&
+      boardX <= bounds.x + bounds.width &&
+      boardY >= bounds.y &&
+      boardY <= bounds.y + bounds.height
+    ) {
+      return placement.index
+    }
+  }
+
+  return null
+}
+
+function getScreenPointFromBoardPoint(
+  boardX: number,
+  boardY: number,
+  size: { width: number; height: number },
+  viewport: ViewportState,
+) {
+  const baseZoom = getBaseZoom(size.width)
+  const scaledX = (boardX - BOARD_SIZE / 2) * baseZoom * viewport.zoom
+  const scaledY = (boardY - BOARD_SIZE / 2) * baseZoom * viewport.zoom
+  const rotated = rotatePoint(scaledX, scaledY, viewport.rotation)
+
+  return {
+    x: size.width / 2 + viewport.x + rotated.x,
+    y: size.height / 2 + viewport.y + rotated.y,
+  }
+}
+
+function getPropertyCalloutAnchor(placement: TilePlacement) {
+  const bounds = getTileBounds(placement)
+  const offset = 8
+
+  switch (placement.side) {
+    case "bottom":
+      return {
+        anchorX: bounds.x + bounds.width / 2,
+        anchorY: bounds.y + bounds.height + offset,
+      }
+    case "left":
+      return {
+        anchorX: bounds.x - offset,
+        anchorY: bounds.y + bounds.height / 2,
+      }
+    case "top":
+      return {
+        anchorX: bounds.x + bounds.width / 2,
+        anchorY: bounds.y - offset,
+      }
+    case "right":
+      return {
+        anchorX: bounds.x + bounds.width + offset,
+        anchorY: bounds.y + bounds.height / 2,
+      }
+  }
 }
 
 function getTokenSlots(count: number, centerX: number, centerY: number, tokenSize: number, gap: number) {
@@ -298,8 +407,9 @@ function getBoardPointFromScreen(
   const centeredY = clientY - rect.top - rect.height / 2
   const unpannedX = centeredX - viewport.x
   const unpannedY = centeredY - viewport.y
-  const unzoomedX = unpannedX / viewport.zoom
-  const unzoomedY = unpannedY / viewport.zoom
+  const baseZoom = getBaseZoom(rect.width)
+  const unzoomedX = unpannedX / (baseZoom * viewport.zoom)
+  const unzoomedY = unpannedY / (baseZoom * viewport.zoom)
   const unrotated = rotatePoint(unzoomedX, unzoomedY, -viewport.rotation)
 
   return {
@@ -320,7 +430,14 @@ function isInsideCenterCard(
   return Math.abs(local.x) <= halfSize && Math.abs(local.y) <= halfSize
 }
 
-export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, gameState }: GameBoardProps) {
+export default function GameBoard({
+  sessionId,
+  playerId,
+  currentPlayerTurnId,
+  gameState,
+  activePropertyId,
+  onHoverProperty,
+}: GameBoardProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const tileImagesRef = useRef<Record<number, HTMLImageElement>>({})
@@ -344,8 +461,6 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const [isDragging, setIsDragging] = useState(false)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [imageVersion, setImageVersion] = useState(0)
-  const [readyError, setReadyError] = useState<string | null>(null)
-  const [actionError, setActionError] = useState<string | null>(null)
   const [rollDisplay, setRollDisplay] = useState<DiceRoll | null>(null)
   const [isRollingAnimation, setIsRollingAnimation] = useState(false)
   const [moveAnimation, setMoveAnimation] = useState<MoveAnimation | null>(null)
@@ -377,6 +492,40 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     })
     return positions
   }, [gameState.players])
+  const propertyOwnersByTile = useMemo(() => {
+    const owners: Record<number, Player> = {}
+
+    gameState.players.forEach((playerInfo) => {
+      ;(playerInfo.owned_properties ?? []).forEach((property) => {
+        const tile = gameState.tiles.find((tileInfo) => tileInfo.property_data?.id === property.property_info.id)
+        if (!tile) return
+        owners[tile.id] = playerInfo.player
+      })
+    })
+
+    return owners
+  }, [gameState.players, gameState.tiles])
+  const activePropertyTile = useMemo(
+    () => gameState.tiles.find((tile) => tile.property_data?.id === activePropertyId) ?? null,
+    [activePropertyId, gameState.tiles],
+  )
+  const activePropertyPlacement = useMemo(
+    () => (activePropertyTile ? getTilePlacement(activePropertyTile.id) : null),
+    [activePropertyTile],
+  )
+  const activePropertyCallout = useMemo(() => {
+    if (!activePropertyTile || !activePropertyPlacement || size.width === 0 || size.height === 0) return null
+
+    const anchor = getPropertyCalloutAnchor(activePropertyPlacement)
+    const screen = getScreenPointFromBoardPoint(anchor.anchorX, anchor.anchorY, size, viewport)
+
+    return {
+      screen,
+      side: activePropertyPlacement.side,
+      propertyId: activePropertyTile.property_data?.id ?? null,
+      propertyName: activePropertyTile.property_data?.name ?? "",
+    }
+  }, [activePropertyPlacement, activePropertyTile, size, viewport])
 
   const isGameStarted = gameState.current_turn >= 0
   const readyPlayers = useMemo(
@@ -399,6 +548,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId
   const currentRoll = gameState.current_roll ?? null
   const lastMove = gameState.last_move ?? null
+  const extraRollPlayerId = gameState.extra_roll_player_id ?? null
   const pendingCardDraw = gameState.pending_card_draw ?? null
   const drawnCard = gameState.drawn_card ?? null
   const pendingRent = gameState.pending_rent ?? null
@@ -406,7 +556,6 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const pendingBankPayout = gameState.pending_bank_payout ?? null
   const pendingExchange = gameState.pending_exchange ?? null
   const pendingPropertyPurchase = gameState.pending_property_purchase ?? null
-  const isCardTriggeredMove = !!lastMove && isCardTile(lastMove.old_position)
   const pendingPropertyData = useMemo(
     () =>
       pendingPropertyPurchase
@@ -526,7 +675,6 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
       return
     }
 
-    setActionError(null)
     setIsRollingAnimation(true)
 
     const interval = window.setInterval(() => {
@@ -561,7 +709,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
       return
     }
 
-    const path = getMovementPath(lastMove.old_position, lastMove.new_position)
+    const path = getMovementPath(lastMove.old_position, lastMove.new_position, lastMove.passed_go, lastMove.from_card)
     if (path.length < 2) {
       setMoveAnimation(null)
       return
@@ -635,7 +783,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     ctx.fillStyle = "#FFFFFF"
     ctx.fillRect(0, 0, size.width, size.height)
 
-    const baseZoom = size.width / BOARD_SIZE
+    const baseZoom = getBaseZoom(size.width)
 
     ctx.save()
     ctx.translate(size.width / 2 + viewport.x, size.height / 2 + viewport.y)
@@ -670,52 +818,97 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
       }
       ctx.restore()
 
+      if (activePropertyTile?.id === placement.index) {
+        ctx.save()
+        ctx.strokeStyle = "#F76902"
+        ctx.lineWidth = 8
+        ctx.strokeRect(x + 2, y + 2, width - 4, height - 4)
+        ctx.restore()
+      }
+
       const playersOnTile = (playerPositions[placement.index] || []).filter(
         (player) => player.id !== moveAnimation?.playerId,
       )
-      if (playersOnTile.length === 0) return
+      if (playersOnTile.length > 0) {
+        const tokenSize = isCornerTile ? 64 : 46
+        const gap = 8
+        const tokenSlots = getTileTokenSlots(placement, playersOnTile, tokenSize, gap)
 
-      const tokenSize = isCornerTile ? 58 : 42
-      const gap = 8
-      const tokenSlots = getTileTokenSlots(placement, playersOnTile, tokenSize, gap)
+        playersOnTile.forEach((player, index) => {
+          const tokenImage = tokenImagesRef.current[player.piece_token]
+          if (!tokenImage) return
 
-      playersOnTile.forEach((player, index) => {
-        const tokenImage = tokenImagesRef.current[player.piece_token]
-        if (!tokenImage) return
+          const slot = tokenSlots[index]
+          const tokenX = slot.x
+          const tokenY = slot.y
+          const isOwnPlayer = player.id.toString() === playerId
 
-        const slot = tokenSlots[index]
-        const tokenX = slot.x
-        const tokenY = slot.y
-        const isTurn = player.id === currentPlayerTurnId
+          ctx.save()
+          ctx.fillStyle = "#FFFFFF"
+          ctx.beginPath()
+          ctx.arc(tokenX + tokenSize / 2, tokenY + tokenSize / 2, tokenSize / 2, 0, Math.PI * 2)
+          ctx.fill()
 
-        ctx.save()
-        ctx.fillStyle = "#FFFFFF"
-        ctx.beginPath()
-        ctx.arc(tokenX + tokenSize / 2, tokenY + tokenSize / 2, tokenSize / 2, 0, Math.PI * 2)
-        ctx.fill()
-
-        if (isTurn) {
-          ctx.strokeStyle = "#F76902"
-          ctx.lineWidth = 4
+          ctx.strokeStyle = isOwnPlayer ? "#F76902" : "#000000"
+          ctx.lineWidth = isOwnPlayer ? 4 : 3
           ctx.stroke()
-        }
 
-        ctx.drawImage(
-          tokenImage,
-          tokenX + tokenSize * 0.14,
-          tokenY + tokenSize * 0.14,
-          tokenSize * 0.72,
-          tokenSize * 0.72,
-        )
-        ctx.restore()
-      })
+          ctx.save()
+          ctx.beginPath()
+          ctx.arc(tokenX + tokenSize / 2, tokenY + tokenSize / 2, tokenSize / 2 - 1, 0, Math.PI * 2)
+          ctx.clip()
+          const drawSize = getCoverTopSize(tokenImage.width, tokenImage.height, tokenSize * 0.72, tokenSize * 0.72)
+          ctx.drawImage(
+            tokenImage,
+            tokenX + tokenSize * 0.14 + drawSize.x,
+            tokenY + tokenSize * 0.14 + drawSize.y,
+            drawSize.width,
+            drawSize.height,
+          )
+          ctx.restore()
+          ctx.restore()
+        })
+      }
+
+      const propertyOwner = propertyOwnersByTile[placement.index]
+      if (propertyOwner) {
+        const ownerTokenImage = tokenImagesRef.current[propertyOwner.piece_token]
+        if (ownerTokenImage) {
+          const ownerToken = getOutsideOwnerTokenPosition(placement)
+          const ownerTokenSize = 34
+          const isOwnOwnerToken = propertyOwner.id.toString() === playerId
+
+          ctx.save()
+          ctx.fillStyle = "#FFFFFF"
+          ctx.beginPath()
+          ctx.arc(ownerToken.x, ownerToken.y, ownerTokenSize / 2, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.strokeStyle = isOwnOwnerToken ? "#F76902" : "#000000"
+          ctx.lineWidth = isOwnOwnerToken ? 3 : 2
+          ctx.stroke()
+          ctx.save()
+          ctx.beginPath()
+          ctx.arc(ownerToken.x, ownerToken.y, ownerTokenSize / 2 - 1, 0, Math.PI * 2)
+          ctx.clip()
+          const drawSize = getCoverTopSize(ownerTokenImage.width, ownerTokenImage.height, ownerTokenSize * 0.72, ownerTokenSize * 0.72)
+          ctx.drawImage(
+            ownerTokenImage,
+            ownerToken.x - ownerTokenSize * 0.36 + drawSize.x,
+            ownerToken.y - ownerTokenSize * 0.36 + drawSize.y,
+            drawSize.width,
+            drawSize.height,
+          )
+          ctx.restore()
+          ctx.restore()
+        }
+      }
     })
 
     if (moveAnimation) {
       const tokenImage = tokenImagesRef.current[moveAnimation.pieceToken]
       if (tokenImage) {
         const tokenSize = 52
-        const isTurn = moveAnimation.playerId === currentPlayerTurnId
+        const isOwnPlayer = moveAnimation.playerId.toString() === playerId
 
         ctx.save()
         ctx.fillStyle = "#FFFFFF"
@@ -723,19 +916,23 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
         ctx.arc(moveAnimation.x, moveAnimation.y, tokenSize / 2, 0, Math.PI * 2)
         ctx.fill()
 
-        if (isTurn) {
-          ctx.strokeStyle = "#F76902"
-          ctx.lineWidth = 4
-          ctx.stroke()
-        }
+        ctx.strokeStyle = isOwnPlayer ? "#F76902" : "#000000"
+        ctx.lineWidth = isOwnPlayer ? 4 : 3
+        ctx.stroke()
 
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(moveAnimation.x, moveAnimation.y, tokenSize / 2 - 1, 0, Math.PI * 2)
+        ctx.clip()
+        const drawSize = getCoverTopSize(tokenImage.width, tokenImage.height, tokenSize * 0.72, tokenSize * 0.72)
         ctx.drawImage(
           tokenImage,
-          moveAnimation.x - tokenSize * 0.36,
-          moveAnimation.y - tokenSize * 0.36,
-          tokenSize * 0.72,
-          tokenSize * 0.72,
+          moveAnimation.x - tokenSize * 0.36 + drawSize.x,
+          moveAnimation.y - tokenSize * 0.36 + drawSize.y,
+          drawSize.width,
+          drawSize.height,
         )
+        ctx.restore()
         ctx.restore()
       }
     }
@@ -793,7 +990,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     )
 
     ctx.restore()
-  }, [boardTiles, currentPlayerTurnId, drawnCard, imageVersion, moveAnimation, pendingCardDraw, playerPositions, size, viewport])
+  }, [activePropertyTile, boardTiles, currentPlayerTurnId, drawnCard, imageVersion, moveAnimation, pendingCardDraw, playerPositions, propertyOwnersByTile, size, viewport])
 
   const onWheel = (event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -827,7 +1024,21 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   }
 
   const onMouseMove = (event: MouseEvent<HTMLDivElement>) => {
-    if (!dragRef.current.active) return
+    if (!dragRef.current.active) {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+
+      const boardPoint = getBoardPointFromScreen(event.clientX, event.clientY, rect, viewport)
+      const tileIndex = getTileIndexFromBoardPoint(boardTiles, boardPoint.x, boardPoint.y)
+      if (tileIndex == null) {
+        onHoverProperty(null)
+        return
+      }
+
+      const tile = gameState.tiles.find((tileInfo) => tileInfo.id === tileIndex) ?? null
+      onHoverProperty(tile?.property_data?.id ?? null)
+      return
+    }
 
     const dx = event.clientX - dragRef.current.x
     const dy = event.clientY - dragRef.current.y
@@ -871,10 +1082,9 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const toggleReady = () => {
     if (!currentLobbyPlayer || isGameStarted) return
 
-    setReadyError(null)
     readyMutation.mutate(!currentLobbyPlayer.player.ready_up_status, {
       onError: (error: Error) => {
-        setReadyError(error.message)
+        emitToast(error.message)
       },
     })
   }
@@ -882,7 +1092,6 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const handleRoll = () => {
     if (!isCurrentPlayerTurn) return
 
-    setActionError(null)
     setShowBankruptConfirm(false)
     rollMutation.mutate(
       {
@@ -891,7 +1100,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
       },
       {
         onError: (error: Error) => {
-          setActionError(error.message)
+          emitToast(error.message)
         },
       },
     )
@@ -900,7 +1109,6 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const handleMove = () => {
     if (!isCurrentPlayerTurn) return
 
-    setActionError(null)
     setShowBankruptConfirm(false)
     moveMutation.mutate(
       {
@@ -909,7 +1117,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
       },
       {
         onError: (error: Error) => {
-          setActionError(error.message)
+          emitToast(error.message)
         },
       },
     )
@@ -918,11 +1126,10 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const handleEndTurn = () => {
     if (!isCurrentPlayerTurn) return
 
-    setActionError(null)
     setShowBankruptConfirm(false)
     endTurnMutation.mutate(undefined, {
       onError: (error: Error) => {
-        setActionError(error.message)
+        emitToast(error.message)
       },
     })
   }
@@ -930,11 +1137,10 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const handleJailRelease = (method: string) => {
     if (!isCurrentPlayerTurn) return
 
-    setActionError(null)
     setShowBankruptConfirm(false)
     jailReleaseMutation.mutate(method, {
       onError: (error: Error) => {
-        setActionError(error.message)
+        emitToast(error.message)
       },
     })
   }
@@ -942,11 +1148,10 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const handlePurchaseProperty = () => {
     if (!isCurrentPlayerTurn || !pendingPropertyPurchase) return
 
-    setActionError(null)
     setShowBankruptConfirm(false)
     purchasePropertyMutation.mutate(undefined, {
       onError: (error: Error) => {
-        setActionError(error.message)
+        emitToast(error.message)
       },
     })
   }
@@ -954,11 +1159,10 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const handleIgnoreProperty = () => {
     if (!isCurrentPlayerTurn) return
 
-    setActionError(null)
     setShowBankruptConfirm(false)
     ignorePropertyMutation.mutate(undefined, {
       onError: (error: Error) => {
-        setActionError(error.message)
+        emitToast(error.message)
       },
     })
   }
@@ -966,11 +1170,10 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const handlePayBank = () => {
     if (!isCurrentPlayerTurn) return
 
-    setActionError(null)
     setShowBankruptConfirm(false)
     payBankMutation.mutate(undefined, {
       onError: (error: Error) => {
-        setActionError(error.message)
+        emitToast(error.message)
       },
     })
   }
@@ -978,11 +1181,10 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const handleReceiveBankPayout = () => {
     if (!isCurrentPlayerTurn) return
 
-    setActionError(null)
     setShowBankruptConfirm(false)
     receiveBankPayoutMutation.mutate(undefined, {
       onError: (error: Error) => {
-        setActionError(error.message)
+        emitToast(error.message)
       },
     })
   }
@@ -990,7 +1192,6 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const handlePayRent = () => {
     if (!isCurrentPlayerTurn || !pendingRent) return
 
-    setActionError(null)
     setShowBankruptConfirm(false)
     payRentMutation.mutate(
       {
@@ -999,7 +1200,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
       },
       {
         onError: (error: Error) => {
-          setActionError(error.message)
+          emitToast(error.message)
         },
       },
     )
@@ -1008,11 +1209,10 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const handlePlayerExchange = () => {
     if (!isCurrentPlayerTurn) return
 
-    setActionError(null)
     setShowBankruptConfirm(false)
     playerExchangeMutation.mutate(undefined, {
       onError: (error: Error) => {
-        setActionError(error.message)
+        emitToast(error.message)
       },
     })
   }
@@ -1020,11 +1220,10 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const handleBankrupt = () => {
     if (!isCurrentPlayerTurn) return
 
-    setActionError(null)
     setShowBankruptConfirm(false)
     playerBankruptMutation.mutate(undefined, {
       onError: (error: Error) => {
-        setActionError(error.message)
+        emitToast(error.message)
       },
     })
   }
@@ -1032,11 +1231,10 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const handleDrawCard = () => {
     if (!isCurrentPlayerTurn || !pendingCardDraw) return
 
-    setActionError(null)
     setShowBankruptConfirm(false)
     drawCardMutation.mutate(undefined, {
       onError: (error: Error) => {
-        setActionError(error.message)
+        emitToast(error.message)
       },
     })
   }
@@ -1044,18 +1242,17 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
   const handleResolveCard = () => {
     if (!isCurrentPlayerTurn || !drawnCard) return
 
-    setActionError(null)
     setShowBankruptConfirm(false)
     resolveCardMutation.mutate(undefined, {
       onError: (error: Error) => {
-        setActionError(error.message)
+        emitToast(error.message)
       },
     })
   }
 
   const rollLabel = isTurnOrderPhase
     ? "Roll for Order"
-    : lastMove?.player_id === currentPlayerTurnId && lastMove?.roll_again && !isCardTriggeredMove
+    : extraRollPlayerId === currentPlayerTurnId
       ? "Roll Again"
       : "Roll Dice"
 
@@ -1079,26 +1276,37 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     !currentRoll.released_from_jail &&
     !currentRoll.is_double
 
+  const promptsReady = !isRollingAnimation && !moveAnimation
   const showTurnOrderEndTurn = !!currentRoll && isTurnOrderPhase
   const showSentToJailEndTurn = !!currentRoll && !isTurnOrderPhase && currentRoll.sent_to_jail
-  const showCardDrawPanel = !!pendingCardDraw && !moveAnimation
-  const showDrawnCardPanel = !!drawnCard && !moveAnimation
-  const showRentPanel = !!pendingRent && !moveAnimation
-  const showBankPaymentPanel = !!pendingBankPayment && !moveAnimation
-  const showBankPayoutPanel = !!pendingBankPayout && !moveAnimation
-  const showPlayerExchangePanel = !!pendingExchange && !moveAnimation
-  const showPropertyPurchasePanel = !!pendingPropertyPurchase && !moveAnimation
+  const showCardDrawPanel = !!pendingCardDraw && promptsReady
+  const showDrawnCardPanel = !!drawnCard && promptsReady
+  const showRentPanel = !!pendingRent && promptsReady
+  const showBankPaymentPanel = !!pendingBankPayment && promptsReady
+  const showBankPayoutPanel = !!pendingBankPayout && promptsReady
+  const showPlayerExchangePanel = !!pendingExchange && promptsReady
+  const showPropertyPurchasePanel = !!pendingPropertyPurchase && promptsReady
   const wasJustSentToJail =
     !!lastMove &&
-    !moveAnimation &&
     activePlayer?.id === lastMove.player_id &&
     activePlayer.jailed > 0 &&
     lastMove.new_position === 10
+  const showSentToJailPanel = wasJustSentToJail && promptsReady
   const activePlayerNeedsJailRoll = !!activePlayer && activePlayer.jailed > 0 && !currentRoll && !wasJustSentToJail
+  const currentPlayerHasExtraRoll = promptsReady && extraRollPlayerId === currentPlayerTurnId
+  const activePrompt =
+    showBankPayoutPanel ? "bankPayout"
+    : showCardDrawPanel ? "cardDraw"
+    : showDrawnCardPanel ? "drawnCard"
+    : showRentPanel ? "rent"
+    : showBankPaymentPanel ? "bankPayment"
+    : showPlayerExchangePanel ? "playerExchange"
+    : showPropertyPurchasePanel ? "propertyPurchase"
+    : showSentToJailPanel ? "sentToJail"
+    : "turn"
   const showTurnPanel =
     !isGameStarted ||
-    !!readyError ||
-    !!actionError ||
+    showSentToJailPanel ||
     showCardDrawPanel ||
     showDrawnCardPanel ||
     showRentPanel ||
@@ -1109,8 +1317,16 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
     isRollingAnimation ||
     !!currentRoll ||
     activePlayerNeedsJailRoll ||
-    (!moveAnimation && !!lastMove && isCurrentPlayerTurn && lastMove.roll_again && !isCardTriggeredMove) ||
-    (!moveAnimation && !lastMove && isCurrentPlayerTurn)
+    (isCurrentPlayerTurn && currentPlayerHasExtraRoll) ||
+    (promptsReady && !lastMove && isCurrentPlayerTurn)
+  const showDoublesNotice =
+    !isTurnOrderPhase &&
+    !!currentRoll &&
+    promptsReady &&
+    currentRoll.is_double &&
+    currentRoll.roll_again &&
+    !currentRoll.sent_to_jail &&
+    currentRoll.jailed === 0
 
   return (
     <div
@@ -1120,7 +1336,10 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}
-      onMouseLeave={stopDrag}
+      onMouseLeave={() => {
+        stopDrag()
+        onHoverProperty(null)
+      }}
       style={{
         position: "relative",
         overflow: "hidden",
@@ -1251,17 +1470,6 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             {currentLobbyPlayer?.player.ready_up_status ? "Unready" : "Ready Up"}
           </button>
 
-          {readyError ? (
-            <div
-              style={{
-                color: "#D32F2F",
-                fontSize: 12,
-                textAlign: "center",
-              }}
-            >
-              {readyError}
-            </div>
-          ) : null}
         </div>
       ) : null}
 
@@ -1284,7 +1492,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             textAlign: "center",
           }}
         >
-          {showCardDrawPanel ? (
+          {activePrompt === "bankPayout" ? (
             <>
               <div
                 style={{
@@ -1293,7 +1501,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                   fontWeight: 700,
                 }}
               >
-                {pendingCardDraw.tile_name}
+                Bank Payout
               </div>
 
               <div
@@ -1313,13 +1521,22 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                 }}
               >
                 {isCurrentPlayerTurn
-                  ? `Click the ${pendingCardDraw.tile_name} card to draw`
+                  ? pendingBankPayout!.reason
                   : activePlayer
-                    ? `Waiting for ${activePlayer.name} to draw`
+                    ? `Waiting for ${activePlayer.name} to receive`
                     : "Waiting"}
               </div>
+
+              <div
+                style={{
+                  color: "#7C878E",
+                  fontSize: 13,
+                }}
+              >
+                Amount: ₮{pendingBankPayout!.amount.toLocaleString()}
+              </div>
             </>
-          ) : showDrawnCardPanel ? (
+          ) : activePrompt === "cardDraw" ? (
             <>
               <div
                 style={{
@@ -1328,7 +1545,42 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                   fontWeight: 700,
                 }}
               >
-                {drawnCard.card_type === "CHANCE" ? "Chance" : "Community Chest"}
+                {pendingCardDraw!.tile_name}
+              </div>
+
+              <div
+                style={{
+                  color: "#7C878E",
+                  fontSize: 13,
+                }}
+              >
+                {activePlayer ? `${activePlayer.name}` : "Waiting"}
+              </div>
+
+              <div
+                style={{
+                  color: "#000000",
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                {isCurrentPlayerTurn
+                  ? `Click the ${pendingCardDraw!.tile_name} card to draw`
+                  : activePlayer
+                    ? `Waiting for ${activePlayer.name} to draw`
+                    : "Waiting"}
+              </div>
+            </>
+          ) : activePrompt === "drawnCard" ? (
+            <>
+              <div
+                style={{
+                  color: "#F76902",
+                  fontSize: 20,
+                  fontWeight: 700,
+                }}
+              >
+                {drawnCard!.card_type === "CHANCE" ? "Chance" : "Community Chest"}
               </div>
 
               <div
@@ -1347,7 +1599,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                   fontWeight: 700,
                 }}
               >
-                {drawnCard.name}
+                {drawnCard!.name}
               </div>
 
               <div
@@ -1357,10 +1609,10 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                   fontWeight: 600,
                 }}
               >
-                {drawnCard.description}
+                {drawnCard!.description}
               </div>
             </>
-          ) : showRentPanel ? (
+          ) : activePrompt === "rent" ? (
             <>
               <div
                 style={{
@@ -1403,10 +1655,10 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                   fontSize: 13,
                 }}
               >
-                Amount: ₮{pendingRent.amount.toLocaleString()}
+                Amount: ₮{pendingRent!.amount.toLocaleString()}
               </div>
             </>
-          ) : showBankPaymentPanel ? (
+          ) : activePrompt === "bankPayment" ? (
             <>
               <div
                 style={{
@@ -1415,7 +1667,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                   fontWeight: 700,
                 }}
               >
-                {pendingBankPayment.reason === "jail release" ? "Leave Jail" : "Bank Payment"}
+                {pendingBankPayment!.reason === "jail release" ? "Leave Jail" : "Bank Payment"}
               </div>
 
               <div
@@ -1435,11 +1687,11 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                 }}
               >
                 {isCurrentPlayerTurn
-                  ? pendingBankPayment.reason === "jail release"
+                  ? pendingBankPayment!.reason === "jail release"
                     ? "Pay to leave jail"
-                    : pendingBankPayment.reason
+                    : pendingBankPayment!.reason
                   : activePlayer
-                    ? pendingBankPayment.reason === "jail release"
+                    ? pendingBankPayment!.reason === "jail release"
                       ? `Waiting for ${activePlayer.name} to leave jail`
                       : `Waiting for ${activePlayer.name} to pay`
                     : "Waiting"}
@@ -1451,54 +1703,10 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                   fontSize: 13,
                 }}
               >
-                Amount: ₮{pendingBankPayment.amount.toLocaleString()}
+                Amount: ₮{pendingBankPayment!.amount.toLocaleString()}
               </div>
             </>
-          ) : showBankPayoutPanel ? (
-            <>
-              <div
-                style={{
-                  color: "#F76902",
-                  fontSize: 20,
-                  fontWeight: 700,
-                }}
-              >
-                Bank Payout
-              </div>
-
-              <div
-                style={{
-                  color: "#7C878E",
-                  fontSize: 13,
-                }}
-              >
-                {activePlayer ? `${activePlayer.name}` : "Waiting"}
-              </div>
-
-              <div
-                style={{
-                  color: "#000000",
-                  fontSize: 14,
-                  fontWeight: 600,
-                }}
-              >
-                {isCurrentPlayerTurn
-                  ? pendingBankPayout.reason
-                  : activePlayer
-                    ? `Waiting for ${activePlayer.name} to receive`
-                    : "Waiting"}
-              </div>
-
-              <div
-                style={{
-                  color: "#7C878E",
-                  fontSize: 13,
-                }}
-              >
-                Amount: ₮{pendingBankPayout.amount.toLocaleString()}
-              </div>
-            </>
-          ) : showPlayerExchangePanel ? (
+          ) : activePrompt === "playerExchange" ? (
             <>
               <div
                 style={{
@@ -1526,9 +1734,9 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                   fontWeight: 600,
                 }}
               >
-                {pendingExchange.is_paying_all
-                  ? `Pay each player ₮${pendingExchange.amount.toLocaleString()}`
-                  : `Collect ₮${pendingExchange.amount.toLocaleString()} from each player`}
+                {pendingExchange!.is_paying_all
+                  ? `Pay each player ₮${pendingExchange!.amount.toLocaleString()}`
+                  : `Collect ₮${pendingExchange!.amount.toLocaleString()} from each player`}
               </div>
 
               <div
@@ -1544,7 +1752,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                     : "Waiting"}
               </div>
             </>
-          ) : showPropertyPurchasePanel ? (
+          ) : activePrompt === "propertyPurchase" ? (
             <>
               <div
                 style={{
@@ -1581,7 +1789,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                   fontSize: 13,
                 }}
               >
-                Cost: ₮{pendingPropertyPurchase.purchase_cost.toLocaleString()}
+                Cost: ₮{pendingPropertyPurchase!.purchase_cost.toLocaleString()}
               </div>
 
               <div
@@ -1592,12 +1800,43 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                 }}
               >
                 {isCurrentPlayerTurn
-                  ? pendingPropertyPurchase.can_afford
+                  ? pendingPropertyPurchase!.can_afford
                     ? "Buy or ignore"
                     : "Cannot afford this property"
                   : activePlayer
                     ? `Waiting for ${activePlayer.name} to decide`
                     : "Waiting"}
+              </div>
+            </>
+          ) : activePrompt === "sentToJail" ? (
+            <>
+              <div
+                style={{
+                  color: "#F76902",
+                  fontSize: 20,
+                  fontWeight: 700,
+                }}
+              >
+                Jail
+              </div>
+
+              <div
+                style={{
+                  color: "#7C878E",
+                  fontSize: 13,
+                }}
+              >
+                {activePlayer ? `${activePlayer.name}` : "Waiting"}
+              </div>
+
+              <div
+                style={{
+                  color: "#000000",
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                {activePlayer ? `${activePlayer.name} was sent to jail` : "Sent to jail"}
               </div>
             </>
           ) : (
@@ -1663,7 +1902,9 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                     ? isTurnOrderPhase
                       ? `Total ${currentRoll.total}`
                       : currentRoll.sent_to_jail
-                        ? "Go to Jail"
+                        ? activePlayer
+                          ? `${activePlayer.name} was sent to jail`
+                          : "Sent to jail"
                         : currentRoll.jailed > 0 && !currentRoll.released_from_jail
                           ? currentRoll.jailed >= 4
                             ? "No doubles. Leave jail."
@@ -1677,14 +1918,52 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                           : "Waiting"
                     : isTurnOrderPhase
                       ? "Roll to set order"
-                      : isCurrentPlayerTurn
-                        ? "Start your turn"
-                        : "Waiting"}
+                    : isCurrentPlayerTurn
+                      ? "Start your turn"
+                      : "Waiting"}
               </div>
+
+              {showDoublesNotice ? (
+                <div
+                  style={{
+                    width: "100%",
+                    border: "2px solid #F76902",
+                    backgroundColor: "#FFF3E0",
+                    padding: "10px 12px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                  }}
+                >
+                  <div
+                    style={{
+                      color: "#F76902",
+                      fontSize: 15,
+                      fontWeight: 700,
+                    }}
+                  >
+                    Doubles
+                  </div>
+
+                  <div
+                    style={{
+                      color: "#000000",
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {isCurrentPlayerTurn
+                      ? "Move now. You will roll again after this move."
+                      : activePlayer
+                        ? `${activePlayer.name} will roll again after this move.`
+                        : "Another roll is coming after this move."}
+                  </div>
+                </div>
+              ) : null}
             </>
           )}
 
-          {isCurrentPlayerTurn && showDrawnCardPanel ? (
+          {isCurrentPlayerTurn && activePrompt === "drawnCard" ? (
             <button
               type="button"
               onClick={handleResolveCard}
@@ -1702,7 +1981,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && showRentPanel ? (
+          {isCurrentPlayerTurn && activePrompt === "rent" ? (
             <div
               style={{
                 width: "100%",
@@ -1773,7 +2052,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </div>
           ) : null}
 
-          {isCurrentPlayerTurn && showBankPaymentPanel ? (
+          {isCurrentPlayerTurn && activePrompt === "bankPayment" ? (
             <div
               style={{
                 width: "100%",
@@ -1802,8 +2081,8 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                     cursor: payBankMutation.isPending || playerBankruptMutation.isPending ? "not-allowed" : "pointer",
                   }}
                 >
-                  {pendingBankPayment.reason === "jail release"
-                    ? `Pay ₮${pendingBankPayment.amount.toLocaleString()}`
+                  {pendingBankPayment!.reason === "jail release"
+                    ? `Pay ₮${pendingBankPayment!.amount.toLocaleString()}`
                     : "Pay Bank"}
                 </button>
                 <button
@@ -1845,7 +2124,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </div>
           ) : null}
 
-          {isCurrentPlayerTurn && showBankPayoutPanel ? (
+          {isCurrentPlayerTurn && activePrompt === "bankPayout" ? (
             <button
               type="button"
               onClick={handleReceiveBankPayout}
@@ -1863,7 +2142,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && showPlayerExchangePanel ? (
+          {isCurrentPlayerTurn && activePrompt === "playerExchange" ? (
             <button
               type="button"
               onClick={handlePlayerExchange}
@@ -1881,7 +2160,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && showPropertyPurchasePanel ? (
+          {isCurrentPlayerTurn && activePrompt === "propertyPurchase" ? (
             <div
               style={{
                 width: "100%",
@@ -1889,7 +2168,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
                 gap: 10,
               }}
             >
-              {pendingPropertyPurchase.can_afford ? (
+              {pendingPropertyPurchase!.can_afford ? (
                 <button
                   type="button"
                   onClick={handlePurchaseProperty}
@@ -1926,7 +2205,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </div>
           ) : null}
 
-          {isCurrentPlayerTurn && !showCardDrawPanel && !showDrawnCardPanel && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && !currentRoll && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && activePrompt === "turn" && !currentRoll && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleRoll}
@@ -1944,7 +2223,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showCardDrawPanel && !showDrawnCardPanel && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showMoveButton && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && activePrompt === "turn" && showMoveButton && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleMove}
@@ -1962,7 +2241,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showCardDrawPanel && !showDrawnCardPanel && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showTurnOrderEndTurn && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && activePrompt === "turn" && showTurnOrderEndTurn && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleEndTurn}
@@ -1980,7 +2259,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showCardDrawPanel && !showDrawnCardPanel && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showJailEndTurn && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && activePrompt === "turn" && showJailEndTurn && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleEndTurn}
@@ -1998,7 +2277,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showCardDrawPanel && !showDrawnCardPanel && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showSentToJailEndTurn && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && activePrompt === "turn" && showSentToJailEndTurn && !isRollingAnimation ? (
             <button
               type="button"
               onClick={handleEndTurn}
@@ -2016,7 +2295,7 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </button>
           ) : null}
 
-          {isCurrentPlayerTurn && !showCardDrawPanel && !showDrawnCardPanel && !showRentPanel && !showBankPaymentPanel && !showBankPayoutPanel && !showPlayerExchangePanel && !showPropertyPurchasePanel && showJailReleaseButtons && !isRollingAnimation ? (
+          {isCurrentPlayerTurn && activePrompt === "turn" && showJailReleaseButtons && !isRollingAnimation ? (
             <div
               style={{
                 width: "100%",
@@ -2060,20 +2339,49 @@ export default function GameBoard({ sessionId, playerId, currentPlayerTurnId, ga
             </div>
           ) : null}
 
-          {isCurrentPlayerTurn && actionError ? (
-            <div
-              style={{
-                color: "#D32F2F",
-                fontSize: 12,
-              }}
-            >
-              {actionError}
-            </div>
-          ) : null}
         </div>
       ) : null}
 
       <canvas ref={canvasRef} />
+
+      {activePropertyCallout && activePropertyCallout.propertyId ? (
+        <div
+          style={{
+            position: "absolute",
+            left: activePropertyCallout.screen.x,
+            top: activePropertyCallout.screen.y,
+            transform:
+              activePropertyCallout.side === "top"
+                ? "translate(-50%, -100%)"
+                : activePropertyCallout.side === "bottom"
+                  ? "translate(-50%, 0)"
+                  : activePropertyCallout.side === "left"
+                    ? "translate(-100%, -50%)"
+                    : "translate(0, -50%)",
+            zIndex: 18,
+            pointerEvents: "none",
+          }}
+        >
+          <div
+            style={{
+              position: "relative",
+              backgroundColor: "#FFFFFF",
+              border: "1px solid #000000",
+              padding: 8,
+            }}
+          >
+            <img
+              src={`/assets/img/deeds/${activePropertyCallout.propertyId}.png`}
+              alt={activePropertyCallout.propertyName}
+              style={{
+                display: "block",
+                width: 180,
+                height: "auto",
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

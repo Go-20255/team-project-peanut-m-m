@@ -31,6 +31,7 @@ export function HandleInitialGameBoardUpdateEvent(
   if (data) {
     setGameState({
       ...data,
+      extra_roll_player_id: data.extra_roll_player_id ?? null,
       current_roll: null,
       last_move: null,
     })
@@ -49,6 +50,7 @@ export function HandleMovePlayerEvent(
     old_position: number
     total: number
     passed_go: boolean
+    from_card: boolean
     rent_due: boolean
     rent_amount: number
     rent_to_id: number
@@ -62,6 +64,7 @@ export function HandleMovePlayerEvent(
     return {
       ...prev,
       current_turn: data.turn_number ?? prev.current_turn,
+      extra_roll_player_id: prev.extra_roll_player_id,
       current_roll: null,
       pending_card_draw: prev.pending_card_draw,
       drawn_card: prev.drawn_card,
@@ -77,6 +80,7 @@ export function HandleMovePlayerEvent(
         new_position: data.new_position,
         total: data.total,
         passed_go: data.passed_go,
+        from_card: data.from_card,
         turn_number: data.turn_number ?? prev.current_turn,
         rent_due: data.rent_due,
         rent_amount: data.rent_amount,
@@ -109,6 +113,7 @@ export function HandleGameStateUpdateEvent(
     return {
       ...prev,
       current_turn: data.current_turn,
+      extra_roll_player_id: data.extra_roll_player_id ?? null,
       current_roll: turnChanged ? null : prev.current_roll,
       last_move: turnChanged ? null : prev.last_move,
       pending_card_draw: data.pending_card_draw,
@@ -196,6 +201,7 @@ export function HandleGameReadyEvent(
     return {
       ...prev,
       current_turn: 0,
+      extra_roll_player_id: null,
       current_roll: null,
       last_move: null,
       pending_card_draw: null,

@@ -110,6 +110,8 @@ export default function FinalRanksPage({ players }: FinalRanksPageProps) {
                     border: "1px solid #000000",
                     borderRadius: "2px",
                     flexShrink: 0,
+                    objectFit: "cover",
+                    objectPosition: "top",
                   }}
                 />
                 <div

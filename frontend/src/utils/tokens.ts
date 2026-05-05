@@ -1,9 +1,9 @@
 // Token IDs and their corresponding icon information
 export const TOKEN_ICONS = {
-  0: { name: "Paw", icon: "paw.svg" },
-  1: { name: "Brick", icon: "brick.svg" },
-  2: { name: "Gopher", icon: "gopher.svg" },
-  3: { name: "Ritchie", icon: "ritchie.png" },
+  0: { name: "Ritchie", icon: "ritchie.png" },
+  1: { name: "Roarie", icon: "roarie.png" },
+  2: { name: "Ricky the Brick", icon: "brick.png" },
+  3: { name: "Go Gopher", icon: "gopher.png" },
 } as const
 
 export function getTokenIcon(pieceToken: number): string {

@@ -11,6 +11,17 @@ import (
 	"github.com/rs/zerolog"
 )
 
+func getExtraRollPlayerId(e *internal.MonopolyEngine) *int {
+	for playerId, allowed := range e.ExtraRollAllowed {
+		if allowed {
+			id := playerId
+			return &id
+		}
+	}
+
+	return nil
+}
+
 // EmitInitialGameBoardData gathers the full game board state and broadcasts it
 // to connected clients.
 // This includes the current turn, all players with their owned properties,
@@ -79,6 +90,7 @@ func EmitInitialGameBoardData(log zerolog.Logger, ctx context.Context, e *intern
     board_data.CurrentTurn = current_turn
     board_data.Players = all_players_info
     board_data.Tiles = tiles
+    board_data.ExtraRollPlayerId = getExtraRollPlayerId(e)
     board_data.PendingCardDraw = e.PendingCardDraw
     board_data.DrawnCard = e.PendingDrawnCard
     board_data.PendingRent = e.PendingRent
@@ -141,6 +153,7 @@ func EmitGameBoardUpdate(log zerolog.Logger, ctx context.Context, e *internal.Mo
     var board_update internal.GameStateUpdate
     board_update.CurrentTurn = current_turn
     board_update.Players = all_players_info
+    board_update.ExtraRollPlayerId = getExtraRollPlayerId(e)
     board_update.PendingCardDraw = e.PendingCardDraw
     board_update.DrawnCard = e.PendingDrawnCard
     board_update.PendingRent = e.PendingRent
@@ -152,4 +165,3 @@ func EmitGameBoardUpdate(log zerolog.Logger, ctx context.Context, e *internal.Mo
     e.Broker.Broadcast(log, "GameStateUpdateEvent", board_update)
     return nil
 }
-

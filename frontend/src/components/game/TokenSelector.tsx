@@ -1,8 +1,9 @@
 "use client"
 
 import { useMemo } from "react"
-import { useFetchPlayersForSession } from "@/hooks/useGameAPI"
+import { useFetchPlayersForSession } from "@/hooks/playerHooks"
 import { TOKEN_ICONS, getTokenName } from "@/utils/tokens"
+import { Player } from "@/types"
 
 interface TokenSelectorProps {
   sessionId: string
@@ -24,7 +25,7 @@ export default function TokenSelector({
   // Tokens taken by *other* players (the current player's token shouldn't
   // disqualify itself from being shown as selectable).
   const takenTokens = useMemo(
-    () => new Set(players.filter((p) => p.id !== playerId).map((p) => p.piece_token)),
+    () => new Set(players.filter((p: Player) => p.id !== playerId).map((p: Player) => p.piece_token)),
     [players, playerId],
   )
 
@@ -79,7 +80,15 @@ export default function TokenSelector({
                 }`}
               >
                 <div className="flex flex-col items-center gap-2">
-                  <img src={`/assets/img/icons/${tokenInfo.icon}`} alt={tokenInfo.name} className="w-16 h-16" />
+                  <img
+                    src={`/assets/img/icons/${tokenInfo.icon}`}
+                    alt={tokenInfo.name}
+                    className="w-16 h-16"
+                    style={{
+                      objectFit: "cover",
+                      objectPosition: "top",
+                    }}
+                  />
                   <span className="font-semibold text-sm">{tokenInfo.name}</span>
                   {isSelected && <span className="text-xs text-green-600 font-bold">✓ Selected</span>}
                   {!available && <span className="text-xs text-gray-500 font-bold">Taken</span>}

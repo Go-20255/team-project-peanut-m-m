@@ -310,6 +310,7 @@ func MortgageProperty(
     }
 
     e.Broker.Broadcast(log, "PropertyMortgagedEvent", propertyMortgageUpdate)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     return internal.UserActionStatus{
         Status: http.StatusOK,
@@ -400,6 +401,7 @@ func UnmortgageProperty(
     }
 
     e.Broker.Broadcast(log, "PropertyUnmortgagedEvent", propertyMortgageUpdate)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     return internal.UserActionStatus{
         Status: http.StatusOK,
