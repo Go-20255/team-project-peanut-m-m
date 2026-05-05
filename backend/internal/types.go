@@ -37,6 +37,7 @@ type MonopolyEngine struct {
     PendingBankPayment *PendingBankPayment
     PendingBankPayout  *PendingBankPayout
     PendingExchange    *PendingPlayerExchange
+    PendingTrade       *PendingTrade
     TurnHasRolled      map[int]bool
     ExtraRollAllowed   map[int]bool
     DoubleRollCounts   map[int]int
@@ -55,6 +56,7 @@ type GameStateUpdate struct {
     PendingBankPayment *PendingBankPayment `json:"pending_bank_payment"`
     PendingBankPayout *PendingBankPayout `json:"pending_bank_payout"`
     PendingExchange *PendingPlayerExchange `json:"pending_exchange"`
+    PendingTrade *PendingTrade `json:"pending_trade"`
 }
 
 type GameBoardData struct {
@@ -112,6 +114,21 @@ type PropertyActionData struct {
     PlayerId    int     `json:"player_id"`
     SessionId   string  `json:"session_id"`
     PropertyId int
+}
+
+type TradeActionData struct {
+    PlayerId            int   `json:"player_id"`
+    SessionId           string `json:"session_id"`
+    WithPlayerId        int   `json:"with_player_id"`
+    OfferedMoney        int   `json:"offered_money"`
+    RequestedMoney      int   `json:"requested_money"`
+    OfferedPropertyIds  []int `json:"offered_property_ids"`
+    RequestedPropertyIds []int `json:"requested_property_ids"`
+}
+
+type TradeDecisionActionData struct {
+    PlayerId   int    `json:"player_id"`
+    SessionId  string `json:"session_id"`
 }
 
 type DiceRoll struct {
@@ -218,6 +235,21 @@ type PendingPlayerExchange struct {
 	IsPayingAll    bool   `json:"is_paying_all"`
 }
 
+type TradeProperty struct {
+    PropertyId int    `json:"property_id"`
+    Name       string `json:"name"`
+}
+
+type PendingTrade struct {
+    FromPlayerId        int             `json:"from_player_id"`
+    ToPlayerId          int             `json:"to_player_id"`
+    SessionId           string          `json:"session_id"`
+    OfferedMoney        int             `json:"offered_money"`
+    RequestedMoney      int             `json:"requested_money"`
+    OfferedProperties   []TradeProperty `json:"offered_properties"`
+    RequestedProperties []TradeProperty `json:"requested_properties"`
+}
+
 type RentPayment struct {
     FromPlayerId   int    `json:"from_player_id"`
     ToPlayerId     int    `json:"to_player_id"`
@@ -252,6 +284,17 @@ type PlayerExchange struct {
 	Reason         string             `json:"reason"`
 	IsPayingAll    bool               `json:"is_paying_all"`
 	Balances       map[int]int `json:"balances"`
+}
+
+type Trade struct {
+    FromPlayerId        int             `json:"from_player_id"`
+    ToPlayerId          int             `json:"to_player_id"`
+    SessionId           string          `json:"session_id"`
+    OfferedMoney        int             `json:"offered_money"`
+    RequestedMoney      int             `json:"requested_money"`
+    OfferedProperties   []TradeProperty `json:"offered_properties"`
+    RequestedProperties []TradeProperty `json:"requested_properties"`
+    Accepted            bool            `json:"accepted"`
 }
 
 type JailRelease struct {
