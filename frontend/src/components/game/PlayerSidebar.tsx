@@ -24,6 +24,7 @@ interface PlayerSidebarProps {
   gameState?: GameState | null
   activePropertyId?: number | null
   onSelectProperty: (propertyId: number | null) => void
+  onOpenTrade: (tradePlayerId: number) => void
 }
 
 export default function PlayerSidebar({
@@ -35,6 +36,7 @@ export default function PlayerSidebar({
   gameState,
   activePropertyId,
   onSelectProperty,
+  onOpenTrade,
 }: PlayerSidebarProps) {
   const [joinCode, setJoinCode] = useState<string>("")
   const popupRef = useRef<HTMLDivElement | null>(null)
@@ -342,6 +344,25 @@ export default function PlayerSidebar({
                     }}
                   />
                 </div>
+
+                {isCurrentPlayerTurn && isGameStarted && !isCurrentPlayer && !player.bankrupt ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenTrade(player.id)}
+                    disabled={!!gameState?.pending_trade || !!gameState?.pending_trade_draft}
+                    style={{
+                      width: "100%",
+                      padding: "8px 10px",
+                      marginBottom: 10,
+                      backgroundColor: gameState?.pending_trade || gameState?.pending_trade_draft ? "#D0D3D4" : "#F76902",
+                      color: "#FFFFFF",
+                      fontWeight: 700,
+                      cursor: gameState?.pending_trade || gameState?.pending_trade_draft ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    Trade
+                  </button>
+                ) : null}
 
                 {/* Money */}
                 <div

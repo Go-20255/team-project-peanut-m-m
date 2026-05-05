@@ -309,6 +309,71 @@ func ExecutePlayerExchangeHandler(c echo.Context) error {
     return c.JSON(http.StatusOK, res.Data)
 }
 
+func OpenTradeDraftHandler(c echo.Context) error {
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
+
+    if err := c.Request().ParseForm(); err != nil {
+        return c.String(http.StatusBadRequest, "failed to parse trade request")
+    }
+
+    withPlayerIdStr := c.FormValue("with_player_id")
+    if withPlayerIdStr == "" {
+        return c.String(http.StatusBadRequest, "missing with_player_id")
+    }
+
+    withPlayerId, err := strconv.Atoi(withPlayerIdStr)
+    if err != nil {
+        return c.String(http.StatusBadRequest, "invalid with_player_id")
+    }
+
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "OpenTradeDraftEvent",
+        Data: internal.TradeDraftActionData{
+            PlayerId:     claims.PlayerId,
+            SessionId:    claims.SessionId,
+            WithPlayerId: withPlayerId,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.JSON(http.StatusOK, res.Data)
+}
+
+func CloseTradeDraftHandler(c echo.Context) error {
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
+
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "CloseTradeDraftEvent",
+        Data: internal.TradeDecisionActionData{
+            PlayerId:  claims.PlayerId,
+            SessionId: claims.SessionId,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.JSON(http.StatusOK, res.Data)
+}
+
 func ProposeTradeHandler(c echo.Context) error {
     claims, err := util.GetPlayerJwtClaims(c)
     if err != nil {

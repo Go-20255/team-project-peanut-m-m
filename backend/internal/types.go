@@ -37,6 +37,7 @@ type MonopolyEngine struct {
     PendingBankPayment *PendingBankPayment
     PendingBankPayout  *PendingBankPayout
     PendingExchange      *PendingPlayerExchange
+    PendingTradeDraft    *PendingTradeDraft
     PendingTrade         *PendingTrade
     TurnHasRolled        map[int]bool
     ExtraRollAllowed     map[int]bool
@@ -56,6 +57,7 @@ type GameStateUpdate struct {
     PendingBankPayment *PendingBankPayment `json:"pending_bank_payment"`
     PendingBankPayout *PendingBankPayout `json:"pending_bank_payout"`
     PendingExchange      *PendingPlayerExchange  `json:"pending_exchange"`
+    PendingTradeDraft    *PendingTradeDraft      `json:"pending_trade_draft"`
     PendingTrade         *PendingTrade           `json:"pending_trade"`
 }
 
@@ -129,6 +131,12 @@ type TradeActionData struct {
 type TradeDecisionActionData struct {
     PlayerId   int    `json:"player_id"`
     SessionId  string `json:"session_id"`
+}
+
+type TradeDraftActionData struct {
+    PlayerId     int    `json:"player_id"`
+    SessionId    string `json:"session_id"`
+    WithPlayerId int    `json:"with_player_id"`
 }
 
 type DiceRoll struct {
@@ -238,6 +246,12 @@ type PendingPlayerExchange struct {
 type TradeProperty struct {
     PropertyId int    `json:"property_id"`
     Name       string `json:"name"`
+}
+
+type PendingTradeDraft struct {
+    FromPlayerId int    `json:"from_player_id"`
+    ToPlayerId   int    `json:"to_player_id"`
+    SessionId    string `json:"session_id"`
 }
 
 type PendingTrade struct {

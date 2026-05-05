@@ -6,6 +6,7 @@ import { storage } from "@/utils/storage"
 import PlayerSidebar from "@/components/game/PlayerSidebar"
 import GameBoard from "@/components/game/GameBoard"
 import FinalRanksPage from "@/components/game/FinalRanksPage"
+import TradeOverlay from "@/components/game/TradeOverlay"
 import { useLiveGameUpdates } from "@/hooks/liveUpdates"
 
 export default function GamePage() {
@@ -15,6 +16,7 @@ export default function GamePage() {
   const [playerName, setPlayerName] = useState<string | null>(null)
   const [selectedPropertyId, setSelectedPropertyId] = useState<number | null>(null)
   const [hoveredPropertyId, setHoveredPropertyId] = useState<number | null>(null)
+  const [openTradePlayerId, setOpenTradePlayerId] = useState<number | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -88,6 +90,8 @@ export default function GamePage() {
     return <FinalRanksPage players={players} />
   }
 
+  const closeTrade = () => setOpenTradePlayerId(null)
+
   return (
     <div className="w-full h-screen flex overflow-hidden" style={{ backgroundColor: "#FFFFFF" }}>
       <div className="h-full overflow-hidden" style={{ flex: "7" }}>
@@ -116,8 +120,19 @@ export default function GamePage() {
           gameState={gameState ?? undefined}
           activePropertyId={activePropertyId}
           onSelectProperty={setSelectedPropertyId}
+          onOpenTrade={setOpenTradePlayerId}
         />
       </div>
+
+      {gameState ? (
+        <TradeOverlay
+          playerId={playerId.toString()}
+          currentPlayerTurnId={currentPlayerTurnId}
+          gameState={gameState}
+          openTradePlayerId={openTradePlayerId}
+          onCloseTrade={closeTrade}
+        />
+      ) : null}
 
       {toastMessage ? (
         <div

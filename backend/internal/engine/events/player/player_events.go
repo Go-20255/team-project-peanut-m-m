@@ -225,6 +225,45 @@ func SetPendingTrade(
     }
 }
 
+func SetPendingTradeDraft(
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    pendingTradeDraft internal.PendingTradeDraft,
+) internal.UserActionStatus {
+    if e.PendingTrade != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is already a pending trade",
+        }
+    }
+
+    if e.PendingTradeDraft != nil {
+        ClearPendingTradeDraft(log, e)
+    }
+
+    e.PendingTradeDraft = &pendingTradeDraft
+    e.Broker.Broadcast(log, "TradeDraftOpenedEvent", e.PendingTradeDraft)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   *e.PendingTradeDraft,
+    }
+}
+
+func ClearPendingTradeDraft(
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+) *internal.PendingTradeDraft {
+    if e.PendingTradeDraft == nil {
+        return nil
+    }
+
+    tradeDraft := e.PendingTradeDraft
+    e.PendingTradeDraft = nil
+    e.Broker.Broadcast(log, "TradeDraftClosedEvent", tradeDraft)
+    return tradeDraft
+}
+
 func buildTradeEvent(pendingTrade *internal.PendingTrade, accepted bool) internal.Trade {
     return internal.Trade{
         FromPlayerId:        pendingTrade.FromPlayerId,
@@ -1813,6 +1852,10 @@ func ProposeTrade(
         RequestedProperties: requestedProperties,
     }
 
+    if e.PendingTradeDraft != nil && e.PendingTradeDraft.FromPlayerId == data.PlayerId {
+        ClearPendingTradeDraft(log, e)
+    }
+
     tradeStatus := SetPendingTrade(log, e, pendingTrade)
     if tradeStatus.Status != http.StatusOK {
         return tradeStatus
@@ -1820,6 +1863,105 @@ func ProposeTrade(
 
     events.EmitGameBoardUpdate(log, ctx, e, tx)
     return tradeStatus
+}
+
+func OpenTradeDraft(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    data := action.Data.(internal.TradeDraftActionData)
+
+    _, actingPlayer, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
+    }
+
+    if data.WithPlayerId == data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player cannot trade with themself",
+        }
+    }
+
+    if e.PendingTrade != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is already a pending trade",
+        }
+    }
+
+    targetPlayer, err := internaldb_players.GetPlayer(log, ctx, tx, data.WithPlayerId, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "target player does not exist",
+        }
+    }
+
+    if actingPlayer.Bankrupt || targetPlayer.Bankrupt {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "bankrupt players cannot trade",
+        }
+    }
+
+    if e.PendingTradeDraft != nil &&
+        e.PendingTradeDraft.FromPlayerId == data.PlayerId &&
+        e.PendingTradeDraft.ToPlayerId == data.WithPlayerId &&
+        e.PendingTradeDraft.SessionId == data.SessionId {
+        return internal.UserActionStatus{
+            Status: http.StatusOK,
+            Data:   *e.PendingTradeDraft,
+        }
+    }
+
+    pendingTradeDraft := internal.PendingTradeDraft{
+        FromPlayerId: data.PlayerId,
+        ToPlayerId:   data.WithPlayerId,
+        SessionId:    data.SessionId,
+    }
+
+    tradeStatus := SetPendingTradeDraft(log, e, pendingTradeDraft)
+    if tradeStatus.Status != http.StatusOK {
+        return tradeStatus
+    }
+
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
+    return tradeStatus
+}
+
+func CloseTradeDraft(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    data := action.Data.(internal.TradeDecisionActionData)
+
+    if e.PendingTradeDraft == nil {
+        return internal.UserActionStatus{
+            Status: http.StatusOK,
+        }
+    }
+
+    if e.PendingTradeDraft.SessionId != data.SessionId || e.PendingTradeDraft.FromPlayerId != data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "only the proposing player can close this trade",
+        }
+    }
+
+    tradeDraft := ClearPendingTradeDraft(log, e)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   tradeDraft,
+    }
 }
 
 func AcceptTrade(
@@ -1945,6 +2087,7 @@ func AcceptTrade(
     }
 
     trade := buildTradeEvent(e.PendingTrade, true)
+    ClearPendingTradeDraft(log, e)
     e.PendingTrade = nil
     e.Broker.Broadcast(log, "TradeAcceptedEvent", trade)
     events.EmitGameBoardUpdate(log, ctx, e, tx)
@@ -1979,6 +2122,7 @@ func RejectTrade(
     }
 
     trade := buildTradeEvent(e.PendingTrade, false)
+    ClearPendingTradeDraft(log, e)
     e.PendingTrade = nil
     e.Broker.Broadcast(log, "TradeRejectedEvent", trade)
     events.EmitGameBoardUpdate(log, ctx, e, tx)
@@ -2013,6 +2157,7 @@ func CancelTrade(
     }
 
     trade := buildTradeEvent(e.PendingTrade, false)
+    ClearPendingTradeDraft(log, e)
     e.PendingTrade = nil
     e.Broker.Broadcast(log, "TradeCancelledEvent", trade)
     events.EmitGameBoardUpdate(log, ctx, e, tx)

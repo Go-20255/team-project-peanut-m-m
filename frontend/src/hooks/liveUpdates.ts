@@ -30,6 +30,12 @@ import {
   HandleRentDueEvent,
   HandleRentPaidEvent,
   HandleRollDiceEvent,
+  HandleTradeAcceptedEvent,
+  HandleTradeCancelledEvent,
+  HandleTradeDraftClosedEvent,
+  HandleTradeDraftOpenedEvent,
+  HandleTradeProposedEvent,
+  HandleTradeRejectedEvent,
   HandleUseGetOutOfJailCardEvent,
 } from "./gameEvents"
 import { API_URL } from "@/utils/api"
@@ -74,6 +80,12 @@ export function useLiveGameUpdates(sessionId: string | null, playerId: number | 
       PropertyUnmortgagedEvent: HandlePropertyUnmortgagedEvent,
       PlayerExchangeDueEvent: HandlePlayerExchangeDueEvent,
       PlayerExchangeEvent: HandlePlayerExchangeEvent,
+      TradeDraftOpenedEvent: HandleTradeDraftOpenedEvent,
+      TradeDraftClosedEvent: HandleTradeDraftClosedEvent,
+      TradeProposedEvent: HandleTradeProposedEvent,
+      TradeAcceptedEvent: HandleTradeAcceptedEvent,
+      TradeRejectedEvent: HandleTradeRejectedEvent,
+      TradeCancelledEvent: HandleTradeCancelledEvent,
     }
 
     Object.entries(eventManager).map(([eventName, eventHandler]) => {

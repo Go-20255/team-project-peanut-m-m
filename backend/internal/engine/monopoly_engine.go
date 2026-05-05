@@ -76,6 +76,7 @@ func SetupNewMonopolyEngine(sessionId string) {
         PendingBankPayment: nil,
         PendingBankPayout: nil,
         PendingExchange:    nil,
+        PendingTradeDraft: nil,
         PendingTrade:       nil,
         TurnHasRolled:   map[int]bool{},
         ExtraRollAllowed: map[int]bool{},
@@ -261,6 +262,10 @@ func processUserAction(
         action_status = player.PayRent(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PlayerExchangeEvent":
         action_status = player.ExecutePlayerExchange(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "OpenTradeDraftEvent":
+        action_status = player.OpenTradeDraft(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "CloseTradeDraftEvent":
+        action_status = player.CloseTradeDraft(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "ProposeTradeEvent":
         action_status = player.ProposeTrade(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "AcceptTradeEvent":
