@@ -10,10 +10,10 @@ games simultaneously. The frontend for this project was made with Next.js and No
 ```
 .
 ├── backend
-│   ├── Dockerfile
+│   ├── Dockerfile                          <---- Dockerfile for building backend docker image
 │   ├── go.mod
 │   ├── go.sum
-│   ├── handlers
+│   ├── handlers                            <---- handlers stores the different API handlers
 │   │   ├── common
 │   │   │   └── common_handler.go
 │   │   ├── game_state
@@ -26,7 +26,7 @@ games simultaneously. The frontend for this project was made with Next.js and No
 │   │   │   └── property_handler.go
 │   │   └── sse.go
 │   ├── internal
-│   │   ├── db
+│   │   ├── db                              <---- db stores all postgres queries and functions
 │   │   │   ├── common.go
 │   │   │   ├── event_cards
 │   │   │   │   └── event_cards_db.go
@@ -39,8 +39,8 @@ games simultaneously. The frontend for this project was made with Next.js and No
 │   │   │       ├── properties_db.go
 │   │   │       ├── rent_db.go
 │   │   │       └── tiles_db.go
-│   │   ├── engine
-│   │   │   ├── events
+│   │   ├── engine                          <---- engine stores all monopoly engine related code
+│   │   │   ├── events                      <---- events stores how we handle each event produced by the API
 │   │   │   │   ├── board.go
 │   │   │   │   ├── player
 │   │   │   │   │   ├── event_effects.go
@@ -51,30 +51,30 @@ games simultaneously. The frontend for this project was made with Next.js and No
 │   │   │   │   │   └── property_events.go
 │   │   │   │   └── turn
 │   │   │   │       └── turn_events.go
-│   │   │   └── monopoly_engine.go
-│   │   └── types.go
-│   ├── main.go
+│   │   │   └── monopoly_engine.go          <---- here is where the main runtime loop for monopoly game resides
+│   │   └── types.go                        <---- here we store almost all type definitions used by the backend
+│   ├── main.go                             <---- starts the monopoly engines and API server
 │   ├── package-lock.json
 │   ├── rebuild_ephemeral_postgres.sh
-│   └── util
+│   └── util                                <---- utility functions for backend
 │       ├── logging.go
 │       ├── player_jwt.go
 │       └── tokens.go
-├── bruno
+├── bruno                                   <---- bruno files are stored here for API testing
 │   └── <bruno files for api testing>
-├── docker-compose.yml
+├── docker-compose.yml                      <---- Docker compose for deployment
 ├── docs
 │   ├── Checkpoint.md
 │   ├── monopoly components.png
 │   └── Proposal.md
 ├── frontend
-│   ├── Dockerfile
+│   ├── Dockerfile                          <---- Dockerfile for building frontend docker image
 │   ├── eslint.config.mjs
 │   ├── next.config.ts
-│   ├── package.json
+│   ├── package.json                        <---- frontend package settings
 │   ├── package-lock.json
 │   ├── postcss.config.mjs
-│   ├── public
+│   ├── public                              <---- all public assets and images are stored here
 │   │   ├── assets
 │   │   │   └── img
 │   │   │       ├── deeds
@@ -89,32 +89,32 @@ games simultaneously. The frontend for this project was made with Next.js and No
 │   │   ├── vercel.svg
 │   │   └── window.svg
 │   ├── README.md
-│   ├── src
-│   │   ├── app
-│   │   │   ├── game
+│   ├── src                                 <---- frontend source code
+│   │   ├── app                             <---- / (root route)
+│   │   │   ├── game                        <---- /game (game board route)
 │   │   │   │   └── page.tsx
 │   │   │   ├── globals.css
 │   │   │   ├── layout.tsx
 │   │   │   ├── page.tsx
 │   │   │   ├── ReactQueryProvider.tsx
-│   │   │   └── select-player
+│   │   │   └── select-player               <---- /select-player (player select route) 
 │   │   │       └── page.tsx
-│   │   ├── components
+│   │   ├── components                      <---- components used in pages stored here
 │   │   │   └── game
 │   │   │       ├── FinalRanksPage.tsx
 │   │   │       ├── GameBoard.tsx
 │   │   │       ├── PlayerSidebar.tsx
 │   │   │       ├── TokenSelector.tsx
 │   │   │       └── TradeOverlay.tsx
-│   │   ├── hooks
-│   │   │   ├── gameEvents.ts
-│   │   │   ├── liveUpdates.ts
-│   │   │   ├── playerHooks.ts
-│   │   │   ├── propertyHooks.ts
-│   │   │   └── useGameAPI.ts
+│   │   ├── hooks                           <---- All API hooks that call to the backend live here
+│   │   │   ├── gameEvents.ts               <---- live update game events are handled here
+│   │   │   ├── liveUpdates.ts              <---- manages the live update connection with the backend
+│   │   │   ├── playerHooks.ts              <---- hooks for /player routes
+│   │   │   ├── propertyHooks.ts            <---- hooks for /property routes
+│   │   │   └── useGameAPI.ts               <---- hooks for /game routes
 │   │   ├── types
-│   │   │   └── index.ts
-│   │   └── utils
+│   │   │   └── index.ts                    <---- shared types for the frontend
+│   │   └── utils                           <---- utility functions for the frontend
 │   │       ├── api.ts
 │   │       ├── index.ts
 │   │       ├── storage.ts
@@ -123,8 +123,8 @@ games simultaneously. The frontend for this project was made with Next.js and No
 │   ├── tailwind.config.ts
 │   └── tsconfig.json
 ├── .gitignore
-├── justfile
-├── README.md
+├── justfile                                <---- justfile containing setup scripts
+├── README.md                               <---- the file you are reading right now :)
 ├── setup.sh
 └── .vscode
     └── settings.json
