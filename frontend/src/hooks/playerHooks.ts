@@ -107,7 +107,8 @@ export function useLoginPlayer() {
         },
       )
       if (!response.ok) {
-        throw new Error(response.statusText)
+        const errorText = await response.text()
+        throw new Error(errorText || response.statusText)
       }
       return response
     },
@@ -122,9 +123,11 @@ export function useReadyUp() {
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
       }
-      return res.json()
+      const responseText = await res.text()
+      return responseText ? JSON.parse(responseText) : null
     },
   })
 }
@@ -137,9 +140,11 @@ export function useEndTurn() {
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
       }
-      return res.json()
+      const responseText = await res.text()
+      return responseText ? JSON.parse(responseText) : null
     },
   })
 }

@@ -124,6 +124,271 @@ func SetPendingPlayerExchange(
 	}
 }
 
+func SetPendingCardDraw(
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    playerId int,
+    sessionId string,
+    cardType string,
+    tileName string,
+    position int,
+    diceTotal int,
+) internal.UserActionStatus {
+    if e.PendingCardDraw != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is already a pending card draw",
+        }
+    }
+
+    if e.PendingDrawnCard != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is already a drawn card awaiting resolution",
+        }
+    }
+
+    e.PendingCardDraw = &internal.PendingCardDraw{
+        PlayerId:  playerId,
+        SessionId: sessionId,
+        CardType:  cardType,
+        TileName:  tileName,
+        Position:  position,
+        DiceTotal: diceTotal,
+    }
+
+    e.Broker.Broadcast(log, "CardDrawAvailableEvent", e.PendingCardDraw)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   *e.PendingCardDraw,
+    }
+}
+
+func clearPendingCardState(e *internal.MonopolyEngine) {
+    e.PendingCardDraw = nil
+    e.PendingDrawnCard = nil
+}
+
+func finalizeLanding(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    tx *pgxpool.Tx,
+    playerId int,
+    sessionId string,
+    diceTotal int,
+    playerMovement internal.PlayerMovement,
+) internal.UserActionStatus {
+    setGoPayout := func() internal.UserActionStatus {
+        if !playerMovement.FromCard && (playerMovement.PassedGo || playerMovement.NewPosition == 0) {
+            payoutStatus := SetPendingBankPayout(log, e, playerId, sessionId, 200, "Collect as you pass Go")
+            if payoutStatus.Status != http.StatusOK {
+                return payoutStatus
+            }
+        }
+
+        return internal.UserActionStatus{Status: http.StatusOK}
+    }
+
+    tileData, err := internaldb_tiles.GetRentTileData(log, ctx, tx, sessionId, playerMovement.NewPosition)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    playerMovement.PropertyId = tileData.PropertyId
+
+    if playerMovement.FromCard {
+        if playerMovement.NewPosition == 10 {
+            player, err := internaldb_players.GetPlayer(log, ctx, tx, playerId, sessionId)
+            if err != nil {
+                return internal.UserActionStatus{
+                    Status: http.StatusInternalServerError,
+                    Msg:    err.Error(),
+                }
+            }
+
+            if player.Jailed > 0 {
+                e.ExtraRollAllowed[playerId] = false
+                e.DoubleRollCounts[playerId] = 0
+                playerMovement.RollAgain = false
+            } else {
+                playerMovement.RollAgain = e.ExtraRollAllowed[playerId]
+            }
+        } else {
+            playerMovement.RollAgain = e.ExtraRollAllowed[playerId]
+        }
+    }
+
+    e.PendingPropertyPurchase = nil
+
+    if tileData.Name == "Go To Jail" {
+        err = internaldb_players.UpdatePlayerPositionAndJailed(log, ctx, tx, playerId, sessionId, 10, 1)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+
+        e.ExtraRollAllowed[playerId] = false
+        e.DoubleRollCounts[playerId] = 0
+        playerMovement.NewPosition = 10
+        playerMovement.PropertyId = 0
+        playerMovement.RollAgain = false
+
+        e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
+        payoutStatus := setGoPayout()
+        if payoutStatus.Status != http.StatusOK {
+            return payoutStatus
+        }
+        events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+        return internal.UserActionStatus{
+            Status: http.StatusOK,
+            Data:   playerMovement,
+        }
+    }
+
+    if playerMovement.NewPosition == 4 {
+        paymentStatus := SetPendingBankPayment(log, e, playerId, sessionId, 200, "Tuition")
+        if paymentStatus.Status != http.StatusOK {
+            return paymentStatus
+        }
+    }
+
+    if playerMovement.NewPosition == 20 {
+        paymentStatus := SetPendingBankPayment(log, e, playerId, sessionId, 100, "Parking Ticket")
+        if paymentStatus.Status != http.StatusOK {
+            return paymentStatus
+        }
+    }
+
+    if playerMovement.NewPosition == 38 {
+        paymentStatus := SetPendingBankPayment(log, e, playerId, sessionId, 100, "Textbooks")
+        if paymentStatus.Status != http.StatusOK {
+            return paymentStatus
+        }
+    }
+
+    if tileData.Name == "Community Chest" || tileData.Name == "Chance" {
+        cardType := "COMMUNITY"
+        if tileData.Name == "Chance" {
+            cardType = "CHANCE"
+        }
+
+        e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
+        drawStatus := SetPendingCardDraw(log, e, playerId, sessionId, cardType, tileData.Name, playerMovement.NewPosition, diceTotal)
+        if drawStatus.Status != http.StatusOK {
+            return drawStatus
+        }
+        payoutStatus := setGoPayout()
+        if payoutStatus.Status != http.StatusOK {
+            return payoutStatus
+        }
+
+        events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+        return internal.UserActionStatus{
+            Status: http.StatusOK,
+            Data:   playerMovement,
+        }
+    }
+
+    if tileData.HasProperty && tileData.Owned && tileData.OwnerId != playerId && !tileData.IsMortgaged {
+        isUtilityCard, _ := e.TempStore["special_utility_rent"].(bool)
+        isRailroadCard, _ := e.TempStore["special_railroad_rent"].(bool)
+
+        rentAmount, err := getRentAmount(ctx, log, tx, sessionId, tileData, diceTotal, isUtilityCard, isRailroadCard)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+
+        delete(e.TempStore, "special_utility_rent")
+        delete(e.TempStore, "special_railroad_rent")
+
+        if rentAmount > 0 {
+            e.PendingRent = &internal.PendingRent{
+                FromPlayerId:   playerId,
+                ToPlayerId:     tileData.OwnerId,
+                SessionId:      sessionId,
+                PropertyId:     tileData.PropertyId,
+                Position:       playerMovement.NewPosition,
+                Amount:         rentAmount,
+                DiceTotal:      diceTotal,
+                IsUtilityCard:  isUtilityCard,
+                IsRailroadCard: isRailroadCard,
+            }
+
+            playerMovement.RentDue = true
+            playerMovement.RentAmount = rentAmount
+            playerMovement.RentToId = tileData.OwnerId
+            playerMovement.PropertyId = tileData.PropertyId
+
+            e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
+            e.Broker.Broadcast(log, "RentDueEvent", e.PendingRent)
+            payoutStatus := setGoPayout()
+            if payoutStatus.Status != http.StatusOK {
+                return payoutStatus
+            }
+            events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+            return internal.UserActionStatus{
+                Status: http.StatusOK,
+                Data:   playerMovement,
+            }
+        }
+    }
+
+    e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
+    payoutStatus := setGoPayout()
+    if payoutStatus.Status != http.StatusOK {
+        return payoutStatus
+    }
+
+    if tileData.HasProperty && !tileData.Owned && tileData.PropertyId > 0 {
+        currentPlayer, err := internaldb_players.GetPlayer(log, ctx, tx, playerId, sessionId)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+
+        propertyData, err := internaldb_tiles.GetPropertyData(log, ctx, tx, sessionId, tileData.PropertyId)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+
+        e.PendingPropertyPurchase = &internal.PendingPropertyPurchase{
+            PlayerId:     playerId,
+            SessionId:    sessionId,
+            PropertyId:   tileData.PropertyId,
+            PurchaseCost: propertyData.PurchaseCost,
+            PlayerMoney:  currentPlayer.Money,
+            CanAfford:    currentPlayer.Money >= propertyData.PurchaseCost,
+        }
+
+        e.Broker.Broadcast(log, "PropertyPurchaseAvailableEvent", e.PendingPropertyPurchase)
+    }
+
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   playerMovement,
+    }
+}
+
 func clearPlayerTurnState(e *internal.MonopolyEngine, playerId int) {
     delete(e.PendingRolls, playerId)
     delete(e.TurnHasRolled, playerId)
@@ -371,6 +636,8 @@ func ReadyUp(
     if ready_stats.Ready == ready_stats.Total {
         // everyone is ready
         internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx, data.SessionId, 0)
+        e.TurnNumber = 0
+        e.TempStore["turn_decision_rolls"] = make([]internal.DiceRoll, 0)
         log.Info().Msg("final player has readied up; Start Game")
         e.Broker.Broadcast(log, "GameReadyEvent", "START")
     }
@@ -436,11 +703,27 @@ func RollDice(
         })
 
         e.TempStore["turn_decision_rolls"] = rolls
+        e.TurnHasRolled[data.PlayerId] = true
+        e.PendingRolls[data.PlayerId] = diceRoll
     } else {
         if e.PendingRent != nil && e.PendingRent.FromPlayerId == data.PlayerId {
             return internal.UserActionStatus{
                 Status: http.StatusBadRequest,
                 Msg:    "player has a pending rent payment",
+            }
+        }
+
+        if e.PendingCardDraw != nil && e.PendingCardDraw.PlayerId == data.PlayerId {
+            return internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    "player has a pending card draw",
+            }
+        }
+
+        if e.PendingDrawnCard != nil && e.PendingDrawnCard.PlayerId == data.PlayerId {
+            return internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    "player has a drawn card awaiting resolution",
             }
         }
 
@@ -485,7 +768,7 @@ func RollDice(
                 e.PendingRolls[data.PlayerId] = diceRoll
             } else {
                 jailedTurns := player.Jailed
-                if jailedTurns < 3 {
+                if jailedTurns < 4 {
                     jailedTurns += 1
                     err := internaldb_players.UpdatePlayerJailState(
                         log,
@@ -583,14 +866,49 @@ func EndTurn(
         }
     }
 
-    if _, ok := e.PendingRolls[data.PlayerId]; ok {
+    if e.PendingCardDraw != nil && e.PendingCardDraw.PlayerId == data.PlayerId {
         return internal.UserActionStatus{
             Status: http.StatusBadRequest,
-            Msg:    "player has a pending dice roll",
+            Msg:    "player has a pending card draw",
         }
     }
 
-    if e.TurnNumber >= len(players) {
+    if e.PendingDrawnCard != nil && e.PendingDrawnCard.PlayerId == data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player has a drawn card awaiting resolution",
+        }
+    }
+
+    if e.TurnNumber < len(players) {
+        if !e.TurnHasRolled[data.PlayerId] {
+            return internal.UserActionStatus{
+                Status: http.StatusBadRequest,
+                Msg:    "player must roll for turn order",
+            }
+        }
+
+        delete(e.PendingRolls, data.PlayerId)
+    } else {
+        if pendingRoll, ok := e.PendingRolls[data.PlayerId]; ok {
+            player, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
+            if err != nil {
+                return internal.UserActionStatus{
+                    Status: http.StatusInternalServerError,
+                    Msg:    err.Error(),
+                }
+            }
+
+            if !(player.Jailed > 0 && !pendingRoll.IsDouble && !pendingRoll.ReleasedFromJail) {
+                return internal.UserActionStatus{
+                    Status: http.StatusBadRequest,
+                    Msg:    "player has a pending dice roll",
+                }
+            }
+
+            delete(e.PendingRolls, data.PlayerId)
+        }
+
         if !e.TurnHasRolled[data.PlayerId] {
             return internal.UserActionStatus{
                 Status: http.StatusBadRequest,
@@ -604,6 +922,11 @@ func EndTurn(
                 Msg:    "player must roll again",
             }
         }
+    }
+
+    if e.PendingPropertyPurchase != nil && e.PendingPropertyPurchase.PlayerId == data.PlayerId && e.PendingPropertyPurchase.SessionId == data.SessionId {
+        e.Broker.Broadcast(log, "PropertyPurchaseIgnoredEvent", e.PendingPropertyPurchase)
+        e.PendingPropertyPurchase = nil
     }
 
     err := internaldb_game_state.UpdateGameStateTurnNumber(log, ctx, tx, data.SessionId, e.TurnNumber+1)
@@ -728,7 +1051,38 @@ func MovePlayer(
         e.DoubleRollCounts[data.PlayerId] = 0
     }
 
-    tileData, err := internaldb_tiles.GetRentTileData(log, ctx, tx, data.SessionId, newPosition)
+    return finalizeLanding(ctx, log, e, tx, data.PlayerId, data.SessionId, diceRoll.Total, playerMovement)
+}
+
+func DrawCard(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    data := action.Data.(internal.CardActionData)
+
+    _, _, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
+    }
+
+    if e.PendingCardDraw == nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is no pending card draw",
+        }
+    }
+
+    if e.PendingCardDraw.PlayerId != data.PlayerId || e.PendingCardDraw.SessionId != data.SessionId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "card draw player is incorrect",
+        }
+    }
+
+    cardId, err := internaldb_event_cards.AssignEventCardDB(log, ctx, tx, data.SessionId, e.PendingCardDraw.CardType, data.PlayerId)
     if err != nil {
         return internal.UserActionStatus{
             Status: http.StatusInternalServerError,
@@ -736,105 +1090,83 @@ func MovePlayer(
         }
     }
 
-    playerMovement.PropertyId = tileData.PropertyId
-
-	if tileData.Name == "Community Chest" || tileData.Name == "Chance" {
-		var dbCardType string
-		if tileData.Name == "Chance" {
-			dbCardType = "CHANCE"
-		} else {
-			dbCardType = "COMMUNITY"
-		}
-
-		cardId, err := internaldb_event_cards.AssignEventCardDB(log, ctx, tx, data.SessionId, dbCardType, data.PlayerId)
-		if err != nil {
-			return internal.UserActionStatus{
-				Status: http.StatusInternalServerError,
-				Msg:    err.Error(),
-			}
-		}
-
-		e.Broker.Broadcast(log, "DrawCardEvent", map[string]interface{}{
-			"player_id":  data.PlayerId,
-			"session_id": data.SessionId,
-			"card_id":    cardId,
-		})
-
-		effectFunc, exists := CardEffects[cardId]
-		if exists {
-			status := effectFunc(ctx, log, e, tx, data.SessionId, data.PlayerId)
-			if status.Status != http.StatusOK {
-				return status
-			}
-		}
-
-		updatedPlayer, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
-		if err != nil {
-			return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
-		}
-
-		// this is so that the tile data is updated if we move
-		if updatedPlayer.Position != newPosition {
-			newPosition = updatedPlayer.Position
-			playerMovement.NewPosition = newPosition
-
-			tileData, err = internaldb_tiles.GetRentTileData(log, ctx, tx, data.SessionId, newPosition)
-			if err != nil {
-				return internal.UserActionStatus{Status: http.StatusInternalServerError, Msg: err.Error()}
-			}
-			playerMovement.PropertyId = tileData.PropertyId
-		}
-	}
-
-    if tileData.HasProperty && tileData.Owned && tileData.OwnerId != data.PlayerId && !tileData.IsMortgaged {
-        isUtilityCard, _ := e.TempStore["special_utility_rent"].(bool)
-        isRailroadCard, _ := e.TempStore["special_railroad_rent"].(bool)
-
-        rentAmount, err := getRentAmount(ctx, log, tx, data.SessionId, tileData, diceRoll.Total, isUtilityCard, isRailroadCard)
-        if err != nil {
-            return internal.UserActionStatus{
-                Status: http.StatusInternalServerError,
-                Msg:    err.Error(),
-            }
-        }
-
-        delete(e.TempStore, "special_utility_rent")
-        delete(e.TempStore, "special_railroad_rent")
-
-        if rentAmount > 0 {
-            e.PendingRent = &internal.PendingRent{
-                FromPlayerId: data.PlayerId,
-                ToPlayerId:   tileData.OwnerId,
-                SessionId:    data.SessionId,
-                PropertyId:   tileData.PropertyId,
-                Position:     newPosition,
-                Amount:       rentAmount,
-                DiceTotal:    diceRoll.Total,
-                IsUtilityCard: isUtilityCard,
-                IsRailroadCard: isRailroadCard,
-            }
-
-            playerMovement.RentDue = true
-            playerMovement.RentAmount = rentAmount
-            playerMovement.RentToId = tileData.OwnerId
-            playerMovement.PropertyId = tileData.PropertyId
-
-            e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
-            e.Broker.Broadcast(log, "RentDueEvent", e.PendingRent)
-
-            return internal.UserActionStatus{
-                Status: http.StatusOK,
-                Data:   playerMovement,
-            }
+    card, err := internaldb_event_cards.GetEventCard(log, ctx, tx, cardId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
         }
     }
 
-    e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
+    e.PendingDrawnCard = &internal.DrawnCard{
+        PlayerId:   data.PlayerId,
+        SessionId:  data.SessionId,
+        DiceTotal:  e.PendingCardDraw.DiceTotal,
+        EventCard:  card,
+    }
+    e.PendingCardDraw = nil
+
+    e.Broker.Broadcast(log, "DrawCardEvent", e.PendingDrawnCard)
     events.EmitGameBoardUpdate(log, ctx, e, tx)
 
     return internal.UserActionStatus{
         Status: http.StatusOK,
-        Data:   playerMovement,
+        Data:   *e.PendingDrawnCard,
+    }
+}
+
+func ResolveCard(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    data := action.Data.(internal.CardActionData)
+
+    _, _, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
+    }
+
+    if e.PendingDrawnCard == nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is no drawn card awaiting resolution",
+        }
+    }
+
+    if e.PendingDrawnCard.PlayerId != data.PlayerId || e.PendingDrawnCard.SessionId != data.SessionId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "card resolve player is incorrect",
+        }
+    }
+
+    drawnCard := *e.PendingDrawnCard
+    delete(e.TempStore, "card_movement")
+    effectFunc, exists := CardEffects[drawnCard.Id]
+    if exists {
+        status := effectFunc(ctx, log, e, tx, data.SessionId, data.PlayerId)
+        if status.Status != http.StatusOK {
+            return status
+        }
+    }
+
+    e.Broker.Broadcast(log, "CardResolvedEvent", drawnCard)
+    e.PendingDrawnCard = nil
+
+    cardMovement, ok := e.TempStore["card_movement"].(internal.PlayerMovement)
+    if ok {
+        delete(e.TempStore, "card_movement")
+        return finalizeLanding(ctx, log, e, tx, data.PlayerId, data.SessionId, drawnCard.DiceTotal, cardMovement)
+    }
+
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   drawnCard,
     }
 }
 
@@ -922,6 +1254,10 @@ func PayBank(
             }
         }
 
+        delete(e.PendingRolls, data.PlayerId)
+        e.TurnHasRolled[data.PlayerId] = false
+        e.ExtraRollAllowed[data.PlayerId] = false
+        e.DoubleRollCounts[data.PlayerId] = 0
         bankPayment.Jailed = 0
         e.Broker.Broadcast(log, "PayToLeaveJailEvent", internal.JailRelease{
             PlayerId:          data.PlayerId,
@@ -1412,6 +1748,10 @@ func ReleaseFromJail(
         }
     }
 
+    delete(e.PendingRolls, data.PlayerId)
+    e.TurnHasRolled[data.PlayerId] = false
+    e.ExtraRollAllowed[data.PlayerId] = false
+    e.DoubleRollCounts[data.PlayerId] = 0
     jailRelease.GetOutOfJailCards = player.GetOutOfJailCards - 1
 
     e.Broker.Broadcast(log, "UseGetOutOfJailCardEvent", jailRelease)

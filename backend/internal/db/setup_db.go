@@ -248,56 +248,56 @@ $$ LANGUAGE plpgsql;
         INSERT INTO Property (id, name, rentvalues_id, purchase_cost, mortgage_cost, unmortgage_cost, house_cost, hotel_cost, ptype)
         VALUES
             -- Brown (House cost: 50)
-            (1, 'Mediterranean Avenue', 1, 60, 30, 33, 50, 50, 'BROWN'),
-            (2, 'Baltic Avenue', 3, 60, 30, 33, 50, 50, 'BROWN'),
+            (1, 'Riverknoll', 1, 60, 30, 33, 50, 50, 'BROWN'),
+            (2, 'Jefferson', 3, 60, 30, 33, 50, 50, 'BROWN'),
             
             -- Railroad 1
-            (3, 'Reading Railroad', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
+            (3, 'L Lot', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
 
             -- Light Blue (House cost: 50)
-            (4, 'Oriental Avenue', 6, 100, 50, 55, 50, 50, 'LIGHTBLUE'),
-            (5, 'Vermont Avenue', 8, 100, 50, 55, 50, 50, 'LIGHTBLUE'),
-            (6, 'Connecticut Avenue', 9, 120, 60, 66, 50, 50, 'LIGHTBLUE'),
+            (4, 'Ellingson Hall', 6, 100, 50, 55, 50, 50, 'LIGHTBLUE'),
+            (5, 'Sol Heumann Hall', 8, 100, 50, 55, 50, 50, 'LIGHTBLUE'),
+            (6, 'Gleason Hall', 9, 120, 60, 66, 50, 50, 'LIGHTBLUE'),
 
             -- Pink (House cost: 100)
-            (7, 'St. Charles Place', 11, 140, 70, 77, 100, 100, 'PINK'),
-            (8, 'Electric Company', NULL, 150, 75, 83, NULL, NULL, 'UTILITY'),
-            (9, 'States Avenue', 13, 140, 70, 77, 100, 100, 'PINK'),
-            (10, 'Virginia Avenue', 14, 160, 80, 88, 100, 100, 'PINK'),
+            (7, 'Java Wally''s', 11, 140, 70, 77, 100, 100, 'PINK'),
+            (8, 'eduroam', NULL, 150, 75, 83, NULL, NULL, 'UTILITY'),
+            (9, 'College Grind', 13, 140, 70, 77, 100, 100, 'PINK'),
+            (10, 'Beanz', 14, 160, 80, 88, 100, 100, 'PINK'),
 
             -- Railroad 2
-            (11, 'Pennsylvania Railroad', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
+            (11, 'F Lot', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
 
             -- Orange (House cost: 100)
-            (12, 'St. James Place', 16, 180, 90, 99, 100, 100, 'ORANGE'),
-            (13, 'Tennessee Avenue', 18, 180, 90, 99, 100, 100, 'ORANGE'),
-            (14, 'New York Avenue', 19, 200, 100, 110, 100, 100, 'ORANGE'),
+            (12, 'Sentinel', 16, 180, 90, 99, 100, 100, 'ORANGE'),
+            (13, 'Sundial', 18, 180, 90, 99, 100, 100, 'ORANGE'),
+            (14, 'RIT Tiger', 19, 200, 100, 110, 100, 100, 'ORANGE'),
 
             -- Red (House cost: 150)
-            (15, 'Kentucky Avenue', 21, 220, 110, 121, 150, 150, 'RED'),
-            (16, 'Indiana Avenue', 23, 220, 110, 121, 150, 150, 'RED'),
-            (17, 'Illinois Avenue', 24, 240, 120, 132, 150, 150, 'RED'),
+            (15, 'Global Cybersecurity Institute', 21, 220, 110, 121, 150, 150, 'RED'),
+            (16, 'Wallace Library', 23, 220, 110, 121, 150, 150, 'RED'),
+            (17, 'Magic Center', 24, 240, 120, 132, 150, 150, 'RED'),
 
             -- Railroad 3
-            (18, 'B. & O. Railroad', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
+            (18, 'U Lot', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
 
             -- Yellow (House cost: 150)
-            (19, 'Atlantic Avenue', 26, 260, 130, 143, 150, 150, 'YELLOW'),
-            (20, 'Ventnor Avenue', 27, 260, 130, 143, 150, 150, 'YELLOW'),
-            (21, 'Water Works', NULL, 150, 75, 83, NULL, NULL, 'UTILITY'),
-            (22, 'Marvin Gardens', 29, 280, 140, 154, 150, 150, 'YELLOW'),
+            (19, 'Gosnell College', 26, 260, 130, 143, 150, 150, 'YELLOW'),
+            (20, 'Saunders College', 27, 260, 130, 143, 150, 150, 'YELLOW'),
+            (21, 'Tunnels', NULL, 150, 75, 83, NULL, NULL, 'UTILITY'),
+            (22, 'Golisano College', 29, 280, 140, 154, 150, 150, 'YELLOW'),
 
             -- Green (House cost: 200)
-            (23, 'Pacific Avenue', 31, 300, 150, 165, 200, 200, 'GREEN'),
-            (24, 'North Carolina Avenue', 32, 300, 150, 165, 200, 200, 'GREEN'),
-            (25, 'Pennsylvania Avenue', 34, 320, 160, 176, 200, 200, 'GREEN'),
+            (23, 'Gordon Field House', 31, 300, 150, 165, 200, 200, 'GREEN'),
+            (24, 'Judson Stadium', 32, 300, 150, 165, 200, 200, 'GREEN'),
+            (25, 'Gene Polisseni Center', 34, 320, 160, 176, 200, 200, 'GREEN'),
 
             -- Railroad 4
-            (26, 'Short Line', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
+            (26, 'D Lot', NULL, 200, 100, 110, NULL, NULL, 'RAILROAD'),
 
             -- Dark Blue (House cost: 200)
-            (27, 'Park Place', 37, 350, 175, 193, 200, 200, 'DARKBLUE'),
-            (28, 'Boardwalk', 39, 400, 200, 220, 200, 200, 'DARKBLUE')
+            (27, 'Performing Arts Center', 37, 350, 175, 193, 200, 200, 'DARKBLUE'),
+            (28, 'SHED', 39, 400, 200, 220, 200, 200, 'DARKBLUE')
         ON CONFLICT (id) DO NOTHING;
     `)
     if err != nil {
@@ -320,76 +320,76 @@ $$ LANGUAGE plpgsql;
         VALUES
             (0, NULL, 'Go'),
             -- Brown (House cost: 50)
-            (1, 1, 'Mediterranean Avenue'),
-            (3, 2, 'Baltic Avenue'),
+            (1, 1, 'Riverknoll'),
+            (3, 2, 'Jefferson'),
 
             (2, NULL, 'Community Chest'),
-            (4, NULL, 'Income Tax'),
+            (4, NULL, 'Tuition'),
             
             -- Railroad 1
-            (5, 3, 'Reading Railroad'),
+            (5, 3, 'L Lot'),
 
             -- Light Blue (House cost: 50)
-            (6, 4, 'Oriental Avenue'),
-            (8, 5, 'Vermont Avenue'),
-            (9, 6, 'Connecticut Avenue'),
+            (6, 4, 'Ellingson Hall'),
+            (8, 5, 'Sol Heumann Hall'),
+            (9, 6, 'Gleason Hall'),
 
             (7, NULL, 'Chance'),
             
             (10, NULL, 'Just Visiting'),
 
             -- Pink (House cost: 100)
-            (11, 7, 'St. Charles Place'),
-            (12, 8, 'Electric Company'),
-            (13, 9, 'States Avenue'),
-            (14, 10, 'Virginia Avenue'),
+            (11, 7, 'Java Wally''s'),
+            (12, 8, 'eduroam'),
+            (13, 9, 'College Grind'),
+            (14, 10, 'Beanz'),
 
             -- Railroad 2
-            (15, 11, 'Pennsylvania Railroad'),
+            (15, 11, 'F Lot'),
 
             -- Orange (House cost: 100)
-            (16, 12, 'St. James Place'),
-            (18, 13, 'Tennessee Avenue'),
-            (19, 14, 'New York Avenue'),
+            (16, 12, 'Sentinel'),
+            (18, 13, 'Sundial'),
+            (19, 14, 'RIT Tiger'),
 
             (17, NULL, 'Community Chest'),
-            (20, NULL, 'Free Parking'),
+            (20, NULL, 'Parking Ticket'),
 
             -- Red (House cost: 150)
-            (21, 15, 'Kentucky Avenue'),
-            (23, 16, 'Indiana Avenue'),
-            (24, 17, 'Illinois Avenue'),
+            (21, 15, 'Global Cybersecurity Institute'),
+            (23, 16, 'Wallace Library'),
+            (24, 17, 'Magic Center'),
 
             (22, NULL, 'Chance'),
 
             -- Railroad 3
-            (25, 18, 'B. & O. Railroad'),
+            (25, 18, 'U Lot'),
 
             -- Yellow (House cost: 150)
-            (26, 19, 'Atlantic Avenue'),
-            (27, 20, 'Ventnor Avenue'),
-            (28, 21, 'Water Works'),
-            (29, 22, 'Marvin Gardens'),
+            (26, 19, 'Gosnell College'),
+            (27, 20, 'Saunders College'),
+            (28, 21, 'Tunnels'),
+            (29, 22, 'Golisano College'),
 
-            (30, NULL, 'Go To Jail'),
+            (30, NULL, 'Go to Jail'),
 
             -- Green (House cost: 200)
-            (31, 23, 'Pacific Avenue'),
-            (32, 24, 'North Carolina Avenue'),
-            (34, 25, 'Pennsylvania Avenue'),
+            (31, 23, 'Gordon Field House'),
+            (32, 24, 'Judson Stadium'),
+            (34, 25, 'Gene Polisseni Center'),
 
             (33, NULL, 'Community Chest'),
 
             -- Railroad 4
-            (35, 26, 'Short Line'),
+            (35, 26, 'D Lot'),
 
             (36, NULL, 'Chance'),
 
             -- Dark Blue (House cost: 200)
-            (37, 27, 'Park Place'),
-            (39, 28, 'Boardwalk'),
+            (37, 27, 'Performing Arts Center'),
+            (39, 28, 'SHED'),
 
-            (38, NULL, 'Luxury Tax')
+            (38, NULL, 'Buy Textbooks')
 
         ON CONFLICT (id) DO NOTHING;
     `)

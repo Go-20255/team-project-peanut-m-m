@@ -1,11 +1,19 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { getTokenIcon, getTokenName } from "@/utils/tokens"
-import { Player, GameState } from "@/types"
-import { useMovePlayer, useRollDice } from "@/hooks/useGameAPI"
-import { storage } from "@/utils"
+import { Player, GameState, OwnedProperty } from "@/types"
 import { useEndTurn } from "@/hooks/playerHooks"
+import {
+  useMortgageProperty,
+  usePurchaseHouse,
+  usePurchaseHotel,
+  useSellHouse,
+  useSellHotel,
+  useUnmortgageProperty,
+} from "@/hooks/propertyHooks"
+import { storage } from "@/utils"
+import { emitToast } from "@/utils/toast"
 
 interface PlayerSidebarProps {
   sessionId: string
@@ -14,6 +22,8 @@ interface PlayerSidebarProps {
   players: Player[]
   currentPlayerTurnId?: number | null
   gameState?: GameState | null
+  activePropertyId?: number | null
+  onSelectProperty: (propertyId: number | null) => void
 }
 
 export default function PlayerSidebar({
@@ -23,71 +33,169 @@ export default function PlayerSidebar({
   players,
   currentPlayerTurnId,
   gameState,
+  activePropertyId,
+  onSelectProperty,
 }: PlayerSidebarProps) {
-  const [diceRoll, setDiceRoll] = useState<any>(null)
-  const [error, setError] = useState<string | null>(null)
   const [joinCode, setJoinCode] = useState<string>("")
+  const popupRef = useRef<HTMLDivElement | null>(null)
+  const endTurnMutation = useEndTurn()
+  const purchaseHouseMutation = usePurchaseHouse()
+  const purchaseHotelMutation = usePurchaseHotel()
+  const sellHouseMutation = useSellHouse()
+  const sellHotelMutation = useSellHotel()
+  const mortgagePropertyMutation = useMortgageProperty()
+  const unmortgagePropertyMutation = useUnmortgageProperty()
+  const propertyOrder = [
+    "BROWN",
+    "LIGHTBLUE",
+    "PINK",
+    "ORANGE",
+    "RED",
+    "YELLOW",
+    "GREEN",
+    "DARKBLUE",
+    "RAILROAD",
+    "UTILITY",
+  ]
+
+  const getPropertyColor = (property: OwnedProperty) => {
+    const propertyType = property.property_info.property_type
+
+    switch (propertyType) {
+      case "BROWN":
+        return "#8B5A2B"
+      case "LIGHTBLUE":
+        return "#87CEEB"
+      case "PINK":
+        return "#FF69B4"
+      case "ORANGE":
+        return "#F5A623"
+      case "RED":
+        return "#D32F2F"
+      case "YELLOW":
+        return "#F7D54A"
+      case "GREEN":
+        return "#4CAF50"
+      case "DARKBLUE":
+        return "#1E3A8A"
+      case "RAILROAD":
+        return "#000000"
+      case "UTILITY":
+        return "#FFFFFF"
+      default:
+        return "#FFFFFF"
+    }
+  }
 
   const isCurrentPlayerTurn = currentPlayerTurnId?.toString() === playerId
+  const isGameStarted = (gameState?.current_turn ?? -1) >= 0
+  const isTurnOrderPhase = (gameState?.current_turn ?? -1) >= 0 && !!gameState?.players.some((playerInfo) => playerInfo.player.player_order === -1)
 
   const currentPlayer = players.find((p) => p.id === currentPlayerTurnId)
-  const rollMutation = useRollDice()
-  const endTurnMutation = useEndTurn()
-  const movePlayerMutation = useMovePlayer()
+  const selectedProperty = useMemo(() => {
+    if (!activePropertyId || !gameState) return null
+
+    for (const playerInfo of gameState.players) {
+      const ownedProperty = (playerInfo.owned_properties ?? []).find(
+        (property) => property.property_info.id === activePropertyId,
+      )
+      if (ownedProperty) {
+        return ownedProperty
+      }
+    }
+
+    return null
+  }, [activePropertyId, gameState])
+  const selectedPropertyOwner = useMemo(() => {
+    if (!activePropertyId || !gameState) return null
+
+    for (const playerInfo of gameState.players) {
+      const ownedProperty = (playerInfo.owned_properties ?? []).find(
+        (property) => property.property_info.id === activePropertyId,
+      )
+      if (ownedProperty) {
+        return playerInfo.player
+      }
+    }
+
+    return null
+  }, [activePropertyId, gameState])
+  const selectedPropertyRent = selectedProperty?.is_mortgaged ? 0 : (selectedProperty?.current_rent ?? 0)
+  const selectedPropertyType = selectedProperty?.property_info.property_type ?? null
+  const isSelectedUtility = selectedPropertyType === "UTILITY"
+  const isSelectedRailroad = selectedPropertyType === "RAILROAD"
+  const isSelectedBuildable = !!selectedPropertyType && !isSelectedUtility && !isSelectedRailroad
+
+  const getRankLabel = (rank: number) => {
+    const value = Math.abs(rank)
+    const mod100 = value % 100
+
+    if (mod100 >= 11 && mod100 <= 13) {
+      return `${rank}th place`
+    }
+
+    switch (value % 10) {
+      case 1:
+        return `${rank}st place`
+      case 2:
+        return `${rank}nd place`
+      case 3:
+        return `${rank}rd place`
+      default:
+        return `${rank}th place`
+    }
+  }
 
   useEffect(() => {
     const code = storage.getGameCode()
     if (code) setJoinCode(code)
   }, [])
 
+  useEffect(() => {
+    if (!activePropertyId) return
+    if (selectedProperty) return
+    onSelectProperty(null)
+  }, [activePropertyId, onSelectProperty, selectedProperty])
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(event.target as Node)) {
+        onSelectProperty(null)
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown)
+    return () => document.removeEventListener("mousedown", handlePointerDown)
+  }, [onSelectProperty])
+
   const handleEndTurn = () => {
-    if (!isCurrentPlayerTurn) {
-      setError("It's not your turn!")
-      return
-    }
-    setError(null)
-    endTurnMutation.mutate()
+    if (!isCurrentPlayerTurn) return
+
+    endTurnMutation.mutate(undefined, {
+      onError: (error: Error) => {
+        emitToast(error.message)
+      },
+    })
   }
 
-  const handleRollDice = async () => {
-    if (!isCurrentPlayerTurn) {
-      setError("It's not your turn!")
-      return
-    }
-
-    setError(null)
-    rollMutation.mutate(
-      { playerId: playerId, sessionId: sessionId },
-      {
-        onSuccess: (res) => {
-          setDiceRoll(res)
-          console.log("Dice roll successful:", res)
-        },
-        onError: (err) => {
-          var errorText = err.message
-          setError(`Failed to roll: ${errorText}`)
-          console.error("Roll dice error:", errorText)
-        },
+  const handlePropertyAction = (
+    propertyId: number,
+    mutation:
+      | typeof purchaseHouseMutation
+      | typeof purchaseHotelMutation
+      | typeof sellHouseMutation
+      | typeof sellHotelMutation
+      | typeof mortgagePropertyMutation
+      | typeof unmortgagePropertyMutation,
+  ) => {
+    mutation.mutate(propertyId, {
+      onSuccess: () => {
+        onSelectProperty(null)
       },
-    )
-  }
-
-  const handleMove = async () => {
-    setError(null)
-    movePlayerMutation.mutate(
-      { playerId: playerId, sessionId: sessionId },
-      {
-        onSuccess: (res) => {
-          setDiceRoll(null)
-          console.log("Move successful")
-        },
-        onError: (err) => {
-          var errorText = err.message
-          setError(`Failed to move: ${errorText}`)
-          console.error("Move error:", errorText)
-        },
+      onError: (error: Error) => {
+        emitToast(error.message)
       },
-    )
+    })
   }
 
   return (
@@ -108,83 +216,45 @@ export default function PlayerSidebar({
       <div
         className="mb-4 p-3 border-2"
         style={{
-          borderColor: isCurrentPlayerTurn ? "#00AA00" : "#D0D3D4",
-          backgroundColor: isCurrentPlayerTurn ? "#E8F5E9" : "#F9F9F9",
+          borderColor: isGameStarted && isCurrentPlayerTurn ? "#00AA00" : "#D0D3D4",
+          backgroundColor: isGameStarted && isCurrentPlayerTurn ? "#E8F5E9" : "#F9F9F9",
         }}
       >
         <div className="text-xs font-bold mb-2" style={{ color: "#7C878E" }}>
-          CURRENT TURN
+          {isGameStarted ? (isTurnOrderPhase ? "TURN ORDER" : "CURRENT TURN") : "LOBBY"}
         </div>
-        <div className="text-lg font-bold mb-2" style={{ color: isCurrentPlayerTurn ? "#00AA00" : "#F76902" }}>
-          {currentPlayer ? currentPlayer.name : "Waiting..."}
+        <div className="text-lg font-bold mb-2" style={{ color: isGameStarted && isCurrentPlayerTurn ? "#00AA00" : "#F76902" }}>
+          {isGameStarted ? (currentPlayer ? currentPlayer.name : "Waiting...") : "Waiting"}
         </div>
 
-        {isCurrentPlayerTurn && (
-          <div className="text-xs mb-3" style={{ color: "#00AA00" }}>
-            ✅ It's your turn to play!
-          </div>
+        {isGameStarted && isCurrentPlayerTurn && (
+          <button
+            type="button"
+            onClick={handleEndTurn}
+            disabled={endTurnMutation.isPending}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              marginBottom: 12,
+              backgroundColor: endTurnMutation.isPending ? "#D0D3D4" : "#F76902",
+              color: "#FFFFFF",
+              fontWeight: 700,
+              cursor: endTurnMutation.isPending ? "not-allowed" : "pointer",
+            }}
+          >
+            End Turn
+          </button>
         )}
 
-        {!isCurrentPlayerTurn && currentPlayer && (
+        {isGameStarted && !isCurrentPlayerTurn && currentPlayer && (
           <div className="text-xs mb-3" style={{ color: "#7C878E" }}>
             Waiting for {currentPlayer.name} to play...
           </div>
         )}
-      </div>
 
-      {/* Actions Section */}
-      <div className="mb-4 p-3 border-2 flex flex-col gap-4" style={{ borderColor: "#D0D3D4" }}>
-        {diceRoll ? (
-          <>
-            <div className="text-sm font-bold mb-3" style={{ color: "#F76902" }}>
-              🎲 Last Roll: {diceRoll.die_one} + {diceRoll.die_two} = {diceRoll.total}
-            </div>
-            <button
-              onClick={handleMove}
-              disabled={movePlayerMutation.isPending || !isCurrentPlayerTurn}
-              className="w-full py-2 px-3 rounded font-bold text-white"
-              style={{
-                backgroundColor: movePlayerMutation.isPending || !isCurrentPlayerTurn ? "#ccc" : "#F76902",
-                cursor: movePlayerMutation.isPending || !isCurrentPlayerTurn ? "not-allowed" : "pointer",
-              }}
-              title={!isCurrentPlayerTurn ? "Not your turn" : "Move your piece"}
-            >
-              {movePlayerMutation.isPending ? "Moving..." : "Move"}
-            </button>
-          </>
-        ) : (
-          <button
-            onClick={handleRollDice}
-            disabled={rollMutation.isPending || !isCurrentPlayerTurn}
-            className="w-full py-2 px-3 rounded font-bold text-white"
-            style={{
-              backgroundColor: rollMutation.isPending || !isCurrentPlayerTurn ? "#ccc" : "#F76902",
-              cursor: rollMutation.isPending || !isCurrentPlayerTurn ? "not-allowed" : "pointer",
-            }}
-            title={!isCurrentPlayerTurn ? "Not your turn - wait for your turn to roll" : "Roll the dice"}
-          >
-            {rollMutation.isPending ? "Rolling..." : "Roll Dice"}
-          </button>
-        )}
-        <>
-          <button
-            onClick={handleEndTurn}
-            disabled={!isCurrentPlayerTurn}
-            className="w-full py-2 px-3 rounded font-bold text-white"
-            style={{
-              backgroundColor: !isCurrentPlayerTurn ? "#ccc" : "#F76902",
-              cursor: !isCurrentPlayerTurn ? "not-allowed" : "pointer",
-            }}
-            title={!isCurrentPlayerTurn ? "Not your turn" : "End Turn"}
-          >
-            End Turn
-          </button>
-        </>
-
-        {/* Error message */}
-        {error && (
-          <div className="text-xs mt-2 p-2 rounded" style={{ color: "#D32F2F", backgroundColor: "#FFEBEE" }}>
-            {error}
+        {!isGameStarted && (
+          <div className="text-xs mb-3" style={{ color: "#7C878E" }}>
+            Ready up to start
           </div>
         )}
       </div>
@@ -203,6 +273,22 @@ export default function PlayerSidebar({
           players.map((player) => {
             const isCurrentPlayer = player.id.toString() === playerId
             const isPlayerTurn = player.id === currentPlayerTurnId
+            const ownedProperties =
+              (gameState?.players
+                .find((playerInfo) => playerInfo.player.id === player.id)
+                ?.owned_properties ?? [])
+                .slice()
+                .sort((a, b) => {
+                  const typeDiff =
+                    propertyOrder.indexOf(a.property_info.property_type) -
+                    propertyOrder.indexOf(b.property_info.property_type)
+
+                  if (typeDiff !== 0) {
+                    return typeDiff
+                  }
+
+                  return a.property_info.purchase_cost - b.property_info.purchase_cost
+                }) ?? []
 
             return (
               <div
@@ -230,41 +316,34 @@ export default function PlayerSidebar({
                       height: "18px",
                       border: isPlayerTurn ? "2px solid #FFD700" : "1px solid #000",
                       borderRadius: "2px",
+                      objectFit: "cover",
+                      objectPosition: "top",
                     }}
                     title={getTokenName(player.piece_token)}
                   />
                   <span>{player.name}</span>
+                  {player.rank > 0 ? (
+                    <span style={{ fontSize: "0.75em", color: "#7C878E", fontWeight: 700 }}>
+                      {getRankLabel(player.rank)}
+                    </span>
+                  ) : null}
                   {isCurrentPlayer && !isPlayerTurn && (
                     <span style={{ fontSize: "0.85em", color: "#F76902" }}>(you)</span>
                   )}
                   {isPlayerTurn && (
                     <span style={{ fontSize: "0.75em", color: "#F57F17", fontWeight: "bold" }}>PLAYING</span>
                   )}
-                  {player.in_game ? (
-                    <span
-                      className="bg-green-600 text-white px-2 py-0.5 rounded-full "
-                      style={{ fontSize: "0.75em", fontWeight: "bold" }}
-                    >
-                      In Game
-                    </span>
-                  ) : (
-                    <span
-                      className="bg-red-600 text-white px-2 py-0.5 rounded-full "
-                      style={{ fontSize: "0.75em", fontWeight: "bold" }}
-                    >
-                      Offline
-                    </span>
-                  )}
-                </div>
-
-                {/* Position */}
-                <div
-                  className="text-sm mb-2"
-                  style={{
-                    color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#000000" : "#7C878E",
-                  }}
-                >
-                  Position: {player.position}
+                  <span
+                    title={player.in_game ? "In Game" : "Offline"}
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "999px",
+                      backgroundColor: player.in_game ? "#00AA00" : "#D32F2F",
+                      display: "inline-block",
+                      flexShrink: 0,
+                    }}
+                  />
                 </div>
 
                 {/* Money */}
@@ -274,7 +353,7 @@ export default function PlayerSidebar({
                     color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#000000" : "#7C878E",
                   }}
                 >
-                  Money: ${player.money.toLocaleString()}
+                  Money: ₮{player.money.toLocaleString()}
                 </div>
 
                 {/* Properties placeholder */}
@@ -285,7 +364,268 @@ export default function PlayerSidebar({
                     color: isPlayerTurn ? "#F57F17" : isCurrentPlayer ? "#000000" : "#7C878E",
                   }}
                 >
-                  Properties: None
+                  {ownedProperties.length === 0 ? (
+                    <div>Properties: None</div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {ownedProperties.map((property) => (
+                        <div
+                          key={property.id}
+                          style={{
+                            position: "relative",
+                          }}
+                        >
+                              <button
+                                type="button"
+                                title={property.property_info.name}
+                                onClick={() => {
+                                  onSelectProperty(
+                                    activePropertyId === property.property_info.id ? null : property.property_info.id,
+                                  )
+                                }}
+                                style={{
+                                  width: 14,
+                                  height: 14,
+                                  border: "1px solid #000000",
+                                  backgroundColor: getPropertyColor(property),
+                                  flexShrink: 0,
+                                  display: "block",
+                                  cursor: "pointer",
+                                  boxShadow: activePropertyId === property.property_info.id ? "0 0 0 2px #F76902" : "none",
+                                }}
+                              />
+
+                          {activePropertyId === property.property_info.id ? (
+                            <div
+                              ref={popupRef}
+                              style={{
+                                position: "absolute",
+                                left: 24,
+                                top: "50%",
+                                transform: "translateY(-50%)",
+                                zIndex: 20,
+                                width: 180,
+                                backgroundColor: "#FFFFFF",
+                                border: "1px solid #000000",
+                                padding: 10,
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 8,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  left: -8,
+                                  top: "50%",
+                                  width: 0,
+                                  height: 0,
+                                  borderTop: "8px solid transparent",
+                                  borderBottom: "8px solid transparent",
+                                  borderRight: "8px solid #000000",
+                                  transform: "translateY(-50%)",
+                                }}
+                              />
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  left: -7,
+                                  top: "50%",
+                                  width: 0,
+                                  height: 0,
+                                  borderTop: "7px solid transparent",
+                                  borderBottom: "7px solid transparent",
+                                  borderRight: "7px solid #FFFFFF",
+                                  transform: "translateY(-50%)",
+                                }}
+                              />
+
+                              <div
+                                style={{
+                                  color: "#000000",
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {property.property_info.name}
+                              </div>
+
+                              <div
+                                style={{
+                                  color: "#7C878E",
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                Owner: {selectedPropertyOwner?.name ?? player.name}
+                              </div>
+
+                              <div
+                                style={{
+                                  color: "#7C878E",
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                Mortgaged: {property.is_mortgaged ? "Yes" : "No"}
+                              </div>
+
+                              {!isSelectedUtility ? (
+                                <div
+                                  style={{
+                                    color: "#7C878E",
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  Rent: ₮{selectedPropertyRent.toLocaleString()}
+                                </div>
+                              ) : null}
+
+                              {isSelectedBuildable ? (
+                                <>
+                                  <div
+                                    style={{
+                                      color: "#7C878E",
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    Houses: {property.houses}
+                                  </div>
+
+                                  <div
+                                    style={{
+                                      color: "#7C878E",
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    Hotel: {property.has_hotel ? "Yes" : "No"}
+                                  </div>
+                                </>
+                              ) : null}
+
+                              {isCurrentPlayer ? (
+                                <>
+                                  {isSelectedBuildable ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => handlePropertyAction(property.property_info.id, purchaseHouseMutation)}
+                                        disabled={!isCurrentPlayerTurn || purchaseHouseMutation.isPending}
+                                        style={{
+                                          width: "100%",
+                                          padding: "8px 10px",
+                                          backgroundColor: !isCurrentPlayerTurn || purchaseHouseMutation.isPending ? "#D0D3D4" : "#F76902",
+                                          color: "#FFFFFF",
+                                          fontWeight: 700,
+                                          cursor: !isCurrentPlayerTurn || purchaseHouseMutation.isPending ? "not-allowed" : "pointer",
+                                        }}
+                                      >
+                                        Buy House
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handlePropertyAction(property.property_info.id, sellHouseMutation)}
+                                        disabled={!isCurrentPlayerTurn || sellHouseMutation.isPending}
+                                        style={{
+                                          width: "100%",
+                                          padding: "8px 10px",
+                                          backgroundColor: !isCurrentPlayerTurn || sellHouseMutation.isPending ? "#D0D3D4" : "#D0D3D4",
+                                          color: "#000000",
+                                          fontWeight: 700,
+                                          cursor: !isCurrentPlayerTurn || sellHouseMutation.isPending ? "not-allowed" : "pointer",
+                                          opacity: !isCurrentPlayerTurn || sellHouseMutation.isPending ? 0.7 : 1,
+                                        }}
+                                      >
+                                        Sell House
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handlePropertyAction(property.property_info.id, purchaseHotelMutation)}
+                                        disabled={!isCurrentPlayerTurn || purchaseHotelMutation.isPending}
+                                        style={{
+                                          width: "100%",
+                                          padding: "8px 10px",
+                                          backgroundColor: !isCurrentPlayerTurn || purchaseHotelMutation.isPending ? "#D0D3D4" : "#F76902",
+                                          color: "#FFFFFF",
+                                          fontWeight: 700,
+                                          cursor: !isCurrentPlayerTurn || purchaseHotelMutation.isPending ? "not-allowed" : "pointer",
+                                        }}
+                                      >
+                                        Buy Hotel
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handlePropertyAction(property.property_info.id, sellHotelMutation)}
+                                        disabled={!isCurrentPlayerTurn || sellHotelMutation.isPending}
+                                        style={{
+                                          width: "100%",
+                                          padding: "8px 10px",
+                                          backgroundColor: !isCurrentPlayerTurn || sellHotelMutation.isPending ? "#D0D3D4" : "#D0D3D4",
+                                          color: "#000000",
+                                          fontWeight: 700,
+                                          cursor: !isCurrentPlayerTurn || sellHotelMutation.isPending ? "not-allowed" : "pointer",
+                                          opacity: !isCurrentPlayerTurn || sellHotelMutation.isPending ? 0.7 : 1,
+                                        }}
+                                      >
+                                        Sell Hotel
+                                      </button>
+                                    </>
+                                  ) : null}
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handlePropertyAction(
+                                        property.property_info.id,
+                                        property.is_mortgaged ? unmortgagePropertyMutation : mortgagePropertyMutation,
+                                      )
+                                    }
+                                    disabled={
+                                      !isCurrentPlayerTurn ||
+                                      mortgagePropertyMutation.isPending ||
+                                      unmortgagePropertyMutation.isPending
+                                    }
+                                    style={{
+                                      width: "100%",
+                                      padding: "8px 10px",
+                                      backgroundColor:
+                                        !isCurrentPlayerTurn ||
+                                        mortgagePropertyMutation.isPending ||
+                                        unmortgagePropertyMutation.isPending
+                                          ? "#D0D3D4"
+                                          : "#D0D3D4",
+                                      color: "#000000",
+                                      fontWeight: 700,
+                                      cursor:
+                                        !isCurrentPlayerTurn ||
+                                        mortgagePropertyMutation.isPending ||
+                                        unmortgagePropertyMutation.isPending
+                                          ? "not-allowed"
+                                          : "pointer",
+                                      opacity:
+                                        !isCurrentPlayerTurn ||
+                                        mortgagePropertyMutation.isPending ||
+                                        unmortgagePropertyMutation.isPending
+                                          ? 0.7
+                                          : 1,
+                                    }}
+                                  >
+                                    {property.is_mortgaged ? "Unmortgage" : "Mortgage"}
+                                  </button>
+                                </>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )

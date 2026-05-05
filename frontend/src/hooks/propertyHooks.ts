@@ -28,42 +28,50 @@ export function useFetchPropertyOwner(property_id: string) {
  */
 export function usePurchaseProperty() {
   return useMutation({
-    mutationFn: async ({
-      playerId,
-      sessionId,
-      propertyId,
-    }: {
-      playerId: number
-      sessionId: string
-      propertyId: number
-    }) => {
-      const formData = new FormData()
-      formData.append("player_id", playerId.toString())
-      formData.append("session_id", sessionId)
-      formData.append("property_id", propertyId.toString())
-
+    mutationFn: async () => {
       const res = await fetch(`${API_URL}/api/game/property`, {
         method: "POST",
         credentials: "include",
-        body: formData,
       })
       if (!res.ok) {
-        throw new Error("Failed to purchase property")
+        const errorText = await res.text()
+        throw new Error(errorText || "Failed to purchase property")
       }
-      return res.json()
+      return res.text()
+    },
+  })
+}
+
+export function useIgnorePropertyPurchase() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/game/property/ignore`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || "Failed to ignore property")
+      }
+      return res.text()
     },
   })
 }
 
 export function usePurchaseHouse() {
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (propertyId: number) => {
+      const body = new URLSearchParams({
+        property_id: propertyId.toString(),
+      })
       const res = await fetch(`${API_URL}/api/game/property/house`, {
         method: "POST",
+        body,
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || "Failed to buy house")
       }
       return res.json()
     },
@@ -72,13 +80,18 @@ export function usePurchaseHouse() {
 
 export function usePurchaseHotel() {
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (propertyId: number) => {
+      const body = new URLSearchParams({
+        property_id: propertyId.toString(),
+      })
       const res = await fetch(`${API_URL}/api/game/property/hotel`, {
         method: "POST",
+        body,
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || "Failed to buy hotel")
       }
       return res.json()
     },
@@ -87,13 +100,18 @@ export function usePurchaseHotel() {
 
 export function useSellHouse() {
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (propertyId: number) => {
+      const body = new URLSearchParams({
+        property_id: propertyId.toString(),
+      })
       const res = await fetch(`${API_URL}/api/game/property/house/sell`, {
         method: "POST",
+        body,
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || "Failed to sell house")
       }
       return res.json()
     },
@@ -102,13 +120,18 @@ export function useSellHouse() {
 
 export function useSellHotel() {
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (propertyId: number) => {
+      const body = new URLSearchParams({
+        property_id: propertyId.toString(),
+      })
       const res = await fetch(`${API_URL}/api/game/property/hotel/sell`, {
         method: "POST",
+        body,
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || "Failed to sell hotel")
       }
       return res.json()
     },
@@ -117,13 +140,18 @@ export function useSellHotel() {
 
 export function useMortgageProperty() {
   return useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`${API_URL}/api/game/mortgage`, {
+    mutationFn: async (propertyId: number) => {
+      const body = new URLSearchParams({
+        property_id: propertyId.toString(),
+      })
+      const res = await fetch(`${API_URL}/api/game/property/mortgage`, {
         method: "POST",
+        body,
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || "Failed to mortgage property")
       }
       return res.json()
     },
@@ -132,16 +160,20 @@ export function useMortgageProperty() {
 
 export function useUnmortgageProperty() {
   return useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`${API_URL}/api/game/unmortgage`, {
+    mutationFn: async (propertyId: number) => {
+      const body = new URLSearchParams({
+        property_id: propertyId.toString(),
+      })
+      const res = await fetch(`${API_URL}/api/game/property/unmortgage`, {
         method: "POST",
+        body,
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || "Failed to unmortgage property")
       }
       return res.json()
     },
   })
 }
-
