@@ -22,8 +22,8 @@ var CardEffects = map[int]CardEffectFunc{
 	2:  advanceToIllinoisAvenueEffect,
 	3:  advanceToStCharlesPlaceEffect,
 	4:  advanceToNearestUtilityEffect,
-	5:  advanceToNearestRailroadEffect,
-	6:  advanceToNearestRailroadEffect,
+	5:  advanceToNearestRailroadBackpackEffect,
+	6:  advanceToNearestRailroadLaptopEffect,
 	7:  advanceToBoardwalkEffect,
 	8:  dividendEffect,
 	9:  getOutOfJailFreeEffect,
@@ -78,7 +78,7 @@ func advanceToGoEffect(ctx context.Context, log zerolog.Logger, e *internal.Mono
 		FromCard:    true,
 	}
 
-	return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Advance to Go")
+	return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Financial aid")
 }
 
 func advanceToIllinoisAvenueEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
@@ -108,7 +108,7 @@ func advanceToIllinoisAvenueEffect(ctx context.Context, log zerolog.Logger, e *i
 	}
 
 	if player.Position > 24 {
-		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Advance to Illinois Avenue")
+		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Work on a game")
 	}
 
 	return internal.UserActionStatus{Status: http.StatusOK}
@@ -141,7 +141,7 @@ func advanceToStCharlesPlaceEffect(ctx context.Context, log zerolog.Logger, e *i
 	}
 
 	if player.Position > 11 {
-		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Advance to St. Charles Place")
+		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Redeem a free coffee token")
 	}
 
 	return internal.UserActionStatus{Status: http.StatusOK}
@@ -185,13 +185,21 @@ func advanceToNearestUtilityEffect(ctx context.Context, log zerolog.Logger, e *i
 	}
 
 	if player.Position > nearest {
-		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Advance to Nearest Utility")
+		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Help FMS fix something")
 	}
 
 	return internal.UserActionStatus{Status: http.StatusOK}
 }
 
-func advanceToNearestRailroadEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
+func advanceToNearestRailroadEffect(
+	ctx context.Context,
+	log zerolog.Logger,
+	e *internal.MonopolyEngine,
+	tx *pgxpool.Tx,
+	sessionId string,
+	playerId int,
+	reason string,
+) internal.UserActionStatus {
 	player, err := internaldb_players.GetPlayer(log, ctx, tx, playerId, sessionId)
 	if err != nil {
 		return internal.UserActionStatus{
@@ -233,10 +241,18 @@ func advanceToNearestRailroadEffect(ctx context.Context, log zerolog.Logger, e *
 	}
 
 	if player.Position > nearest {
-		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Advance to Nearest Railroad")
+		return SetPendingBankPayout(log, e, playerId, sessionId, 200, reason)
 	}
 
 	return internal.UserActionStatus{Status: http.StatusOK}
+}
+
+func advanceToNearestRailroadBackpackEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
+	return advanceToNearestRailroadEffect(ctx, log, e, tx, sessionId, playerId, "Left your backpack in the car")
+}
+
+func advanceToNearestRailroadLaptopEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
+	return advanceToNearestRailroadEffect(ctx, log, e, tx, sessionId, playerId, "Left your laptop in the car")
 }
 
 func advanceToBoardwalkEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
@@ -266,14 +282,14 @@ func advanceToBoardwalkEffect(ctx context.Context, log zerolog.Logger, e *intern
 	}
 
 	if player.Position > 39 {
-		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Advance to Boardwalk")
+		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Go to a performance at the Munson Music Loft")
 	}
 
 	return internal.UserActionStatus{Status: http.StatusOK}
 }
 
 func dividendEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	return SetPendingBankPayout(log, e, playerId, sessionId, 50, "Bank pays you dividend")
+	return SetPendingBankPayout(log, e, playerId, sessionId, 50, "Won a drawing for filling out a survey")
 }
 
 func getOutOfJailFreeEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
@@ -326,14 +342,14 @@ func generalRepairsEffect(ctx context.Context, log zerolog.Logger, e *internal.M
 	}
 
 	if repairCost > 0 {
-		return SetPendingBankPayment(log, e, playerId, sessionId, repairCost, "General Repairs")
+		return SetPendingBankPayment(log, e, playerId, sessionId, repairCost, "Make general repairs on all your property")
 	}
 
 	return internal.UserActionStatus{Status: http.StatusOK}
 }
 
 func speedingFineEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	return SetPendingBankPayment(log, e, playerId, sessionId, 15, "Speeding Fine")
+	return SetPendingBankPayment(log, e, playerId, sessionId, 15, "Buy a coffee from Midnight Oil")
 }
 
 func readingRailroadEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
@@ -357,7 +373,7 @@ func readingRailroadEffect(ctx context.Context, log zerolog.Logger, e *internal.
 	}
 
 	if player.Position > 5 {
-		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Advance to Reading Railroad")
+		return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Print your resume from DSP")
 	}
 
 	return internal.UserActionStatus{Status: http.StatusOK}
@@ -368,27 +384,27 @@ func chairmanOfTheBoardEffect(ctx context.Context, log zerolog.Logger, e *intern
 }
 
 func buildingLoanMaturesEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	return SetPendingBankPayout(log, e, playerId, sessionId, 150, "Building Loan Matures")
+	return SetPendingBankPayout(log, e, playerId, sessionId, 150, "Your biweekly paycheck from your on-campus job just hit")
 }
 
 func bankErrorEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Bank Error in Your Favor")
+	return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Scholarship money")
 }
 
 func doctorFeeEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	return SetPendingBankPayment(log, e, playerId, sessionId, 50, "Doctor's Fee")
+	return SetPendingBankPayment(log, e, playerId, sessionId, 50, "Buy merch from the Digital Den")
 }
 
 func stockSaleEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	return SetPendingBankPayout(log, e, playerId, sessionId, 50, "Sale of Stock")
+	return SetPendingBankPayout(log, e, playerId, sessionId, 50, "Win a survey raffle")
 }
 
 func holidayFundEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	return SetPendingBankPayout(log, e, playerId, sessionId, 100, "Holiday Fund Matures")
+	return SetPendingBankPayout(log, e, playerId, sessionId, 100, "Your biweekly paycheck from your on-campus job just hit")
 }
 
 func taxRefundEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	return SetPendingBankPayout(log, e, playerId, sessionId, 20, "Income Tax Refund")
+	return SetPendingBankPayout(log, e, playerId, sessionId, 20, "Find some money on the ground")
 }
 
 func birthdayEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
@@ -396,19 +412,19 @@ func birthdayEffect(ctx context.Context, log zerolog.Logger, e *internal.Monopol
 }
 
 func lifeInsuranceEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	return SetPendingBankPayout(log, e, playerId, sessionId, 100, "Life Insurance Matures")
+	return SetPendingBankPayout(log, e, playerId, sessionId, 100, "Tiger Bucks reloaded")
 }
 
 func hospitalFeesEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	return SetPendingBankPayment(log, e, playerId, sessionId, 100, "Hospital Fees")
+	return SetPendingBankPayment(log, e, playerId, sessionId, 100, "Student activity fee")
 }
 
 func schoolFeesEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	return SetPendingBankPayment(log, e, playerId, sessionId, 50, "School Fees")
+	return SetPendingBankPayment(log, e, playerId, sessionId, 50, "Student health fee")
 }
 
 func consultancyFeeEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	return SetPendingBankPayout(log, e, playerId, sessionId, 25, "Consultancy Fee")
+	return SetPendingBankPayout(log, e, playerId, sessionId, 25, "Win a survey raffle")
 }
 
 func streetRepairsEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
@@ -427,16 +443,16 @@ func streetRepairsEffect(ctx context.Context, log zerolog.Logger, e *internal.Mo
 	}
 
 	if repairCost > 0 {
-		return SetPendingBankPayment(log, e, playerId, sessionId, repairCost, "Street Repairs")
+		return SetPendingBankPayment(log, e, playerId, sessionId, repairCost, "You are assessed for street repairs")
 	}
 
 	return internal.UserActionStatus{Status: http.StatusOK}
 }
 
 func beautyContestEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	return SetPendingBankPayout(log, e, playerId, sessionId, 10, "Beauty Contest")
+	return SetPendingBankPayout(log, e, playerId, sessionId, 10, "You win second place in Tiger Tank")
 }
 
 func inheritanceEffect(ctx context.Context, log zerolog.Logger, e *internal.MonopolyEngine, tx *pgxpool.Tx, sessionId string, playerId int) internal.UserActionStatus {
-	return SetPendingBankPayout(log, e, playerId, sessionId, 100, "Inheritance")
+	return SetPendingBankPayout(log, e, playerId, sessionId, 100, "Your biweekly paycheck from your on-campus job just hit")
 }

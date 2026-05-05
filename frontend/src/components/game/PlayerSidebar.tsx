@@ -106,26 +106,6 @@ export default function PlayerSidebar({
 
     return null
   }, [activePropertyId, gameState])
-  const selectedPropertyOwner = useMemo(() => {
-    if (!activePropertyId || !gameState) return null
-
-    for (const playerInfo of gameState.players) {
-      const ownedProperty = (playerInfo.owned_properties ?? []).find(
-        (property) => property.property_info.id === activePropertyId,
-      )
-      if (ownedProperty) {
-        return playerInfo.player
-      }
-    }
-
-    return null
-  }, [activePropertyId, gameState])
-  const selectedPropertyRent = selectedProperty?.is_mortgaged ? 0 : (selectedProperty?.current_rent ?? 0)
-  const selectedPropertyType = selectedProperty?.property_info.property_type ?? null
-  const isSelectedUtility = selectedPropertyType === "UTILITY"
-  const isSelectedRailroad = selectedPropertyType === "RAILROAD"
-  const isSelectedBuildable = !!selectedPropertyType && !isSelectedUtility && !isSelectedRailroad
-
   const getRankLabel = (rank: number) => {
     const value = Math.abs(rank)
     const mod100 = value % 100
@@ -196,6 +176,23 @@ export default function PlayerSidebar({
         emitToast(error.message)
       },
     })
+  }
+
+  const getRailroadRent = (properties: OwnedProperty[], property: OwnedProperty) => {
+    if (property.is_mortgaged) {
+      return 0
+    }
+
+    const railroadCount = properties.filter(
+      (ownedProperty) =>
+        ownedProperty.property_info.property_type === "RAILROAD" && !ownedProperty.is_mortgaged,
+    ).length
+
+    if (railroadCount < 1) {
+      return 0
+    }
+
+    return 25 * 2 ** (railroadCount - 1)
   }
 
   return (
@@ -368,7 +365,18 @@ export default function PlayerSidebar({
                     <div>Properties: None</div>
                   ) : (
                     <div className="flex flex-wrap gap-2">
-                      {ownedProperties.map((property) => (
+                      {ownedProperties.map((property) => {
+                        const propertyType = property.property_info.property_type
+                        const isUtility = propertyType === "UTILITY"
+                        const isRailroad = propertyType === "RAILROAD"
+                        const isBuildable = !isUtility && !isRailroad
+                        const propertyRent = property.is_mortgaged
+                          ? 0
+                          : isRailroad
+                            ? getRailroadRent(ownedProperties, property)
+                            : property.current_rent
+
+                        return (
                         <div
                           key={property.id}
                           style={{
@@ -457,7 +465,7 @@ export default function PlayerSidebar({
                                   fontWeight: 700,
                                 }}
                               >
-                                Owner: {selectedPropertyOwner?.name ?? player.name}
+                                Owner: {player.name}
                               </div>
 
                               <div
@@ -470,7 +478,7 @@ export default function PlayerSidebar({
                                 Mortgaged: {property.is_mortgaged ? "Yes" : "No"}
                               </div>
 
-                              {!isSelectedUtility ? (
+                              {!isUtility ? (
                                 <div
                                   style={{
                                     color: "#7C878E",
@@ -478,11 +486,11 @@ export default function PlayerSidebar({
                                     fontWeight: 700,
                                   }}
                                 >
-                                  Rent: ₮{selectedPropertyRent.toLocaleString()}
+                                  Rent: ₮{propertyRent.toLocaleString()}
                                 </div>
                               ) : null}
 
-                              {isSelectedBuildable ? (
+                              {isBuildable ? (
                                 <>
                                   <div
                                     style={{
@@ -508,7 +516,7 @@ export default function PlayerSidebar({
 
                               {isCurrentPlayer ? (
                                 <>
-                                  {isSelectedBuildable ? (
+                                  {isBuildable ? (
                                     <>
                                       <button
                                         type="button"
@@ -623,7 +631,8 @@ export default function PlayerSidebar({
                             </div>
                           ) : null}
                         </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                 </div>

@@ -203,6 +203,13 @@ type PendingBankPayout struct {
     Reason      string `json:"reason"`
 }
 
+type DeferredLanding struct {
+    PlayerId      int
+    SessionId     string
+    DiceTotal     int
+    PlayerMovement PlayerMovement
+}
+
 type PendingPlayerExchange struct {
 	ActingPlayerId int    `json:"acting_player_id"`
 	SessionId      string `json:"session_id"`
