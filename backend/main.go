@@ -31,7 +31,7 @@ func main() {
     log.Info().Msg("Welcome To Monopoly")
     err := godotenv.Load("../.internal.env")
     if err != nil {
-        log.Info().Msg("WARNING: Failed to load .internal.env file in repo root")
+        log.Info().Msg("WARNING: Failed to load .internal.env file in repo root; Using environmental args")
     }
 
     internaldb.SetupDatabase(ctx, log)

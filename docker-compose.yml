@@ -1,0 +1,46 @@
+services:
+  monopoly_frontend:
+    container_name: monopoly_frontend
+    build: ./frontend/
+    #ports:
+      #- "3001:3000"
+    networks:
+      - caddy
+
+  monopoly_backend:
+    container_name: monopoly_backend
+    env_file: ".internal.env"
+    build: ./backend/
+    depends_on:
+      monopoly_postgres:
+        condition: service_healthy
+    networks:
+      - caddy
+
+  monopoly_postgres:
+    image: "postgres:18"
+    container_name: monopoly_db
+    env_file: ".internal.env"
+    volumes:
+      - /opt/comp/store/backend/db:/var/lib/postgresql
+    command:
+      - postgres
+      - -c
+      - max_connections=1000
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - work_mem=16MB
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - caddy
+
+
+networks:
+  caddy:
+    external: true
