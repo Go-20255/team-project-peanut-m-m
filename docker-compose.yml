@@ -22,7 +22,7 @@ services:
     container_name: monopoly_db
     env_file: ".internal.env"
     volumes:
-      - /opt/comp/store/backend/db:/var/lib/postgresql
+      - db_data:/var/lib/postgresql
     command:
       - postgres
       - -c
@@ -40,6 +40,8 @@ services:
     networks:
       - caddy
 
+volumes:
+  db_data:
 
 networks:
   caddy:
