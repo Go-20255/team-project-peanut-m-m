@@ -8,6 +8,8 @@ import {
   PendingBankPayment,
   PendingBankPayout,
   PendingPlayerExchange,
+  PendingTradeDraft,
+  PendingTrade,
   PendingRent,
   PropertyPurchaseAvailable,
 } from "@/types"
@@ -73,6 +75,8 @@ export function HandleMovePlayerEvent(
       pending_bank_payment: prev.pending_bank_payment,
       pending_bank_payout: prev.pending_bank_payout,
       pending_exchange: prev.pending_exchange,
+      pending_trade_draft: prev.pending_trade_draft,
+      pending_trade: prev.pending_trade,
       last_move: {
         player_id: data.player_id,
         session_id: prev.players.find((pi) => pi.player.id === data.player_id)?.player.session_id ?? "",
@@ -123,6 +127,8 @@ export function HandleGameStateUpdateEvent(
       pending_bank_payment: data.pending_bank_payment,
       pending_bank_payout: data.pending_bank_payout,
       pending_exchange: data.pending_exchange,
+      pending_trade_draft: data.pending_trade_draft,
+      pending_trade: data.pending_trade,
       players: data.players,
     }
   })
@@ -211,6 +217,7 @@ export function HandleGameReadyEvent(
       pending_bank_payment: null,
       pending_bank_payout: null,
       pending_exchange: null,
+      pending_trade: null,
     }
   })
 }
@@ -273,6 +280,100 @@ export function HandlePropertyPurchaseAvailableEvent(
     return {
       ...prev,
       pending_property_purchase: data,
+    }
+  })
+}
+
+export function HandleTradeProposedEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  const data = parse<PendingTrade>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_trade_draft: null,
+      pending_trade: data,
+    }
+  })
+}
+
+export function HandleTradeDraftOpenedEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  const data = parse<PendingTradeDraft>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_trade_draft: data,
+    }
+  })
+}
+
+export function HandleTradeDraftClosedEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_trade_draft: null,
+    }
+  })
+}
+
+export function HandleTradeAcceptedEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_trade_draft: null,
+      pending_trade: null,
+    }
+  })
+}
+
+export function HandleTradeRejectedEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_trade_draft: null,
+      pending_trade: null,
+    }
+  })
+}
+
+export function HandleTradeCancelledEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_trade_draft: null,
+      pending_trade: null,
     }
   })
 }

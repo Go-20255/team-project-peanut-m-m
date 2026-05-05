@@ -98,6 +98,8 @@ func EmitInitialGameBoardData(log zerolog.Logger, ctx context.Context, e *intern
     board_data.PendingBankPayment = e.PendingBankPayment
     board_data.PendingBankPayout = e.PendingBankPayout
     board_data.PendingExchange = e.PendingExchange
+    board_data.PendingTradeDraft = e.PendingTradeDraft
+    board_data.PendingTrade = e.PendingTrade
 
     e.Broker.Broadcast(log, "InitialGameBoardDataEvent", board_data)
     return nil
@@ -161,6 +163,8 @@ func EmitGameBoardUpdate(log zerolog.Logger, ctx context.Context, e *internal.Mo
     board_update.PendingBankPayment = e.PendingBankPayment
     board_update.PendingBankPayout = e.PendingBankPayout
     board_update.PendingExchange = e.PendingExchange
+    board_update.PendingTradeDraft = e.PendingTradeDraft
+    board_update.PendingTrade = e.PendingTrade
 
     e.Broker.Broadcast(log, "GameStateUpdateEvent", board_update)
     return nil

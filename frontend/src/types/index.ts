@@ -53,6 +53,8 @@ export interface GameStateUpdate {
   pending_bank_payment?: PendingBankPayment | null
   pending_bank_payout?: PendingBankPayout | null
   pending_exchange?: PendingPlayerExchange | null
+  pending_trade_draft?: PendingTradeDraft | null
+  pending_trade?: PendingTrade | null
 }
 
 export interface GameBoardData {
@@ -76,6 +78,8 @@ export interface GameState {
   pending_bank_payment?: PendingBankPayment | null
   pending_bank_payout?: PendingBankPayout | null
   pending_exchange?: PendingPlayerExchange | null
+  pending_trade_draft?: PendingTradeDraft | null
+  pending_trade?: PendingTrade | null
 }
 
 export interface Tile {
@@ -176,4 +180,29 @@ export interface PendingPlayerExchange {
   amount: number
   reason: string
   is_paying_all: boolean
+}
+
+export interface TradeProperty {
+  property_id: number
+  name: string
+}
+
+export interface PendingTradeDraft {
+  from_player_id: number
+  to_player_id: number
+  session_id: string
+}
+
+export interface PendingTrade {
+  from_player_id: number
+  to_player_id: number
+  session_id: string
+  offered_money: number
+  requested_money: number
+  offered_properties: TradeProperty[]
+  requested_properties: TradeProperty[]
+}
+
+export interface Trade extends PendingTrade {
+  accepted: boolean
 }

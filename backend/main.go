@@ -75,6 +75,8 @@ func main() {
             "http://127.0.0.1:3000",
             "http://localhost:13000",
             "http://127.0.0.1:13000",
+            "http://localhost:13001",
+            "http://127.0.0.1:13001",
             "http://monopoly.michaelbrenner.dev",
         },
         AllowMethods:     []string{"GET", "POST", "DELETE", "PUT", "PATCH"},
@@ -109,6 +111,12 @@ func main() {
     routes.POST("/game/bank/set", gamestatehandlers.SetBankPayoutHandler)
     routes.POST("/game/bank/receive", gamestatehandlers.ReceiveBankPayoutHandler)
     routes.POST("/game/exchange", gamestatehandlers.ExecutePlayerExchangeHandler)
+    routes.POST("/game/trade/open", gamestatehandlers.OpenTradeDraftHandler)
+    routes.POST("/game/trade/close", gamestatehandlers.CloseTradeDraftHandler)
+    routes.POST("/game/trade", gamestatehandlers.ProposeTradeHandler)
+    routes.POST("/game/trade/accept", gamestatehandlers.AcceptTradeHandler)
+    routes.POST("/game/trade/reject", gamestatehandlers.RejectTradeHandler)
+    routes.POST("/game/trade/cancel", gamestatehandlers.CancelTradeHandler)
     routes.POST("/game/bankrupt", gamestatehandlers.BankruptHandler)
     routes.POST("/game/rent", gamestatehandlers.PayRentHandler)
 

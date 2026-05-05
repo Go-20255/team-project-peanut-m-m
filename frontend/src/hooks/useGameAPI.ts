@@ -269,6 +269,132 @@ export function usePlayerBankrupt() {
   })
 }
 
+export function useProposeTrade() {
+  return useMutation({
+    mutationFn: async ({
+      withPlayerId,
+      offeredMoney,
+      requestedMoney,
+      offeredPropertyIds,
+      requestedPropertyIds,
+    }: {
+      withPlayerId: number
+      offeredMoney: number
+      requestedMoney: number
+      offeredPropertyIds: number[]
+      requestedPropertyIds: number[]
+    }) => {
+      const formData = new URLSearchParams()
+      formData.append("with_player_id", withPlayerId.toString())
+      formData.append("offered_money", offeredMoney.toString())
+      formData.append("requested_money", requestedMoney.toString())
+      offeredPropertyIds.forEach((propertyId) => formData.append("offered_property_ids", propertyId.toString()))
+      requestedPropertyIds.forEach((propertyId) => formData.append("requested_property_ids", propertyId.toString()))
+
+      const res = await fetch(`${API_URL}/api/game/trade`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: formData,
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
+      }
+      return res.json()
+    },
+  })
+}
+
+export function useOpenTradeDraft() {
+  return useMutation({
+    mutationFn: async ({ withPlayerId }: { withPlayerId: number }) => {
+      const formData = new URLSearchParams()
+      formData.append("with_player_id", withPlayerId.toString())
+
+      const res = await fetch(`${API_URL}/api/game/trade/open`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: formData,
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
+      }
+      return res.json()
+    },
+  })
+}
+
+export function useCloseTradeDraft() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/game/trade/close`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
+      }
+      return res.json()
+    },
+  })
+}
+
+export function useAcceptTrade() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/game/trade/accept`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
+      }
+      return res.json()
+    },
+  })
+}
+
+export function useRejectTrade() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/game/trade/reject`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
+      }
+      return res.json()
+    },
+  })
+}
+
+export function useCancelTrade() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/game/trade/cancel`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
+      }
+      return res.json()
+    },
+  })
+}
+
 export function usePayRent() {
   return useMutation({
     mutationFn: async ({dst_player, amount} : {dst_player: string, amount: string}) => {

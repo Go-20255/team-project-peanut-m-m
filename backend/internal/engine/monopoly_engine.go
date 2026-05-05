@@ -76,6 +76,8 @@ func SetupNewMonopolyEngine(sessionId string) {
         PendingBankPayment: nil,
         PendingBankPayout: nil,
         PendingExchange:    nil,
+        PendingTradeDraft: nil,
+        PendingTrade:       nil,
         TurnHasRolled:   map[int]bool{},
         ExtraRollAllowed: map[int]bool{},
         DoubleRollCounts: map[int]int{},
@@ -260,6 +262,18 @@ func processUserAction(
         action_status = player.PayRent(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PlayerExchangeEvent":
         action_status = player.ExecutePlayerExchange(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "OpenTradeDraftEvent":
+        action_status = player.OpenTradeDraft(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "CloseTradeDraftEvent":
+        action_status = player.CloseTradeDraft(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "ProposeTradeEvent":
+        action_status = player.ProposeTrade(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "AcceptTradeEvent":
+        action_status = player.AcceptTrade(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "RejectTradeEvent":
+        action_status = player.RejectTrade(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "CancelTradeEvent":
+        action_status = player.CancelTrade(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseProperty":
         action_status = property.PurchaseProperty(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "IgnorePropertyPurchase":

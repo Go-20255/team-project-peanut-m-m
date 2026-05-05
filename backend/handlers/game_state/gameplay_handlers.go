@@ -6,9 +6,40 @@ import (
     "monopoly-backend/util"
     "net/http"
     "strconv"
+    "strings"
 
     "github.com/labstack/echo/v4"
 )
+
+func parseTradePropertyIds(c echo.Context, key string) ([]int, error) {
+    values := c.Request().Form[key]
+    if len(values) == 0 {
+        return []int{}, nil
+    }
+
+    propertyIds := make([]int, 0)
+    for _, value := range values {
+        if value == "" {
+            continue
+        }
+
+        for _, part := range strings.Split(value, ",") {
+            trimmed := strings.TrimSpace(part)
+            if trimmed == "" {
+                continue
+            }
+
+            propertyId, err := strconv.Atoi(trimmed)
+            if err != nil {
+                return nil, err
+            }
+
+            propertyIds = append(propertyIds, propertyId)
+        }
+    }
+
+    return propertyIds, nil
+}
 
 func RollDiceHandler(c echo.Context) error {
     claims, err := util.GetPlayerJwtClaims(c)
@@ -262,6 +293,218 @@ func ExecutePlayerExchangeHandler(c echo.Context) error {
     res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
         Event: "PlayerExchangeEvent",
         Data: internal.PlayerExchangeActionData{
+            PlayerId:  claims.PlayerId,
+            SessionId: claims.SessionId,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.JSON(http.StatusOK, res.Data)
+}
+
+func OpenTradeDraftHandler(c echo.Context) error {
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
+
+    if err := c.Request().ParseForm(); err != nil {
+        return c.String(http.StatusBadRequest, "failed to parse trade request")
+    }
+
+    withPlayerIdStr := c.FormValue("with_player_id")
+    if withPlayerIdStr == "" {
+        return c.String(http.StatusBadRequest, "missing with_player_id")
+    }
+
+    withPlayerId, err := strconv.Atoi(withPlayerIdStr)
+    if err != nil {
+        return c.String(http.StatusBadRequest, "invalid with_player_id")
+    }
+
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "OpenTradeDraftEvent",
+        Data: internal.TradeDraftActionData{
+            PlayerId:     claims.PlayerId,
+            SessionId:    claims.SessionId,
+            WithPlayerId: withPlayerId,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.JSON(http.StatusOK, res.Data)
+}
+
+func CloseTradeDraftHandler(c echo.Context) error {
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
+
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "CloseTradeDraftEvent",
+        Data: internal.TradeDecisionActionData{
+            PlayerId:  claims.PlayerId,
+            SessionId: claims.SessionId,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.JSON(http.StatusOK, res.Data)
+}
+
+func ProposeTradeHandler(c echo.Context) error {
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
+
+    if err := c.Request().ParseForm(); err != nil {
+        return c.String(http.StatusBadRequest, "failed to parse trade request")
+    }
+
+    withPlayerIdStr := c.FormValue("with_player_id")
+    if withPlayerIdStr == "" {
+        return c.String(http.StatusBadRequest, "missing with_player_id")
+    }
+
+    withPlayerId, err := strconv.Atoi(withPlayerIdStr)
+    if err != nil {
+        return c.String(http.StatusBadRequest, "invalid with_player_id")
+    }
+
+    offeredMoney := 0
+    offeredMoneyStr := c.FormValue("offered_money")
+    if offeredMoneyStr != "" {
+        offeredMoney, err = strconv.Atoi(offeredMoneyStr)
+        if err != nil {
+            return c.String(http.StatusBadRequest, "invalid offered_money")
+        }
+    }
+
+    requestedMoney := 0
+    requestedMoneyStr := c.FormValue("requested_money")
+    if requestedMoneyStr != "" {
+        requestedMoney, err = strconv.Atoi(requestedMoneyStr)
+        if err != nil {
+            return c.String(http.StatusBadRequest, "invalid requested_money")
+        }
+    }
+
+    offeredPropertyIds, err := parseTradePropertyIds(c, "offered_property_ids")
+    if err != nil {
+        return c.String(http.StatusBadRequest, "invalid offered_property_ids")
+    }
+
+    requestedPropertyIds, err := parseTradePropertyIds(c, "requested_property_ids")
+    if err != nil {
+        return c.String(http.StatusBadRequest, "invalid requested_property_ids")
+    }
+
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "ProposeTradeEvent",
+        Data: internal.TradeActionData{
+            PlayerId:             claims.PlayerId,
+            SessionId:            claims.SessionId,
+            WithPlayerId:         withPlayerId,
+            OfferedMoney:         offeredMoney,
+            RequestedMoney:       requestedMoney,
+            OfferedPropertyIds:   offeredPropertyIds,
+            RequestedPropertyIds: requestedPropertyIds,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.JSON(http.StatusOK, res.Data)
+}
+
+func AcceptTradeHandler(c echo.Context) error {
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
+
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "AcceptTradeEvent",
+        Data: internal.TradeDecisionActionData{
+            PlayerId:  claims.PlayerId,
+            SessionId: claims.SessionId,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.JSON(http.StatusOK, res.Data)
+}
+
+func RejectTradeHandler(c echo.Context) error {
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
+
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "RejectTradeEvent",
+        Data: internal.TradeDecisionActionData{
+            PlayerId:  claims.PlayerId,
+            SessionId: claims.SessionId,
+        },
+        ReturnChan: make(chan internal.UserActionStatus),
+    })
+    if err != nil {
+        return c.String(http.StatusInternalServerError, err.Error())
+    }
+
+    if res.Status != http.StatusOK {
+        return c.String(res.Status, res.Msg)
+    }
+
+    return c.JSON(http.StatusOK, res.Data)
+}
+
+func CancelTradeHandler(c echo.Context) error {
+    claims, err := util.GetPlayerJwtClaims(c)
+    if err != nil {
+        return c.String(http.StatusUnauthorized, err.Error())
+    }
+
+    res, err := monopolyengine.NotifyEngineOfAction(claims.SessionId, internal.UserActionEvent{
+        Event: "CancelTradeEvent",
+        Data: internal.TradeDecisionActionData{
             PlayerId:  claims.PlayerId,
             SessionId: claims.SessionId,
         },
