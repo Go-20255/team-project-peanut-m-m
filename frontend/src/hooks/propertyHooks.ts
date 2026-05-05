@@ -1,8 +1,7 @@
 "use client"
 
 import { useMutation, useQuery } from "@tanstack/react-query"
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL
+import { API_URL } from "@/utils/api"
 
 export function useFetchPropertyOwner(property_id: string) {
   return useQuery<{ owner_id: number; owned: boolean }>({

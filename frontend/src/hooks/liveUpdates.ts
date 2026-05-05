@@ -32,8 +32,7 @@ import {
   HandleRollDiceEvent,
   HandleUseGetOutOfJailCardEvent,
 } from "./gameEvents"
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL
+import { API_URL } from "@/utils/api"
 
 export function useLiveGameUpdates(sessionId: string | null, playerId: number | null, playerName: string | null) {
   const [gameState, setGameState] = useState<GameState | null>(null)

@@ -62,7 +62,7 @@ export default function Home() {
 
   return (
     <div className="h-screen flex items-center justify-center" style={{ backgroundColor: "#FFFFFF" }}>
-      <div className="max-w-lg px-4">
+      <div className="w-full max-w-xl px-4">
         <div className="text-center mb-15">
           <h1 className="text-4xl font-bold text-rit-orange">
             Monopoly
@@ -70,23 +70,6 @@ export default function Home() {
         </div>
 
         <div className="space-y-4">
-          {
-            //<div>
-            //<input
-            //type="text"
-            //placeholder="Enter your name"
-            //value={playerName}
-            //onChange={(e) => setPlayerName(e.target.value)}
-            //disabled={isLoading}
-            //className="w-full px-4 py-2 border-2"
-            //style={{
-            //borderColor: "#D0D3D4",
-            //color: "#000000",
-            //}}
-            ///>
-            //</div>
-          }
-
           <div className="w-full border-t-2 pt-4" style={{ borderColor: "#D0D3D4" }}>
             <div>
               <input
@@ -95,7 +78,7 @@ export default function Home() {
                 value={gameCode}
                 onChange={(e) => setGameCode(e.target.value)}
                 disabled={isLoading}
-                className="px-4 py-2 border-2"
+                className="w-full px-4 py-2 border-2"
                 style={{
                   borderColor: "#D0D3D4",
                   color: "#000000",

@@ -10,18 +10,24 @@ import (
 )
 
 func SetupDatabase(ctx context.Context, log zerolog.Logger) {
-    monopolyDbUrlStr := "postgres://postgres:<pass>@localhost:<port>/monopoly?sslmode=disable"
+    monopolyDbUrlStr := "postgres://postgres:<pass>@<host>:<port>/monopoly?sslmode=disable"
+    monopolyDbHost := os.Getenv("POSTGRES_HOST")
+    if monopolyDbHost == "" {
+        monopolyDbHost = "localhost"
+    }
     monopolyDbPort := os.Getenv("POSTGRES_PORT")
     if monopolyDbPort == "" {
         monopolyDbPort = "1357"
     }
     postgresPassword := os.Getenv("POSTGRES_PASSWORD")
     monopolyDbUrl := strings.ReplaceAll(monopolyDbUrlStr, "<pass>", postgresPassword)
+    monopolyDbUrl = strings.ReplaceAll(monopolyDbUrl, "<host>", monopolyDbHost)
     monopolyDbUrl = strings.ReplaceAll(monopolyDbUrl, "<port>", monopolyDbPort)
 
-    monopolyDefaultDbUrlStr := "postgres://postgres:<pass>@localhost:<port>/postgres?sslmode=disable"
+    monopolyDefaultDbUrlStr := "postgres://postgres:<pass>@<host>:<port>/postgres?sslmode=disable"
 
     monopolyDefaultDbUrl := strings.ReplaceAll(monopolyDefaultDbUrlStr, "<pass>", postgresPassword)
+    monopolyDefaultDbUrl = strings.ReplaceAll(monopolyDefaultDbUrl, "<host>", monopolyDbHost)
     monopolyDefaultDbUrl = strings.ReplaceAll(monopolyDefaultDbUrl, "<port>", monopolyDbPort)
 
     db, err := pgx.Connect(ctx, monopolyDefaultDbUrl)

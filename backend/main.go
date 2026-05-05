@@ -10,6 +10,7 @@ import (
     internaldbgamestate "monopoly-backend/internal/db/game_state"
     monopolyengine "monopoly-backend/internal/engine"
     "monopoly-backend/util"
+    "os"
 
     "github.com/jackc/pgx/v5"
     "github.com/jackc/pgx/v5/pgxpool"
@@ -72,6 +73,8 @@ func main() {
         AllowOrigins: []string{
             "http://localhost:3000",
             "http://127.0.0.1:3000",
+            "http://localhost:13000",
+            "http://127.0.0.1:13000",
             "http://monopoly.michaelbrenner.dev",
         },
         AllowMethods:     []string{"GET", "POST", "DELETE", "PUT", "PATCH"},
@@ -120,5 +123,10 @@ func main() {
     routes.POST("/game/property/unmortgage", properties_handlers.UnmortgagePropertyHandler)
 
     // start the echo server
-    e.Start(":9876")
+    port := os.Getenv("PORT")
+    if port == "" {
+        port = "9876"
+    }
+
+    e.Start(":" + port)
 }

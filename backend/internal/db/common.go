@@ -40,13 +40,18 @@ func TxMiddleware(db *pgxpool.Pool) echo.MiddlewareFunc {
 }
 
 func CreateDbPoolConnection(ctx context.Context, log zerolog.Logger) (*pgxpool.Pool, error) {
-    monopolyDbUrlStr := "postgres://postgres:<pass>@localhost:<port>/monopoly?sslmode=disable"
+    monopolyDbUrlStr := "postgres://postgres:<pass>@<host>:<port>/monopoly?sslmode=disable"
+    monopolyDbHost := os.Getenv("POSTGRES_HOST")
+    if monopolyDbHost == "" {
+        monopolyDbHost = "localhost"
+    }
     monopolyDbPort := os.Getenv("POSTGRES_PORT")
     if monopolyDbPort == "" {
         monopolyDbPort = "1357"
     }
     postgresPassword := os.Getenv("POSTGRES_PASSWORD")
     monopolyDbUrl := strings.ReplaceAll(monopolyDbUrlStr, "<pass>", postgresPassword)
+    monopolyDbUrl = strings.ReplaceAll(monopolyDbUrl, "<host>", monopolyDbHost)
     monopolyDbUrl = strings.ReplaceAll(monopolyDbUrl, "<port>", monopolyDbPort)
 
     dbPool, err := pgxpool.New(ctx, monopolyDbUrl)

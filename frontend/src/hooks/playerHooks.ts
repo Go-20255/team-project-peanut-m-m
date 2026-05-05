@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Player } from "@/types"
 import { storage } from "@/utils"
-const API_URL = process.env.NEXT_PUBLIC_API_URL
+import { API_URL } from "@/utils/api"
 
 /**
  * Create a player in a game session

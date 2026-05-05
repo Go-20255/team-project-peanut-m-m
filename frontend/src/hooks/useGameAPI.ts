@@ -2,8 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Player } from "@/types"
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL
+import { API_URL } from "@/utils/api"
 
 // Health check to verify backend is accessible
 export async function checkBackendHealth(): Promise<boolean> {
