@@ -47,6 +47,7 @@ type MonopolyEngine struct {
 type GameStateUpdate struct {
     CurrentTurn     int             `json:"current_turn"`
     Players         []PlayerInfo    `json:"players"`
+    ExtraRollPlayerId *int          `json:"extra_roll_player_id"`
     PendingCardDraw *PendingCardDraw `json:"pending_card_draw"`
     DrawnCard       *DrawnCard       `json:"drawn_card"`
     PendingRent     *PendingRent     `json:"pending_rent"`
@@ -133,6 +134,7 @@ type PlayerMovement struct {
     NewPosition int    `json:"new_position"`
     Total       int    `json:"total"`
     PassedGo    bool   `json:"passed_go"`
+    FromCard    bool   `json:"from_card"`
     TurnNumber  int    `json:"turn_number"`
     RentDue     bool   `json:"rent_due"`
     RentAmount  int    `json:"rent_amount"`

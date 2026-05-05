@@ -45,18 +45,28 @@ export interface OwnedProperty {
 export interface GameStateUpdate {
   current_turn: number
   players: PlayerInfo[]
+  extra_roll_player_id?: number | null
+  pending_card_draw?: PendingCardDraw | null
+  drawn_card?: DrawnCard | null
+  pending_rent?: PendingRent | null
+  pending_property_purchase?: PropertyPurchaseAvailable | null
+  pending_bank_payment?: PendingBankPayment | null
+  pending_bank_payout?: PendingBankPayout | null
+  pending_exchange?: PendingPlayerExchange | null
 }
 
 export interface GameBoardData {
   tiles: Tile[]
   current_turn: number
-  players: Player[]
+  players: PlayerInfo[]
+  extra_roll_player_id?: number | null
 }
 
 export interface GameState {
   current_turn: number
   tiles: Tile[]
   players: PlayerInfo[]
+  extra_roll_player_id?: number | null
   current_roll?: DiceRoll | null
   last_move?: PlayerMovement | null
   pending_card_draw?: PendingCardDraw | null
@@ -94,6 +104,7 @@ export interface PlayerMovement {
   new_position: number
   total: number
   passed_go: boolean
+  from_card: boolean
   turn_number: number
   rent_due: boolean
   rent_amount: number

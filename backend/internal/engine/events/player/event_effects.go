@@ -75,6 +75,7 @@ func advanceToGoEffect(ctx context.Context, log zerolog.Logger, e *internal.Mono
 		OldPosition: player.Position,
 		NewPosition: 0,
 		PassedGo:    true,
+		FromCard:    true,
 	}
 
 	return SetPendingBankPayout(log, e, playerId, sessionId, 200, "Advance to Go")
@@ -103,6 +104,7 @@ func advanceToIllinoisAvenueEffect(ctx context.Context, log zerolog.Logger, e *i
 		OldPosition: player.Position,
 		NewPosition: 24,
 		PassedGo:    player.Position > 24,
+		FromCard:    true,
 	}
 
 	if player.Position > 24 {
@@ -135,6 +137,7 @@ func advanceToStCharlesPlaceEffect(ctx context.Context, log zerolog.Logger, e *i
 		OldPosition: player.Position,
 		NewPosition: 11,
 		PassedGo:    player.Position > 11,
+		FromCard:    true,
 	}
 
 	if player.Position > 11 {
@@ -178,6 +181,7 @@ func advanceToNearestUtilityEffect(ctx context.Context, log zerolog.Logger, e *i
 		OldPosition: player.Position,
 		NewPosition: nearest,
 		PassedGo:    player.Position > nearest,
+		FromCard:    true,
 	}
 
 	if player.Position > nearest {
@@ -225,6 +229,7 @@ func advanceToNearestRailroadEffect(ctx context.Context, log zerolog.Logger, e *
 		OldPosition: player.Position,
 		NewPosition: nearest,
 		PassedGo:    player.Position > nearest,
+		FromCard:    true,
 	}
 
 	if player.Position > nearest {
@@ -257,6 +262,7 @@ func advanceToBoardwalkEffect(ctx context.Context, log zerolog.Logger, e *intern
 		OldPosition: player.Position,
 		NewPosition: 39,
 		PassedGo:    player.Position > 39,
+		FromCard:    true,
 	}
 
 	if player.Position > 39 {
@@ -298,6 +304,7 @@ func goToJailEffect(ctx context.Context, log zerolog.Logger, e *internal.Monopol
         OldPosition: player.Position,
         NewPosition: 10,
         PassedGo:    false,
+        FromCard:    true,
     }
 
     return internal.UserActionStatus{Status: http.StatusOK}
@@ -346,6 +353,7 @@ func readingRailroadEffect(ctx context.Context, log zerolog.Logger, e *internal.
 		OldPosition: player.Position,
 		NewPosition: 5,
 		PassedGo:    player.Position > 5,
+		FromCard:    true,
 	}
 
 	if player.Position > 5 {

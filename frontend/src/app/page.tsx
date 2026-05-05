@@ -62,7 +62,7 @@ export default function Home() {
 
   return (
     <div className="h-screen flex items-center justify-center" style={{ backgroundColor: "#FFFFFF" }}>
-      <div className="max-w-md px-4">
+      <div className="max-w-lg px-4">
         <div className="text-center mb-15">
           <h1 className="text-4xl font-bold text-rit-orange">
             Monopoly

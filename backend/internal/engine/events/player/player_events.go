@@ -180,6 +180,17 @@ func finalizeLanding(
     diceTotal int,
     playerMovement internal.PlayerMovement,
 ) internal.UserActionStatus {
+    setGoPayout := func() internal.UserActionStatus {
+        if !playerMovement.FromCard && (playerMovement.PassedGo || playerMovement.NewPosition == 0) {
+            payoutStatus := SetPendingBankPayout(log, e, playerId, sessionId, 200, "Collect as you pass Go")
+            if payoutStatus.Status != http.StatusOK {
+                return payoutStatus
+            }
+        }
+
+        return internal.UserActionStatus{Status: http.StatusOK}
+    }
+
     tileData, err := internaldb_tiles.GetRentTileData(log, ctx, tx, sessionId, playerMovement.NewPosition)
     if err != nil {
         return internal.UserActionStatus{
@@ -189,6 +200,28 @@ func finalizeLanding(
     }
 
     playerMovement.PropertyId = tileData.PropertyId
+
+    if playerMovement.FromCard {
+        if playerMovement.NewPosition == 10 {
+            player, err := internaldb_players.GetPlayer(log, ctx, tx, playerId, sessionId)
+            if err != nil {
+                return internal.UserActionStatus{
+                    Status: http.StatusInternalServerError,
+                    Msg:    err.Error(),
+                }
+            }
+
+            if player.Jailed > 0 {
+                e.ExtraRollAllowed[playerId] = false
+                e.DoubleRollCounts[playerId] = 0
+                playerMovement.RollAgain = false
+            } else {
+                playerMovement.RollAgain = e.ExtraRollAllowed[playerId]
+            }
+        } else {
+            playerMovement.RollAgain = e.ExtraRollAllowed[playerId]
+        }
+    }
 
     e.PendingPropertyPurchase = nil
 
@@ -208,11 +241,36 @@ func finalizeLanding(
         playerMovement.RollAgain = false
 
         e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
+        payoutStatus := setGoPayout()
+        if payoutStatus.Status != http.StatusOK {
+            return payoutStatus
+        }
         events.EmitGameBoardUpdate(log, ctx, e, tx)
 
         return internal.UserActionStatus{
             Status: http.StatusOK,
             Data:   playerMovement,
+        }
+    }
+
+    if playerMovement.NewPosition == 4 {
+        paymentStatus := SetPendingBankPayment(log, e, playerId, sessionId, 200, "Tuition")
+        if paymentStatus.Status != http.StatusOK {
+            return paymentStatus
+        }
+    }
+
+    if playerMovement.NewPosition == 20 {
+        paymentStatus := SetPendingBankPayment(log, e, playerId, sessionId, 100, "Parking Ticket")
+        if paymentStatus.Status != http.StatusOK {
+            return paymentStatus
+        }
+    }
+
+    if playerMovement.NewPosition == 38 {
+        paymentStatus := SetPendingBankPayment(log, e, playerId, sessionId, 100, "Textbooks")
+        if paymentStatus.Status != http.StatusOK {
+            return paymentStatus
         }
     }
 
@@ -226,6 +284,10 @@ func finalizeLanding(
         drawStatus := SetPendingCardDraw(log, e, playerId, sessionId, cardType, tileData.Name, playerMovement.NewPosition, diceTotal)
         if drawStatus.Status != http.StatusOK {
             return drawStatus
+        }
+        payoutStatus := setGoPayout()
+        if payoutStatus.Status != http.StatusOK {
+            return payoutStatus
         }
 
         events.EmitGameBoardUpdate(log, ctx, e, tx)
@@ -271,6 +333,10 @@ func finalizeLanding(
 
             e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
             e.Broker.Broadcast(log, "RentDueEvent", e.PendingRent)
+            payoutStatus := setGoPayout()
+            if payoutStatus.Status != http.StatusOK {
+                return payoutStatus
+            }
             events.EmitGameBoardUpdate(log, ctx, e, tx)
 
             return internal.UserActionStatus{
@@ -281,6 +347,10 @@ func finalizeLanding(
     }
 
     e.Broker.Broadcast(log, "MovePlayerEvent", playerMovement)
+    payoutStatus := setGoPayout()
+    if payoutStatus.Status != http.StatusOK {
+        return payoutStatus
+    }
 
     if tileData.HasProperty && !tileData.Owned && tileData.PropertyId > 0 {
         currentPlayer, err := internaldb_players.GetPlayer(log, ctx, tx, playerId, sessionId)
@@ -633,6 +703,8 @@ func RollDice(
         })
 
         e.TempStore["turn_decision_rolls"] = rolls
+        e.TurnHasRolled[data.PlayerId] = true
+        e.PendingRolls[data.PlayerId] = diceRoll
     } else {
         if e.PendingRent != nil && e.PendingRent.FromPlayerId == data.PlayerId {
             return internal.UserActionStatus{
@@ -808,26 +880,35 @@ func EndTurn(
         }
     }
 
-    if pendingRoll, ok := e.PendingRolls[data.PlayerId]; ok {
-        player, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
-        if err != nil {
-            return internal.UserActionStatus{
-                Status: http.StatusInternalServerError,
-                Msg:    err.Error(),
-            }
-        }
-
-        if !(player.Jailed > 0 && !pendingRoll.IsDouble && !pendingRoll.ReleasedFromJail) {
+    if e.TurnNumber < len(players) {
+        if !e.TurnHasRolled[data.PlayerId] {
             return internal.UserActionStatus{
                 Status: http.StatusBadRequest,
-                Msg:    "player has a pending dice roll",
+                Msg:    "player must roll for turn order",
             }
         }
 
         delete(e.PendingRolls, data.PlayerId)
-    }
+    } else {
+        if pendingRoll, ok := e.PendingRolls[data.PlayerId]; ok {
+            player, err := internaldb_players.GetPlayer(log, ctx, tx, data.PlayerId, data.SessionId)
+            if err != nil {
+                return internal.UserActionStatus{
+                    Status: http.StatusInternalServerError,
+                    Msg:    err.Error(),
+                }
+            }
 
-    if e.TurnNumber >= len(players) {
+            if !(player.Jailed > 0 && !pendingRoll.IsDouble && !pendingRoll.ReleasedFromJail) {
+                return internal.UserActionStatus{
+                    Status: http.StatusBadRequest,
+                    Msg:    "player has a pending dice roll",
+                }
+            }
+
+            delete(e.PendingRolls, data.PlayerId)
+        }
+
         if !e.TurnHasRolled[data.PlayerId] {
             return internal.UserActionStatus{
                 Status: http.StatusBadRequest,

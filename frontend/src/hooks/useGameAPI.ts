@@ -82,13 +82,13 @@ export async function getAvailableTokens(players: Player[], sessionId: string): 
   try {
     const takenTokens = new Set(players.map((p) => p.piece_token))
 
-    const availableTokens = [0, 1].filter((token) => !takenTokens.has(token))
+    const availableTokens = [0, 1, 2, 3].filter((token) => !takenTokens.has(token))
 
     console.log("Available tokens:", availableTokens, "Taken tokens:", Array.from(takenTokens))
     return availableTokens
   } catch (err) {
     console.error("Error fetching available tokens:", err)
-    return [0, 1]
+    return [0, 1, 2, 3]
   }
 }
 

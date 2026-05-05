@@ -117,7 +117,15 @@ export default function SelectPlayer() {
               >
                 <div className="flex flex-col items-center gap-2">
                   {selected ? (
-                    <img src={getTokenIcon(p.piece_token)} alt={getTokenName(p.piece_token)} className="w-16 h-16" />
+                    <img
+                      src={getTokenIcon(p.piece_token)}
+                      alt={getTokenName(p.piece_token)}
+                      className="w-16 h-16"
+                      style={{
+                        objectFit: "cover",
+                        objectPosition: "top",
+                      }}
+                    />
                   ) : (
                     <div className="w-16 h-16 flex items-center justify-center rounded-full bg-gray-100 border border-dashed border-gray-300">
                       <span className="text-xs text-gray-400">?</span>
@@ -191,7 +199,15 @@ export default function SelectPlayer() {
                       }`}
                     >
                       <div className="flex flex-col items-center gap-1">
-                        <img src={`/assets/img/icons/${tokenInfo.icon}`} alt={tokenInfo.name} className="w-12 h-12" />
+                        <img
+                          src={`/assets/img/icons/${tokenInfo.icon}`}
+                          alt={tokenInfo.name}
+                          className="w-12 h-12"
+                          style={{
+                            objectFit: "cover",
+                            objectPosition: "top",
+                          }}
+                        />
                         <span className="font-semibold text-xs">{tokenInfo.name}</span>
                         {!available && <span className="text-[10px] text-gray-500 font-bold">Taken</span>}
                       </div>
