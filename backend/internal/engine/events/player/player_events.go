@@ -204,6 +204,128 @@ func SetPendingPlayerExchange(
     }
 }
 
+func SetPendingTrade(
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    pendingTrade internal.PendingTrade,
+) internal.UserActionStatus {
+    if e.PendingTrade != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is already a pending trade",
+        }
+    }
+
+    e.PendingTrade = &pendingTrade
+    e.Broker.Broadcast(log, "TradeProposedEvent", e.PendingTrade)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   *e.PendingTrade,
+    }
+}
+
+func buildTradeEvent(pendingTrade *internal.PendingTrade, accepted bool) internal.Trade {
+    return internal.Trade{
+        FromPlayerId:        pendingTrade.FromPlayerId,
+        ToPlayerId:          pendingTrade.ToPlayerId,
+        SessionId:           pendingTrade.SessionId,
+        OfferedMoney:        pendingTrade.OfferedMoney,
+        RequestedMoney:      pendingTrade.RequestedMoney,
+        OfferedProperties:   pendingTrade.OfferedProperties,
+        RequestedProperties: pendingTrade.RequestedProperties,
+        Accepted:            accepted,
+    }
+}
+
+func validateTradeSelection(
+    log zerolog.Logger,
+    ctx context.Context,
+    tx *pgxpool.Tx,
+    sessionId string,
+    ownerId int,
+    propertyIds []int,
+) ([]internal.TradeProperty, error) {
+    selectedProperties := make([]internal.TradeProperty, 0, len(propertyIds))
+    seenPropertyIds := map[int]bool{}
+
+    ownedProperties, err := internaldb_players.GetPlayerOwnedProperties(log, ctx, tx, ownerId, sessionId)
+    if err != nil {
+        return nil, err
+    }
+
+    ownedPropertyMap := map[int]internal.OwnedProperty{}
+    groupedOwnedProperties := map[string][]internal.OwnedProperty{}
+    groupedSelectedPropertyIds := map[string]map[int]bool{}
+
+    for _, ownedProperty := range ownedProperties {
+        ownedPropertyMap[ownedProperty.PropertyInfo.Id] = ownedProperty
+        groupedOwnedProperties[ownedProperty.PropertyInfo.PropertyType] = append(groupedOwnedProperties[ownedProperty.PropertyInfo.PropertyType], ownedProperty)
+    }
+
+    for _, propertyId := range propertyIds {
+        if propertyId <= 0 {
+            return nil, fmt.Errorf("invalid property in trade")
+        }
+
+        if seenPropertyIds[propertyId] {
+            return nil, fmt.Errorf("duplicate property in trade")
+        }
+        seenPropertyIds[propertyId] = true
+
+        ownedProperty, ok := ownedPropertyMap[propertyId]
+        if !ok {
+            return nil, fmt.Errorf("player does not own one or more traded properties")
+        }
+
+        propertyType := ownedProperty.PropertyInfo.PropertyType
+        if groupedSelectedPropertyIds[propertyType] == nil {
+            groupedSelectedPropertyIds[propertyType] = map[int]bool{}
+        }
+        groupedSelectedPropertyIds[propertyType][propertyId] = true
+
+        selectedProperties = append(selectedProperties, internal.TradeProperty{
+            PropertyId: propertyId,
+            Name:       ownedProperty.PropertyInfo.Name,
+        })
+    }
+
+    for propertyType, groupProperties := range groupedOwnedProperties {
+        if propertyType == "RAILROAD" || propertyType == "UTILITY" {
+            continue
+        }
+
+        hasBuildings := false
+        for _, groupProperty := range groupProperties {
+            if groupProperty.Houses > 0 || groupProperty.HasHotel {
+                hasBuildings = true
+                break
+            }
+        }
+
+        if !hasBuildings {
+            continue
+        }
+
+        selectedIds := groupedSelectedPropertyIds[propertyType]
+        if len(selectedIds) == 0 {
+            continue
+        }
+
+        if len(selectedIds) != len(groupProperties) {
+            return nil, fmt.Errorf("properties with buildings must be traded as a full color set")
+        }
+
+        for _, groupProperty := range groupProperties {
+            if !selectedIds[groupProperty.PropertyInfo.Id] {
+                return nil, fmt.Errorf("properties with buildings must be traded as a full color set")
+            }
+        }
+    }
+
+    return selectedProperties, nil
+}
+
 func SetPendingCardDraw(
     log zerolog.Logger,
     e *internal.MonopolyEngine,
@@ -1612,6 +1734,292 @@ func ExecutePlayerExchange(
     return internal.UserActionStatus{
         Status: http.StatusOK,
         Data:   exchange,
+    }
+}
+
+func ProposeTrade(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    data := action.Data.(internal.TradeActionData)
+
+    _, actingPlayer, _, _, status := getActionPlayers(ctx, log, tx, data.SessionId, data.PlayerId)
+    if status != nil {
+        return *status
+    }
+
+    if data.WithPlayerId == data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "player cannot trade with themself",
+        }
+    }
+
+    if data.OfferedMoney < 0 || data.RequestedMoney < 0 {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "trade money values must be non-negative",
+        }
+    }
+
+    if data.OfferedMoney == 0 && data.RequestedMoney == 0 && len(data.OfferedPropertyIds) == 0 && len(data.RequestedPropertyIds) == 0 {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "trade must include at least one asset",
+        }
+    }
+
+    targetPlayer, err := internaldb_players.GetPlayer(log, ctx, tx, data.WithPlayerId, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "target player does not exist",
+        }
+    }
+
+    if actingPlayer.Bankrupt || targetPlayer.Bankrupt {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "bankrupt players cannot trade",
+        }
+    }
+
+    offeredProperties, err := validateTradeSelection(log, ctx, tx, data.SessionId, data.PlayerId, data.OfferedPropertyIds)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    err.Error(),
+        }
+    }
+
+    requestedProperties, err := validateTradeSelection(log, ctx, tx, data.SessionId, data.WithPlayerId, data.RequestedPropertyIds)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    err.Error(),
+        }
+    }
+
+    pendingTrade := internal.PendingTrade{
+        FromPlayerId:        data.PlayerId,
+        ToPlayerId:          data.WithPlayerId,
+        SessionId:           data.SessionId,
+        OfferedMoney:        data.OfferedMoney,
+        RequestedMoney:      data.RequestedMoney,
+        OfferedProperties:   offeredProperties,
+        RequestedProperties: requestedProperties,
+    }
+
+    tradeStatus := SetPendingTrade(log, e, pendingTrade)
+    if tradeStatus.Status != http.StatusOK {
+        return tradeStatus
+    }
+
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
+    return tradeStatus
+}
+
+func AcceptTrade(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    data := action.Data.(internal.TradeDecisionActionData)
+
+    if e.PendingTrade == nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is no pending trade",
+        }
+    }
+
+    if e.PendingTrade.SessionId != data.SessionId || e.PendingTrade.ToPlayerId != data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "only the targeted player can accept this trade",
+        }
+    }
+
+    fromPlayer, err := internaldb_players.GetPlayer(log, ctx, tx, e.PendingTrade.FromPlayerId, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "trade proposer does not exist",
+        }
+    }
+
+    toPlayer, err := internaldb_players.GetPlayer(log, ctx, tx, e.PendingTrade.ToPlayerId, data.SessionId)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "trade target does not exist",
+        }
+    }
+
+    if fromPlayer.Bankrupt || toPlayer.Bankrupt {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "bankrupt players cannot trade",
+        }
+    }
+
+    offeredPropertyIds := make([]int, 0, len(e.PendingTrade.OfferedProperties))
+    for _, property := range e.PendingTrade.OfferedProperties {
+        offeredPropertyIds = append(offeredPropertyIds, property.PropertyId)
+    }
+
+    requestedPropertyIds := make([]int, 0, len(e.PendingTrade.RequestedProperties))
+    for _, property := range e.PendingTrade.RequestedProperties {
+        requestedPropertyIds = append(requestedPropertyIds, property.PropertyId)
+    }
+
+    _, err = validateTradeSelection(log, ctx, tx, data.SessionId, fromPlayer.Id, offeredPropertyIds)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    err.Error(),
+        }
+    }
+
+    _, err = validateTradeSelection(log, ctx, tx, data.SessionId, toPlayer.Id, requestedPropertyIds)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    err.Error(),
+        }
+    }
+
+    if fromPlayer.Money < e.PendingTrade.OfferedMoney {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "proposing player does not have enough money",
+        }
+    }
+
+    if toPlayer.Money < e.PendingTrade.RequestedMoney {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "target player does not have enough money",
+        }
+    }
+
+    if len(offeredPropertyIds) > 0 {
+        err = internaldb_tiles.TransferSpecificOwnedProperties(log, ctx, tx, data.SessionId, offeredPropertyIds, toPlayer.Id)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+    }
+
+    if len(requestedPropertyIds) > 0 {
+        err = internaldb_tiles.TransferSpecificOwnedProperties(log, ctx, tx, data.SessionId, requestedPropertyIds, fromPlayer.Id)
+        if err != nil {
+            return internal.UserActionStatus{
+                Status: http.StatusInternalServerError,
+                Msg:    err.Error(),
+            }
+        }
+    }
+
+    err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, fromPlayer.Id, data.SessionId, fromPlayer.Money-e.PendingTrade.OfferedMoney+e.PendingTrade.RequestedMoney)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    err = internaldb_players.UpdatePlayerMoney(log, ctx, tx, toPlayer.Id, data.SessionId, toPlayer.Money-e.PendingTrade.RequestedMoney+e.PendingTrade.OfferedMoney)
+    if err != nil {
+        return internal.UserActionStatus{
+            Status: http.StatusInternalServerError,
+            Msg:    err.Error(),
+        }
+    }
+
+    trade := buildTradeEvent(e.PendingTrade, true)
+    e.PendingTrade = nil
+    e.Broker.Broadcast(log, "TradeAcceptedEvent", trade)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   trade,
+    }
+}
+
+func RejectTrade(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    data := action.Data.(internal.TradeDecisionActionData)
+
+    if e.PendingTrade == nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is no pending trade",
+        }
+    }
+
+    if e.PendingTrade.SessionId != data.SessionId || e.PendingTrade.ToPlayerId != data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "only the targeted player can reject this trade",
+        }
+    }
+
+    trade := buildTradeEvent(e.PendingTrade, false)
+    e.PendingTrade = nil
+    e.Broker.Broadcast(log, "TradeRejectedEvent", trade)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   trade,
+    }
+}
+
+func CancelTrade(
+    ctx context.Context,
+    log zerolog.Logger,
+    e *internal.MonopolyEngine,
+    action *internal.UserActionEvent,
+    tx *pgxpool.Tx,
+) internal.UserActionStatus {
+    data := action.Data.(internal.TradeDecisionActionData)
+
+    if e.PendingTrade == nil {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "there is no pending trade",
+        }
+    }
+
+    if e.PendingTrade.SessionId != data.SessionId || e.PendingTrade.FromPlayerId != data.PlayerId {
+        return internal.UserActionStatus{
+            Status: http.StatusBadRequest,
+            Msg:    "only the proposing player can cancel this trade",
+        }
+    }
+
+    trade := buildTradeEvent(e.PendingTrade, false)
+    e.PendingTrade = nil
+    e.Broker.Broadcast(log, "TradeCancelledEvent", trade)
+    events.EmitGameBoardUpdate(log, ctx, e, tx)
+
+    return internal.UserActionStatus{
+        Status: http.StatusOK,
+        Data:   trade,
     }
 }
 

@@ -109,6 +109,10 @@ func main() {
     routes.POST("/game/bank/set", gamestatehandlers.SetBankPayoutHandler)
     routes.POST("/game/bank/receive", gamestatehandlers.ReceiveBankPayoutHandler)
     routes.POST("/game/exchange", gamestatehandlers.ExecutePlayerExchangeHandler)
+    routes.POST("/game/trade", gamestatehandlers.ProposeTradeHandler)
+    routes.POST("/game/trade/accept", gamestatehandlers.AcceptTradeHandler)
+    routes.POST("/game/trade/reject", gamestatehandlers.RejectTradeHandler)
+    routes.POST("/game/trade/cancel", gamestatehandlers.CancelTradeHandler)
     routes.POST("/game/bankrupt", gamestatehandlers.BankruptHandler)
     routes.POST("/game/rent", gamestatehandlers.PayRentHandler)
 

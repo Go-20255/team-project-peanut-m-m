@@ -36,13 +36,13 @@ type MonopolyEngine struct {
     PendingPropertyPurchase *PendingPropertyPurchase
     PendingBankPayment *PendingBankPayment
     PendingBankPayout  *PendingBankPayout
-    PendingExchange    *PendingPlayerExchange
-    PendingTrade       *PendingTrade
-    TurnHasRolled      map[int]bool
-    ExtraRollAllowed   map[int]bool
-    DoubleRollCounts   map[int]int
-    JoinCode          int `json:"join_code"`
-    TurnNumber        int `json:"turn_number"`
+    PendingExchange      *PendingPlayerExchange
+    PendingTrade         *PendingTrade
+    TurnHasRolled        map[int]bool
+    ExtraRollAllowed     map[int]bool
+    DoubleRollCounts     map[int]int
+    JoinCode             int `json:"join_code"`
+    TurnNumber           int `json:"turn_number"`
 }
 
 type GameStateUpdate struct {
@@ -55,8 +55,8 @@ type GameStateUpdate struct {
     PendingPropertyPurchase *PendingPropertyPurchase `json:"pending_property_purchase"`
     PendingBankPayment *PendingBankPayment `json:"pending_bank_payment"`
     PendingBankPayout *PendingBankPayout `json:"pending_bank_payout"`
-    PendingExchange *PendingPlayerExchange `json:"pending_exchange"`
-    PendingTrade *PendingTrade `json:"pending_trade"`
+    PendingExchange      *PendingPlayerExchange  `json:"pending_exchange"`
+    PendingTrade         *PendingTrade           `json:"pending_trade"`
 }
 
 type GameBoardData struct {
@@ -117,12 +117,12 @@ type PropertyActionData struct {
 }
 
 type TradeActionData struct {
-    PlayerId            int   `json:"player_id"`
-    SessionId           string `json:"session_id"`
-    WithPlayerId        int   `json:"with_player_id"`
-    OfferedMoney        int   `json:"offered_money"`
-    RequestedMoney      int   `json:"requested_money"`
-    OfferedPropertyIds  []int `json:"offered_property_ids"`
+    PlayerId             int   `json:"player_id"`
+    SessionId            string `json:"session_id"`
+    WithPlayerId         int   `json:"with_player_id"`
+    OfferedMoney         int   `json:"offered_money"`
+    RequestedMoney       int   `json:"requested_money"`
+    OfferedPropertyIds   []int `json:"offered_property_ids"`
     RequestedPropertyIds []int `json:"requested_property_ids"`
 }
 

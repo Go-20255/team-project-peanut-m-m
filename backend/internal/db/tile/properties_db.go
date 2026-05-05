@@ -256,6 +256,23 @@ func TransferOwnedProperties(log zerolog.Logger, ctx context.Context, tx *pgxpoo
     return nil
 }
 
+func TransferSpecificOwnedProperties(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string, propertyIds []int, toOwnerId int) error {
+    for _, propertyId := range propertyIds {
+        _, err := tx.Exec(ctx, `
+            UPDATE owned_properties
+            SET owner_id = $1
+            WHERE session_id = $2
+                AND property_id = $3
+        `, toOwnerId, sessionId, propertyId)
+        if err != nil {
+            log.Trace().Err(err).Msg("failed to transfer specific owned property")
+            return err
+        }
+    }
+
+    return nil
+}
+
 func ReleaseOwnedPropertiesToBank(log zerolog.Logger, ctx context.Context, tx *pgxpool.Tx, sessionId string, ownerId int) error {
     _, err := tx.Exec(ctx, `
         DELETE FROM owned_properties
