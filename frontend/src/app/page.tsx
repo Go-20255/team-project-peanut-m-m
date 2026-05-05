@@ -61,10 +61,10 @@ export default function Home() {
   const isLoading = createGame.isPending || joinGame.isPending || createPlayer.isPending
 
   return (
-    <div className="w-full h-screen flex items-center justify-center" style={{ backgroundColor: "#FFFFFF" }}>
-      <div className="w-full max-w-md px-4">
+    <div className="h-screen flex items-center justify-center" style={{ backgroundColor: "#FFFFFF" }}>
+      <div className="max-w-lg px-4">
         <div className="text-center mb-15">
-          <h1 className="text-4xl font-bold" style={{ color: "#F76902" }}>
+          <h1 className="text-4xl font-bold text-rit-orange">
             Monopoly
           </h1>
         </div>
@@ -87,7 +87,7 @@ export default function Home() {
             //</div>
           }
 
-          <div className="border-t-2 pt-4" style={{ borderColor: "#D0D3D4" }}>
+          <div className="w-full border-t-2 pt-4" style={{ borderColor: "#D0D3D4" }}>
             <div>
               <input
                 type="text"
@@ -95,7 +95,7 @@ export default function Home() {
                 value={gameCode}
                 onChange={(e) => setGameCode(e.target.value)}
                 disabled={isLoading}
-                className="w-full px-4 py-2 border-2"
+                className="px-4 py-2 border-2"
                 style={{
                   borderColor: "#D0D3D4",
                   color: "#000000",
@@ -105,12 +105,8 @@ export default function Home() {
             <button
               onClick={handleJoin}
               disabled={isLoading}
-              className="w-full px-4 py-2 font-bold text-white transition-colors mt-2"
-              style={{
-                backgroundColor: isLoading ? "#A2AAAD" : "#000000",
-                color: "#FFFFFF",
-                cursor: isLoading ? "not-allowed" : "pointer",
-              }}
+              className="w-full px-4 py-2 font-bold text-white transition-colors mt-2 bg-black disabled:bg-monopoly-disabled hover:bg-gray-800 cursor-pointer disabled:cursor-not-allowed"
+
             >
               Join Game
             </button>

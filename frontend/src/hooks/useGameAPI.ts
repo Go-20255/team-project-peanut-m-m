@@ -82,13 +82,13 @@ export async function getAvailableTokens(players: Player[], sessionId: string): 
   try {
     const takenTokens = new Set(players.map((p) => p.piece_token))
 
-    const availableTokens = [0, 1].filter((token) => !takenTokens.has(token))
+    const availableTokens = [0, 1, 2, 3].filter((token) => !takenTokens.has(token))
 
     console.log("Available tokens:", availableTokens, "Taken tokens:", Array.from(takenTokens))
     return availableTokens
   } catch (err) {
     console.error("Error fetching available tokens:", err)
-    return [0, 1]
+    return [0, 1, 2, 3]
   }
 }
 
@@ -148,9 +148,44 @@ export function useJailRelease() {
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
       }
       return res.json()
+    },
+  })
+}
+
+export function useDrawCard() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/game/card/draw`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
+      }
+      return res.json()
+    },
+  })
+}
+
+export function useResolveCard() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/game/card/resolve`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
+      }
+
+      const responseText = await res.text()
+      return responseText ? JSON.parse(responseText) : null
     },
   })
 }
@@ -163,7 +198,8 @@ export function usePayBank() {
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
       }
       return res.json()
     },
@@ -178,7 +214,8 @@ export function useSetBankPayout() {
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
       }
       return res.json()
     },
@@ -193,7 +230,8 @@ export function useReceiveBankPayout() {
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
       }
       return res.json()
     },
@@ -208,7 +246,8 @@ export function usePlayerExchange() {
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
       }
       return res.json()
     },
@@ -223,7 +262,8 @@ export function usePlayerBankrupt() {
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
       }
       return res.json()
     },
@@ -238,10 +278,10 @@ export function usePayRent() {
         credentials: "include",
       })
       if (!res.ok) {
-        throw new Error(res.statusText)
+        const errorText = await res.text()
+        throw new Error(errorText || res.statusText)
       }
       return res.json()
     },
   })
 }
-

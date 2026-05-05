@@ -70,6 +70,9 @@ func SetupNewMonopolyEngine(sessionId string) {
         TempStore:       make(map[string]any),
         PendingRolls:    map[int]internal.DiceRoll{},
         PendingRent:     nil,
+        PendingCardDraw: nil,
+        PendingDrawnCard: nil,
+        PendingPropertyPurchase: nil,
         PendingBankPayment: nil,
         PendingBankPayout: nil,
         PendingExchange:    nil,
@@ -239,6 +242,10 @@ func processUserAction(
         action_status = player.RollDice(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "MovePlayerEvent":
         action_status = player.MovePlayer(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "DrawCardEvent":
+        action_status = player.DrawCard(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "ResolveCardEvent":
+        action_status = player.ResolveCard(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "ReleaseFromJailEvent":
         action_status = player.ReleaseFromJail(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "BankPaymentEvent":
@@ -255,6 +262,8 @@ func processUserAction(
         action_status = player.ExecutePlayerExchange(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseProperty":
         action_status = property.PurchaseProperty(ctx, log, e, &action, tx.(*pgxpool.Tx))
+    case "IgnorePropertyPurchase":
+        action_status = property.IgnorePropertyPurchase(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseHouse":
         action_status = property.PurchaseHouse(ctx, log, e, &action, tx.(*pgxpool.Tx))
     case "PurchaseHotel":

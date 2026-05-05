@@ -31,6 +31,9 @@ type MonopolyEngine struct {
     TempStore         map[string]any
     PendingRolls      map[int]DiceRoll
     PendingRent       *PendingRent
+    PendingCardDraw   *PendingCardDraw
+    PendingDrawnCard  *DrawnCard
+    PendingPropertyPurchase *PendingPropertyPurchase
     PendingBankPayment *PendingBankPayment
     PendingBankPayout  *PendingBankPayout
     PendingExchange    *PendingPlayerExchange
@@ -44,6 +47,14 @@ type MonopolyEngine struct {
 type GameStateUpdate struct {
     CurrentTurn     int             `json:"current_turn"`
     Players         []PlayerInfo    `json:"players"`
+    ExtraRollPlayerId *int          `json:"extra_roll_player_id"`
+    PendingCardDraw *PendingCardDraw `json:"pending_card_draw"`
+    DrawnCard       *DrawnCard       `json:"drawn_card"`
+    PendingRent     *PendingRent     `json:"pending_rent"`
+    PendingPropertyPurchase *PendingPropertyPurchase `json:"pending_property_purchase"`
+    PendingBankPayment *PendingBankPayment `json:"pending_bank_payment"`
+    PendingBankPayout *PendingBankPayout `json:"pending_bank_payout"`
+    PendingExchange *PendingPlayerExchange `json:"pending_exchange"`
 }
 
 type GameBoardData struct {
@@ -78,6 +89,11 @@ type BankPayoutActionData struct {
     SessionId   string `json:"session_id"`
     Amount      int    `json:"amount"`
     Reason      string `json:"reason"`
+}
+
+type CardActionData struct {
+    PlayerId    int    `json:"player_id"`
+    SessionId   string `json:"session_id"`
 }
 
 type RentPaymentActionData struct {
@@ -118,6 +134,7 @@ type PlayerMovement struct {
     NewPosition int    `json:"new_position"`
     Total       int    `json:"total"`
     PassedGo    bool   `json:"passed_go"`
+    FromCard    bool   `json:"from_card"`
     TurnNumber  int    `json:"turn_number"`
     RentDue     bool   `json:"rent_due"`
     RentAmount  int    `json:"rent_amount"`
@@ -126,16 +143,50 @@ type PlayerMovement struct {
     RollAgain   bool   `json:"roll_again"`
 }
 
+type PropertyPurchaseAvailable struct {
+    PlayerId     int    `json:"player_id"`
+    SessionId    string `json:"session_id"`
+    PropertyId   int    `json:"property_id"`
+    PurchaseCost int    `json:"purchase_cost"`
+    PlayerMoney  int    `json:"player_money"`
+    CanAfford    bool   `json:"can_afford"`
+}
+
+type PendingPropertyPurchase struct {
+    PlayerId     int    `json:"player_id"`
+    SessionId    string `json:"session_id"`
+    PropertyId   int    `json:"property_id"`
+    PurchaseCost int    `json:"purchase_cost"`
+    PlayerMoney  int    `json:"player_money"`
+    CanAfford    bool   `json:"can_afford"`
+}
+
+type PendingCardDraw struct {
+    PlayerId    int    `json:"player_id"`
+    SessionId   string `json:"session_id"`
+    CardType    string `json:"card_type"`
+    TileName    string `json:"tile_name"`
+    Position    int    `json:"position"`
+    DiceTotal   int    `json:"dice_total"`
+}
+
+type DrawnCard struct {
+    PlayerId     int    `json:"player_id"`
+    SessionId    string `json:"session_id"`
+    DiceTotal    int    `json:"dice_total"`
+    EventCard
+}
+
 type PendingRent struct {
-    FromPlayerId int
-    ToPlayerId   int
-    SessionId    string
-    PropertyId   int
-    Position     int
-    Amount       int
-    DiceTotal    int
-    IsUtilityCard bool
-    IsRailroadCard bool
+    FromPlayerId  int    `json:"from_player_id"`
+    ToPlayerId    int    `json:"to_player_id"`
+    SessionId     string `json:"session_id"`
+    PropertyId    int    `json:"property_id"`
+    Position      int    `json:"position"`
+    Amount        int    `json:"amount"`
+    DiceTotal     int    `json:"dice_total"`
+    IsUtilityCard bool   `json:"is_utility_card"`
+    IsRailroadCard bool  `json:"is_railroad_card"`
 }
 
 type PendingBankPayment struct {

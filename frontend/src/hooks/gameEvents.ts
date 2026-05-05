@@ -1,6 +1,16 @@
 "use client"
 
-import { GameState, GameStateUpdate } from "@/types"
+import {
+  DrawnCard,
+  GameState,
+  GameStateUpdate,
+  PendingCardDraw,
+  PendingBankPayment,
+  PendingBankPayout,
+  PendingPlayerExchange,
+  PendingRent,
+  PropertyPurchaseAvailable,
+} from "@/types"
 import { Dispatch, SetStateAction } from "react"
 
 const parse = <T>(raw: string): T | null => {
@@ -18,7 +28,14 @@ export function HandleInitialGameBoardUpdateEvent(
   e: any,
 ) {
   const data = parse<GameState>(e.data)
-  if (data) setGameState(data)
+  if (data) {
+    setGameState({
+      ...data,
+      extra_roll_player_id: data.extra_roll_player_id ?? null,
+      current_roll: null,
+      last_move: null,
+    })
+  }
 }
 
 export function HandleMovePlayerEvent(
@@ -30,6 +47,15 @@ export function HandleMovePlayerEvent(
     player_id: number
     new_position: number
     turn_number?: number
+    old_position: number
+    total: number
+    passed_go: boolean
+    from_card: boolean
+    rent_due: boolean
+    rent_amount: number
+    rent_to_id: number
+    property_id: number
+    roll_again: boolean
   }>(e.data)
   if (!data) return
 
@@ -38,6 +64,30 @@ export function HandleMovePlayerEvent(
     return {
       ...prev,
       current_turn: data.turn_number ?? prev.current_turn,
+      extra_roll_player_id: prev.extra_roll_player_id,
+      current_roll: null,
+      pending_card_draw: prev.pending_card_draw,
+      drawn_card: prev.drawn_card,
+      pending_rent: null,
+      pending_property_purchase: null,
+      pending_bank_payment: prev.pending_bank_payment,
+      pending_bank_payout: prev.pending_bank_payout,
+      pending_exchange: prev.pending_exchange,
+      last_move: {
+        player_id: data.player_id,
+        session_id: prev.players.find((pi) => pi.player.id === data.player_id)?.player.session_id ?? "",
+        old_position: data.old_position,
+        new_position: data.new_position,
+        total: data.total,
+        passed_go: data.passed_go,
+        from_card: data.from_card,
+        turn_number: data.turn_number ?? prev.current_turn,
+        rent_due: data.rent_due,
+        rent_amount: data.rent_amount,
+        rent_to_id: data.rent_to_id,
+        property_id: data.property_id,
+        roll_again: data.roll_again,
+      },
       players: prev.players.map((pi) =>
         pi.player.id === data.player_id
           ? {
@@ -59,9 +109,20 @@ export function HandleGameStateUpdateEvent(
   if (!data) return
   setGameState((prev) => {
     if (!prev) return prev
+    const turnChanged = data.current_turn !== prev.current_turn
     return {
       ...prev,
       current_turn: data.current_turn,
+      extra_roll_player_id: data.extra_roll_player_id ?? null,
+      current_roll: turnChanged ? null : prev.current_roll,
+      last_move: turnChanged ? null : prev.last_move,
+      pending_card_draw: data.pending_card_draw,
+      drawn_card: data.drawn_card,
+      pending_rent: data.pending_rent,
+      pending_property_purchase: data.pending_property_purchase,
+      pending_bank_payment: data.pending_bank_payment,
+      pending_bank_payout: data.pending_bank_payout,
+      pending_exchange: data.pending_exchange,
       players: data.players,
     }
   })
@@ -71,55 +132,231 @@ export function HandleBankPaymentEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_bank_payment: null,
+      pending_rent: null,
+    }
+  })
+}
 
 export function HandleBankPayoutEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_bank_payout: null,
+    }
+  })
+}
 
 export function HandleBankPaymentDueEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  const data = parse<PendingBankPayment>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_bank_payment: data,
+    }
+  })
+}
 
 export function HandleBankPayoutDueEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  const data = parse<PendingBankPayout>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_bank_payout: data,
+    }
+  })
+}
 
 export function HandleGameReadyEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      current_turn: 0,
+      extra_roll_player_id: null,
+      current_roll: null,
+      last_move: null,
+      pending_card_draw: null,
+      drawn_card: null,
+      pending_rent: null,
+      pending_property_purchase: null,
+      pending_bank_payment: null,
+      pending_bank_payout: null,
+      pending_exchange: null,
+    }
+  })
+}
 
 export function HandleRollDiceEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  const data = parse<{
+    player_id: number
+    session_id: string
+    die_one: number
+    die_two: number
+    total: number
+    is_double: boolean
+    roll_again: boolean
+    released_from_jail: boolean
+    sent_to_jail: boolean
+    jailed: number
+  }>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      current_roll: data,
+    }
+  })
+}
 
 export function HandleRentDueEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  const data = parse<PendingRent>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_rent: data,
+    }
+  })
+}
+
+export function HandlePropertyPurchaseAvailableEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  const data = parse<PropertyPurchaseAvailable>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_property_purchase: data,
+    }
+  })
+}
+
+export function HandleDrawCardEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  const data = parse<DrawnCard>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_card_draw: null,
+      drawn_card: data,
+    }
+  })
+}
+
+export function HandleCardDrawAvailableEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  const data = parse<PendingCardDraw>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_card_draw: data,
+      drawn_card: null,
+    }
+  })
+}
+
+export function HandleCardResolvedEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_card_draw: null,
+      drawn_card: null,
+    }
+  })
+}
 
 export function HandlePayToLeaveJailEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_bank_payment: null,
+      current_roll: null,
+    }
+  })
+}
 
 export function HandleUseGetOutOfJailCardEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_bank_payment: null,
+      current_roll: null,
+    }
+  })
+}
 
 export function HandleBankruptcyEvent(
   gameState: GameState | null,
@@ -127,11 +364,50 @@ export function HandleBankruptcyEvent(
   e: any,
 ) {}
 
+export function HandlePlayerExchangeDueEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  const data = parse<PendingPlayerExchange>(e.data)
+  if (!data) return
+
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_exchange: data,
+    }
+  })
+}
+
+export function HandlePlayerExchangeEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_exchange: null,
+    }
+  })
+}
+
 export function HandleRentPaidEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_rent: null,
+    }
+  })
+}
 
 export function HandleHousePurchaseEvent(
   gameState: GameState | null,
@@ -161,7 +437,29 @@ export function HandlePropertyPurchasedEvent(
   gameState: GameState | null,
   setGameState: Dispatch<SetStateAction<GameState | null>>,
   e: any,
-) {}
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_property_purchase: null,
+    }
+  })
+}
+
+export function HandlePropertyPurchaseIgnoredEvent(
+  gameState: GameState | null,
+  setGameState: Dispatch<SetStateAction<GameState | null>>,
+  e: any,
+) {
+  setGameState((prev) => {
+    if (!prev) return prev
+    return {
+      ...prev,
+      pending_property_purchase: null,
+    }
+  })
+}
 
 export function HandlePropertyMortgagedEvent(
   gameState: GameState | null,
